@@ -1,0 +1,83 @@
+=pod
+
+=head1 Install and Usage Instructions for C<vss2svn.pl>
+
+=head2 INSTALLATION
+
+=head3 vss2svn.pl Script
+
+There is no installation routine for the script itself; simply copy it to any folder such as C<C:\vss2svn>.
+
+=head3 Perl Interpreter
+
+In order to run this script, you must have a fairly recent version of Perl. Only Windows platforms are supported, since that is where the ss.exe executable is located. Actually, the SourceSafe client has indeed been ported to Unix and MacOS, and this script would probably run on those platforms with little modification, but such use is unsupported.
+
+The latest build of ActiveState Perl 5.8 is highly recommended. It is available for free (both as a Windows Installer package and a .tar.gz archive) at:
+
+L<http://www.activestate.com/Products/Download/Download.plex?id=ActivePerl>
+
+If using the Windows Installer version, be sure to specify that you want the location of the Perl executable added to your PATH.
+
+=head3 Required Perl Modules
+
+This script depends on the following Perl modules. All but the first two are included as part of the base ActiveState Perl install.
+
+=over 4
+
+=item * DBI
+
+=item * DBD::SQLite
+
+=item * Getopt::Long
+
+=item * Cwd
+
+=item * File::Path
+
+=back
+
+=head3 Installing DBI and DBD::SQLite
+
+The easiest way to install the C<DBI> and C<DBD::SQLite> modules is using ActiveState's C<ppm> (programmer's package manager) utility. ActivePerl must already be installed before running C<ppm>. From the Command Prompt, type C<ppm>, or, if using ActivePerl 5.6, C<ppm3>. (Older versions of ActivePerl probably use just C<ppm>, but the syntax may be a bit different).
+
+You should be able to type just C<install DBI> and C<install DBD::SQLite> from the C<ppm> prompt.
+
+   ppm> install DBI
+   ====================
+   Install 'DBI' version 1.42 in ActivePerl 5.8.3.809.
+   ====================
+   Downloaded 508164 bytes.
+   Extracting 69/69: blib/arch/auto/DBI/Driver_xst.h
+   Files found in blib\arch: installing files in blib\lib into architecture
+   dependent library tree
+   Successfully installed DBI version 1.42 in ActivePerl 5.8.3.809.
+
+   ppm> install DBD::SQLite
+   ====================
+   Install 'DBD-SQLite' version 0.31 in ActivePerl 5.8.3.809.
+   ====================
+   Downloaded 125388 bytes.
+   Extracting 10/10: blib/arch/auto/DBD/SQLite/SQLite.lib
+   Files found in blib\arch: installing files in blib\lib into architecture
+   dependent library tree
+   Successfully installed DBD-SQLite version 0.31 in ActivePerl 5.8.3.809.
+
+   ppm> quit
+
+=head3 Setting up your PATH
+
+You should now be able to run C<vss2svn.pl>. The Visual SourceSafe C<ss.exe> command, the Subversion C<svn.exe> command, and C<perl> should all be in your PATH. To check for this, issue the following three commands from the Command Prompt in the directory where C<vss2svn.pl> is located. To open a Windows Command Prompt, choose C<Run> from the Start Menu (or press Windows Key + R) and type C<cmd>.
+
+  C:\vss2svn> ss help
+  C:\vss2svn> svn --version
+  C:\vss2svn> perl -v
+
+All three should return with some status information about the version you have installed. If you get an error message instead, modify your PATH environment variable (from Control Panel, choose System, Advanced, Environment Variables or something similar; it doesn't matter whether you use the User or System PATH variable, as they will be merged). While you are there, ensure the C<SSDIR> environment variable points to the root of your VSS database (wherever the F<srcsafe.ini> file is located). After changing these settings, you must close and re-open your Command Prompt.
+
+=head1 RUNNING THE SCRIPT
+
+Once you have all of the above set up, type C<perl vss2svn.pl --help> at the Command Prompt. You should get usage information regarding the script's command-line arguments. Refer to this information to start your migration. Be sure to read all directions first!
+
+If you are using ActivePerl 5.6, you may receive a C<DBD::SQLite> fatal error when the script is first run. In that case, try using our pre-built C<DBD::SQLite> binary files instead, available at:
+
+L<http://vss2svn.tigris.org/servlets/ProjectDocumentList?folderID=2788>
