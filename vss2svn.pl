@@ -1,71 +1,18 @@
 #!perl
 
-# sorry to embed HTML, I'm too lazy to keep two versions of this!
-our $USAGE = <<'EOUSAGE';
-    vss2svn.pl, Copyright (C) 2004 by Toby Johnson.
+# vss2svn.pl, Copyright (C) 2004 by Toby Johnson.
+#
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License
+# as published by the Free Software Foundation; either version 2
+# of the License, or (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+# http://www.gnu.org/copyleft/gpl.html
 
-    This program is free software; you can redistribute it and/or
-    modify it under the terms of the GNU General Public License
-    as published by the Free Software Foundation; either version 2
-    of the License, or (at your option) any later version.
-    
-    This program is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-    http://www.gnu.org/copyleft/gpl.html
-
-    <b>usage: vss2svn.pl [options] --vssproject $/vss/project --svnrepo http://svn/repository/url</b>
-
-      <b>--vssproject</b> : full path to VSS project you want to migrate
-         <b>--svnrepo</b> : URL to target Subversion repository
-
-    OPTIONAL PARAMETERS:
-     <b>--comment=...</b> : optional text to add to end of every migrated comment
-        <b>--setdates</b> : Sets the "svn:date" property off all commits to reflect the
-                     original VSS commit date, so that the original commit dates
-                     (and not today's date) show up in your new SVN logs. This is
-                     not the default, since setting svn:date could lead to
-                     problems if not done correctly. Using this also requires the
-                     "pre-revprop-change" Hook Script to be set; see
-                     <a href="http://svnbook.red-bean.com/svnbook/ch05s02.html#svn-ch-5-sect-2.1">http://svnbook.red-bean.com/svnbook/ch05s02.html#svn-ch-5-sect-2.1</a>
-  <b>--login=user:pwd</b> : Set VSS username and password, separated by a colon.
-                     <b>WARNING --</b> if the username/password combo you provide is
-                     incorrect, this program will hang as SS prompts you for
-                     a username! Even after I set the <b>ss.exe -I-</b> option, which
-                     MICROS~1 claims means "to ensure that VSS never asks for user
-                     input"!
-        <b>--noprompt</b> : Don't prompt user to create usernames after the first stage
-                     of the migration (see last paragraph below)
-
-    The URL you provide for "svnrepo" will become the base URL for all migrated
-    files, so for the usage example above, <b>$/vss/project/foo.c</b> would become
-    <b>http://svn/repository/url/foo.c</b>. Plan your migration accordingly so that you
-    end up with the structure that you want. The URL also cannot contain any
-    existing files; but as long as the "parent" of the URL is a Subversion
-    repository, any non-existent directories in the URL will be created.
-
-    The <b>$SSDIR</b> environment variable must be set to the directory where your
-    system srcsafe.ini file is located; see the VSS online help for more info.
-    The "svn" and "ss" command-line executables must also be in your PATH.
-
-    This script is released into the public domain. In case you're wondering
-    about why the Vss2Svn packages have unused methods, it's because they came
-    from in-house modules which had more functionality than just this conversion.
-
-    I recommend converting only a small branch at first to see how things go.
-    This process takes a very long time for large databases. I have made liberal
-
-    Partway through the migration, you will be presented with a list of all
-    usernames which performed any checkin operations in the given VSS project.
-    If you want these user names to be preserved, you must add this list
-    (including a user "vss_migration" for creating directories and such) to your
-    Apache AuthUserFile with *blank passwords*. Apache must also *require* that
-    usernames be passed, otherwise SVN will use anonymous access and you lose
-    the usernames. So you need an "AuthType Basic" line or the like, as well as
-    an AuthUserFile. See <a href="http://svnbook.red-bean.com/svnbook/ch06s04.html#svn-ch-6-sect-4.3">http://svnbook.red-bean.com/svnbook/ch06s04.html#svn-ch-6-sect-4.3</a>
-    for more info.
-EOUSAGE
 
 use warnings;
 use strict;
@@ -73,44 +20,33 @@ use strict;
 use Getopt::Long;
 use Cwd;
 use File::Path;
+use Text::Wrap;
+use Pod::Usage;
 
 use DBD::SQLite;
 use DBI;
+
+use Win32::TieRegistry (Delimiter => '/');
 
 our(%gCfg, $VSS, $SVN, $TREE, %USERS,);
 
 # http://www.perl.com/tchrist/defop/defconfaq.html#What_is_the_proposed_operat
 sub first(&@);
+sub PrintMsg; # defined later
 
 &Vss2Svn::Subversion::Initialize;
 &Vss2Svn::VSS::Initialize;
 
-sub PrintMsg; # defined later
-
-warn "\n\n**** BUILDING INITIAL STRUCTURES; PLEASE WAIT... ****\n\n";
-
+&Regionalize;
 &Initialize;
+&GiveStartupMessage unless $gCfg{noprompt};
+&SetupLogfile;
+
 &CreateDatabase;
-
-# redirect STDERR to logfile
-open THE_REAL_STDERR, ">&STDERR";
-$gCfg{logfile} = "$gCfg{workbase}/logfile.txt";
-open STDERR, ">$gCfg{logfile}"
-    or die "Couldn't open logfile $gCfg{workbase}/logfile.txt";
-
-# the svn client program outputs to STDOUT; redirect to STDERR instead
-open STDOUT, ">&STDERR";
-
-select THE_REAL_STDERR;
-$| = 1;
-select STDOUT;
-
-# since we redirected STDERR, make sure user sees die() messages!
-$SIG{__DIE__} = \&MyDie;
 
 &GetProjectTree;
 &BuildHistory;
-&GiveUserMessage unless $gCfg{noprompt};
+&GiveHttpdAuthMessage unless $gCfg{noprompt};
 
 $gCfg{dbh}->commit;
 
@@ -124,7 +60,6 @@ close STDERR;
 open STDERR, ">&THE_REAL_STDERR"; # yes, we're about to exit, but leaving
                                   # STDERR dangling always makes me nervous!
                                   
-close THE_REAL_STDERR;
 exit(0);
 
 
@@ -132,15 +67,75 @@ exit(0);
 #  GetProjectTree
 ###############################################################################
 sub GetProjectTree {
+    PrintMsg "\n\n**** BUILDING INITIAL STRUCTURES; PLEASE WAIT... ****\n\n";
+
     $TREE = $VSS->project_tree($gCfg{vssproject},1,1)
         or die "Couldn't create project tree for $gCfg{vssproject}";
+}
+
+###############################################################################
+#  GiveStartupMessage
+###############################################################################
+sub GiveStartupMessage {
+    
+    my $setdates;
+    my $datemsg = '';
+    
+    if ($gCfg{setdates}) {
+        $setdates = 'yes';
+        $datemsg = <<"EOMSG";
+
+
+WARNING: Commit dates can be migrated to a NEW SUBVERSION REPOSITORY only.
+You WILL CORRUPT your data if you migrate dates to an existing repository
+which is at any other Revision than 0!
+EOMSG
+    } else {
+        $setdates = 'no';
+    }
+    
+    print <<"EOMSG";
+
+         ss.exe Found: $gCfg{ssbin}
+        svn.exe Found: $gCfg{svnbin}
+          VSS Project: $gCfg{vssproject}
+       Subversion URL: $gCfg{svnrepo}
+ Set SVN Commit Dates: $setdates$datemsg
+
+EOMSG
+
+    print "Continue with these settings? [Y/n]";
+    my $reply = <STDIN>;
+    exit(1) if ($reply =~ m/\S/ && $reply !~ m/^y/i);
+}
+
+###############################################################################
+#  SetupLogfile
+###############################################################################
+sub SetupLogfile {
+    # redirect STDERR to logfile
+    open THE_REAL_STDERR, ">&STDERR";
+    $gCfg{logfile} = "$gCfg{workbase}/logfile.txt";
+    open STDERR, ">$gCfg{logfile}"
+        or die "Couldn't open logfile $gCfg{workbase}/logfile.txt";
+    
+    # the svn client program outputs to STDOUT; redirect to STDERR instead
+    open STDOUT, ">&STDERR";
+    
+    select THE_REAL_STDERR;
+    $| = 1;
+    select STDOUT;
+    
+    # since we redirected STDERR, make sure user sees die() messages!
+    $SIG{__DIE__} = \&MyDie;    
 }
 
 ###############################################################################
 #  BuildHistory
 ###############################################################################
 sub BuildHistory {
-    chdir "$gCfg{importdir}" or die;
+    chdir "$gCfg{importdir}"
+        or die "Couldn't create working directory $gCfg{importdir}";
     
     PrintMsg "\n\n**** BUILDING VSS HISTORY ****\n\n";
     
@@ -175,7 +170,8 @@ sub WalkTreeBranch {
 
     foreach my $subbranch (@branches) {
         mkdir $subbranch->{project};
-        chdir $subbranch->{project} or die;
+        chdir $subbranch->{project}
+            or die "Could not change to working directory $subbranch->{project}";
         
         ($newproj = "$project/$subbranch->{project}") =~ s://:/:;
 
@@ -195,7 +191,8 @@ sub AddFileHistory {
 
     (my $filepath = "$project/$file") =~ s://:/:;
     my $filehist = $VSS->file_history("$filepath");
-    die if !defined $filehist;
+    die "Internal error while reading VSS file history for $filepath"
+        if !defined $filehist;
     
     PrintMsg "   $filepath\n";
 
@@ -253,14 +250,15 @@ EOSQL
 
     warn $cmd;
 
-    $gCfg{dbh}->do($cmd) or die;
+    $gCfg{dbh}->do($cmd)
+        or die "Could not execute DBD::SQLite command";
 
 }  #End InsertDatabaseRevision
 
 ###############################################################################
-#  GiveUserMessage
+#  GiveHttpdAuthMessage
 ###############################################################################
-sub GiveUserMessage {
+sub GiveHttpdAuthMessage {
    print THE_REAL_STDERR <<"EOTXT";
 
 ATTENTION REQUIRED:
@@ -292,11 +290,19 @@ EOTXT
 sub SetupSvnProject {
     PrintMsg "\n\n**** SETTING UP SUBVERSION DIRECTORIES ****\n\n";
 
-    chdir $gCfg{importdir} or die;
-    $SVN->do('import', '.', '--message "Initial Import"', 0) or die;
+    chdir $gCfg{importdir}
+        or die "Could not change to directory $gCfg{importdir}";
+
+    PrintMsg "   Importing directory structure from Subversion...\n";
+    $SVN->do('import', '.', '--message "Initial Import"', 0)
+        or die "Could not perform SVN import of $gCfg{importdir}";
     
-    chdir $gCfg{workdir} or die;
-    $SVN->do('checkout', '', '"."') or die;
+    chdir $gCfg{workdir}
+        or die "Could not change to directory $gCfg{workdir}";
+    
+    PrintMsg "   Checking out working copy...\n";
+    $SVN->do('checkout', '', '"."')
+        or die "Could not perform SVN checkout of $gCfg{importdir}";
 }
 
 ###############################################################################
@@ -321,8 +327,10 @@ sub ImportSvnHistory {
     
     # date, time, and file fields are formatted to enable sorting numerically
     my $cmd = "SELECT * FROM history ORDER BY date, time, file";
-    my $sth = $gCfg{dbh}->prepare($cmd) or die;
-    $sth->execute or die;
+    my $sth = $gCfg{dbh}->prepare($cmd)
+        or die "Could not execute DBD::SQLite command";
+    $sth->execute
+        or die "Could not execute DBD::SQLite command";
 
 ROW:
     while ($row = $sth->fetchrow_hashref) {
@@ -409,10 +417,12 @@ sub GetVssRevision {
     
     my $vsspath = $row->{file};
     
-    $row->{file} =~ m/^(.*\/)(.*)/ or die;
+    $row->{file} =~ m/^(.*\/)(.*)/
+        or die "Mangled VSS file path information", join("\n", %$row);
     my($path, $file) = ($1, $2);
     
-    $path =~ s/$gCfg{vssprojmatch}// or die;
+    $path =~ s/$gCfg{vssprojmatch}//
+        or die "Mangled VSS file path information", join("\n", %$row);
     $path =~ s/\/$//; # remove trailing slash
     
     (my $dospath = "$gCfg{workdir}/$path") =~ s/\//\\/g; # use backslashes
@@ -420,12 +430,15 @@ sub GetVssRevision {
     $dospath =~ s/\\\\/\\/g; # replace double backslashes with single
     
     my $cmd = "GET -GTM -W -GL\"$dospath\" -V$row->{version} \"$vsspath\"";
-    $VSS->ss($cmd) or die;
+    $VSS->ss($cmd)
+        or die "Could not issue ss.exe command";
     
-    chdir $dospath or die;
+    chdir $dospath
+        or die "Could not switch to directory $dospath";
         
     if (!$upd) {
-        $SVN->svn("add \"$file\"") or die;
+        $SVN->svn("add \"$file\"")
+        or die "Could not perform SVN add of $file";
     }
 
     my $commitinfo =
@@ -444,7 +457,8 @@ sub GetVssRevision {
 sub CommitSvn {
     my($multiple, $comment, $commitinfo) = @_;
     
-    open COMMENTFILE, ">$gCfg{tmpfiledir}/comment.txt" or die;
+    open COMMENTFILE, ">$gCfg{tmpfiledir}/comment.txt"
+        or die "Could not open $gCfg{tmpfiledir}/comment.txt for writing";
     print COMMENTFILE $comment;
     close COMMENTFILE;
     
@@ -462,10 +476,13 @@ sub CommitSingleItem {
     my($commitinfo) = @_;
 
     warn "SINGLE COMMIT\n";
-    chdir $commitinfo->{dospath} or die;
+    chdir $commitinfo->{dospath}
+        or die "Could not change to directory $commitinfo->{dospath}";
+
     $SVN->{user} = $commitinfo->{user};
     $SVN->svn("commit --file \"$gCfg{tmpfiledir}/comment.txt\" "
-              . "--non-recursive $commitinfo->{file}") or die;
+              . "--non-recursive \"$commitinfo->{file}\"")
+        or die "Could not perform SVN commit on \"$commitinfo->{file}\"";
 }
 
 ###############################################################################
@@ -475,9 +492,12 @@ sub CommitMultipleItems {
     my($commitinfo) = @_;
 
     warn "MULTIPLE COMMIT\n";
-    chdir $gCfg{workdir} or die;
+    chdir $gCfg{workdir}
+        or die "Could not change to directory $gCfg{workdir}";
+
     $SVN->{user} = $commitinfo->{user};
-    $SVN->svn("commit --file \"$gCfg{tmpfiledir}/comment.txt\" \".\"") or die;
+    $SVN->svn("commit --file \"$gCfg{tmpfiledir}/comment.txt\" \".\"")
+        or die "Could not perform SVN commit";
 }
 
 ###############################################################################
@@ -490,7 +510,8 @@ sub SetSvnDates {
     my $svn_date = "$info->{date}T$info->{time}:${grain}Z";
 
     my $cmd = "propset --revprop -rHEAD svn:date $svn_date $gCfg{svnrepo}";
-    $SVN->svn($cmd) or die;
+    $SVN->svn($cmd)
+        or die "Could not perform SVN propset of $svn_date on $gCfg{svnrepo}";
 
 }  #End SetSvnDates
 
@@ -530,7 +551,7 @@ sub PrintMsg {
 }  #End PrintMsg
 
 ###############################################################################
-#  Die
+#  MyDie
 ###############################################################################
 sub MyDie {
     # any die() is trapped by $SIG{__DIE__} to ensure user sees fatal errors
@@ -543,31 +564,44 @@ sub MyDie {
 A fatal error has occured. See $logfile for more information.
 EOERR
     exit(255);
-}  #End Die
+}  #End MyDie
 
 ###############################################################################
 #  Initialize
 ###############################################################################
 sub Initialize {
-    GetOptions(\%gCfg,'vssproject=s','svnrepo=s','comment=s','login=s',
-               'setdates','noprompt','help');
+    GetOptions(\%gCfg,'vssproject=s','svnrepo=s','comment=s',
+               'vsslogin=s','setdates','noprompt','interactive','timebias=i',
+               'help');
 
     &GiveHelp(undef, 1) if defined $gCfg{help};
     
     defined $gCfg{vssproject} or GiveHelp("must specify --vssproject\n");
     defined $gCfg{svnrepo} or GiveHelp("must specify --svnrepo\n");
     defined $ENV{SSDIR} or GiveHelp("\$SSDIR not defined");
-    
+
     $gCfg{vssproject} =~ s:/$:: unless $gCfg{vssproject} eq '$/';
     $gCfg{vssprojmatch} = quotemeta( $gCfg{vssproject} );
     
-    $VSS = Vss2Svn::VSS->new($ENV{SSDIR}, $gCfg{vssproject});
-    $VSS->{interactive} = 'Y';
-    $VSS->{_debug} = 1;
+    $gCfg{ssbin} = &CheckForExe
+        ("ss.exe", "the Microsoft Visual SourceSafe client");
+        
+    $gCfg{svnbin} = &CheckForExe("svn.exe", "the Subversion client");
     
-    if (defined $gCfg{login}) {
-        @{$VSS}{'user', 'passwd'} = split ':', $gCfg{login};
+    my $vss_args = {
+                    interactive => 'Y',
+                    timebias    => $gCfg{timebias},
+                   };
+    
+    if (defined $gCfg{vsslogin}) {
+        @{ $vss_args }{'user', 'passwd'} = split(':', $gCfg{vsslogin});
+        warn "\nATTENTION: about to issue VSS login command; if program\n"
+            . "hangs here, you have specified an invalid VSS username\n"
+            . "or password. (Press CTRL+Break to kill hung script)\n\n";
     }
+    
+    $VSS = Vss2Svn::VSS->new($ENV{SSDIR}, $gCfg{vssproject}, $vss_args);
+    $VSS->{_debug} = 1;
     
     $SVN = Vss2Svn::Subversion->new( $gCfg{svnrepo} );
     $SVN->{interactive} = 0;
@@ -579,7 +613,7 @@ sub Initialize {
     
     $gCfg{globalCount} = 1;
     $gCfg{commitNumber} = 1;
-
+    
     $gCfg{workbase} = cwd() . "/_vss2svn";
     &RecursiveDelete( $gCfg{workbase} );
     mkdir $gCfg{workbase} or die "Couldn't create $gCfg{workbase}";
@@ -597,6 +631,43 @@ sub Initialize {
     mkdir $gCfg{dbdir} or die "Couldn't create $gCfg{dbdir}";
 
     $VSS->{use_tempfiles} = "$gCfg{tmpfiledir}";    
+
+}
+
+###############################################################################
+#  Regionalize
+###############################################################################
+sub Regionalize {
+    my $bias = $Registry->{'HKEY_LOCAL_MACHINE/SYSTEM/CurrentControlSet/'
+                           .'Control/TimeZoneInformation/ActiveTimeBias'} || 0;
+    {
+        use integer; # forces Perl to interpret two's-complement correctly
+        $gCfg{timebias} = hex($bias) + 0;
+    }
+    
+}
+
+###############################################################################
+#  CheckForExe
+###############################################################################
+sub CheckForExe {
+    my($exe, $desc) = @_;
+    
+    foreach my $dir (split ';', ".;$ENV{PATH}") {
+        if (-f "$dir\\$exe") {
+            return "$dir\\$exe";
+        }
+    }
+    
+    my $msg = fill('', '', <<"EOMSG");
+Could not find executable '$exe' in your \%PATH\%. Ensure $desc is properly
+installed on this computer, and manually add the directory in which '$exe' is
+located to your path if necessary.
+
+\%PATH\% currently contains:
+EOMSG
+
+    die "$msg\n$ENV{PATH}\n";
 }
 
 ###############################################################################
@@ -638,24 +709,16 @@ sub GiveHelp {
     my($msg, $full) = @_;
     $msg .= "\n" if defined $msg;
     
-    warn <<"EOHELP";
-$msg
- usage: vss2svn.pl [options] --vssproject \$/vss/project --svnrepo http://svn/repository/url
-
-   --vssproject : full path to VSS project you want to migrate
-      --svnrepo : URL to target Subversion repository
-         --help : see full help info
-
-   USE --help TO VIEW ALL OPTIONAL PARAMETERS
-EOHELP
-
-    exit(0) unless $full;
+    my $verbose = $full? 2 : 1;
     
-    # de-html; kinda kludgy but gets the job done
-    $USAGE =~ s:</?(a( href=".*?")?|b)>::g;
-    warn $USAGE;
-    exit(0);
-    
+    pod2usage(
+              {
+                -message => $msg,
+                -verbose => $verbose,
+                -exitval => $verbose,  # if user requested --help, go to STDOUT
+              }
+             );
+
 }  #End GiveHelp
 
 
@@ -934,6 +997,8 @@ use warnings;
 use base 'Vss2Svn';
 use File::Path;
 use File::Copy;
+use Win32::TieRegistry (Delimiter => '/');
+use Time::ParseDate;
 
 use Cwd;
 use Cwd 'chdir';
@@ -949,7 +1014,7 @@ our(%gErrMatch, %gHistLineMatch, @gDevPatterns);
 #   new
 ###############################################################################
 sub new {
-    my($class, $db, $project) = @_;
+    my($class, $db, $project, $args) = @_;
 
     if (!defined $db) {
         croak "Must specify VSS database path";
@@ -963,6 +1028,7 @@ sub new {
     }
 
     $project = first {defined} $project, '$/';
+    $args = first {defined} $args, {};
 
     my $self = bless
         {
@@ -979,9 +1045,11 @@ sub new {
             get_eol_type         => 0,
             implicit_projects    => undef,
             use_tempfiles        => 0,
+            timebias             => 0,
             _tempdir             => undef,
             _debug               => 0,
             _whoami              => undef,
+            %$args,
         }, $class;
 
     # test to ensure 'ss' command is available
@@ -1236,19 +1304,39 @@ HISTLINE:
                 $last = 2;
                 $comment = '';
 
-# TIMEFORMAT: modify the code below to pull dates and times out according to your locale
-                ($rev->{user}, $month, $day, $year, $hour, $min, $ampm)
-                    = ($1, $2, $3, $4, $5, $6, $7);
+                if ($gCfg{dateFormat} == 1) {
+                    # DD-MM-YY
+                    ($rev->{user}, $day, $month, $year, $hour, $min, $ampm)
+                        = ($1, $2, $3, $4, $5, $6, $7);
+                } elsif ($gCfg{dateFormat} == 2) {
+                    # YY-MM-DD
+                    ($rev->{user}, $year, $month, $day, $hour, $min, $ampm)
+                        = ($1, $2, $3, $4, $5, $6, $7);
+                } else {
+                    # MM-DD-YY
+                    ($rev->{user}, $month, $day, $year, $hour, $min, $ampm)
+                        = ($1, $2, $3, $4, $5, $6, $7);
+                }
 
-                $month = sprintf "%2.2i", $month;
-                $day = sprintf "%2.2i", $day;
                 $year = ($year > 79)? "19$year" : "20$year";
-
                 $hour += 12 if $ampm =~ /p/i;
-                $hour = sprintf "%2.2i", $hour;
+                
+                if ($self->{timebias} != 0) {
+                    my $basis = parsedate("$year/$month/$day $hour:$min");
+                    (my $bias = $gCfg{timebias}) =~ s/^(\d+)/+ $1/;
+                    my $epoch_secs = parsedate("$bias minutes",
+                                               NOW => $basis);
 
-                $rev->{date} = "$year-$month-$day";
-                $rev->{time} = "$hour:$min";
+                    (undef,$min,$hour,$day,$month,$year)
+                        = localtime($epoch_secs);
+                    
+                    $month += 1;
+                    $year += 1900; #no, not a Y2K bug; $year = 100 in 2000
+                }
+
+                $rev->{date} = sprintf("%4.4i-%2.2i-%2.2i",
+                                       $year, $month, $day);
+                $rev->{time} = sprintf("%2.2i:%2.2i", $hour, $min);
             } elsif ($line =~ m/$gHistLineMatch{label}/) {
                 # this is an inherited Label; ignore it
 
@@ -1537,6 +1625,14 @@ sub _vm {
 #  Initialize
 ###############################################################################
 sub Initialize {
+    my $dateFormat = $Registry->{'HKEY_CURRENT_USER/Control Panel/'
+                             . 'International/iDate'} || 0;
+    my $dateSep = $Registry->{'HKEY_CURRENT_USER/Control Panel/'
+                             . 'International/sDate'} || '/';
+    my $timeSep = $Registry->{'HKEY_CURRENT_USER/Control Panel/'
+                             . 'International/sTime'} || ':';
+    $gCfg{dateFormat} = $dateFormat;
+
     # see ss method for explanation of this
     %gErrMatch = (
                     GET    => 'is not an existing filename or project',
@@ -1544,14 +1640,14 @@ sub Initialize {
                     CP     => 'Cannot change project to',
                  );
 
-# TIMEFORMAT: modify "userdttm" below if necessary for your format.
     %gHistLineMatch = (
-                           version    => qr/^\*+\s*Version\s+(\d+)\s*\*+\s*$/,
-                           userdttm   => qr/^User:\s+([\S]+)\s+Date:\s+(\d+)\/(\d+)
-                                         \/(\d+)\s+Time:\s+(\d+):(\d+)([ap]*)\s*$/x,
-                           comment    => qr/^Comment:\s*/,
-                           label      => qr/^Label:/,
-                      );
+        version    => qr/^\*+\s*Version\s+(\d+)\s*\*+\s*$/,
+        userdttm   => qr/^User:\s+(.*?)\s+
+                          Date:\s+(\d+)$dateSep(\d+)$dateSep(\d+)\s+
+                          Time:\s+(\d+)$timeSep(\d+)([ap]*)\s*$/x,
+        comment    => qr/^Comment:\s*/,
+        label      => qr/^Label:/,
+    );
 
     # patterns to match development files that project_tree will ignore
 #    @gDevPatterns = (
@@ -1571,3 +1667,101 @@ sub first(&@) {
 
 
 1;
+
+__END__
+=pod
+
+=head1 LICENSE
+
+vss2svn.pl, Copyright (C) 2004 by Toby Johnson.
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License
+as published by the Free Software Foundation; either version 2
+of the License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+L<http://www.gnu.org/copyleft/gpl.html>
+
+=head1 SYNOPSIS
+
+vss2svn.pl S<--vssproject $/vss/project> S<--svnrepo http://svn/repo/url>
+
+=over 4
+
+=item --vssproject:
+
+full path to VSS project you want to migrate
+
+=item --svnrepo:
+
+URL to target Subversion repository
+
+=back
+
+=head1 OPTIONS
+
+=over 4
+
+=item --comment "MESSAGE":
+
+add MESSAGE to end of every migrated comment
+
+=item --setdates:
+
+Sets the "svn:date" property off all commits to reflect the
+original VSS commit date, so that the original commit dates
+(and not today's date) show up in your new SVN logs. This is
+not the default, since setting svn:date could lead to
+problems if not done correctly. Using this also requires the
+"pre-revprop-change" Hook Script to be set; see
+L<http://svnbook.red-bean.com/svnbook/ch05s02.html#svn-ch-5-sect-2.1>
+
+=item --login "USER:PASSWD":
+
+Set VSS username and password, separated by a colon.
+B<WARNING --> if the username/password combo you provide is
+incorrect, this program will hang as ss.exe prompts you for
+a username! (This is an unavoidable Microsoft bug).
+
+=item --noprompt:
+
+Don't prompt to create usernames after the first stage
+of the migration (see last paragraph below)
+
+=back
+
+B<USE --help TO VIEW FULL HELP INFORMATION>
+
+=head1 DESCRIPTION
+
+The URL you provide for "svnrepo" will become the base URL for all migrated
+files, so for the usage example above, B<$/vss/project/foo.c> would become
+B<http://svn/repository/url/foo.c>. Plan your migration accordingly so that you
+end up with the structure that you want. The URL also cannot contain any
+existing files; but as long as the "parent" of the URL is a Subversion
+repository, any non-existent directories in the URL will be created.
+
+The B<$SSDIR> environment variable must be set to the directory where your
+system srcsafe.ini file is located; see the VSS online help for more info.
+The "svn" and "ss" command-line executables must also be in your PATH.
+
+This script is released into the public domain. In case you're wondering
+about why the Vss2Svn packages have unused methods, it's because they came
+from in-house modules which had more functionality than just this conversion.
+
+I recommend converting only a small branch at first to see how things go.
+This process takes a very long time for large databases. I have made liberal
+
+Partway through the migration, you will be presented with a list of all
+usernames which performed any checkin operations in the given VSS project.
+If you want these user names to be preserved, you must add this list
+(including a user "vss_migration" for creating directories and such) to your
+Apache AuthUserFile with *blank passwords*. Apache must also *require* that
+usernames be passed, otherwise SVN will use anonymous access and you lose
+the usernames. So you need an "AuthType Basic" line or the like, as well as
+an AuthUserFile. See L<http://svnbook.red-bean.com/svnbook/ch06s04.html#svn-ch-6-sect-4.3>
+for more info.
