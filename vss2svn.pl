@@ -192,6 +192,9 @@ sub AddFileHistory {
         $rev->{user} = lc( $rev->{user} );  # normalize usernames to lowercase
         $rev->{comment} .= "\n\n$gCfg{comment}" if defined $gCfg{comment};
         
+        $rev->{date} =~ s/-//g;
+        $rev->{time} =~ s/://;
+        
         &InsertDatabaseRevision($filepath, $rev);
         
         $USERS{ $rev->{user} } = 1;
@@ -292,12 +295,12 @@ sub ImportSvnHistory {
 
     my($row, $upd, $commitinfo);
     
-    my %prev = (user => '', comment => '');
+    my %prev = (user => '', comment => '', grain => 0);
     my %all = (); # hash of all files ever added
     my %thistime = (); # hash of files added on this commit
     
     my $multiple = 0;
-    my $grain = 0;
+    my $grain = 0.000001;
 
     PrintMsg "\n\n**** MIGRATING VSS HISTORY TO SUBVERSION ****\n\n";
     
@@ -308,9 +311,17 @@ sub ImportSvnHistory {
 
 ROW:
     while ($row = $sth->fetchrow_hashref) {
-        PrintMsg "   File $row->{file}, $row->{date} $row->{time}...\n";
-       
-        if (($row->{user} eq $prev{user}) &&
+        $row->{date} =~ s/(....)(..)(..)/$1-$2-$3/;
+        $row->{time} =~ s/(..)(..)/$1:$2/;
+        $row->{comment} = ''
+            if (!exists $row->{comment} || !defined $row->{comment});
+
+        PrintMsg "   ($gCfg{commitNumber})File $row->{file}, "
+            . "$row->{date} $row->{time}...\n";
+        
+        if (defined $prev{date} &&
+            ($row->{date} eq $prev{date}) &&
+            ($row->{user} eq $prev{user}) &&
             ($row->{comment} eq $prev{comment}) &&
             (!defined $thistime{ $row->{file} })) {
             
@@ -322,7 +333,8 @@ ROW:
             # commit previous action
             $multiple = 0;
             &CommitSvn(1, $prev{comment}, $commitinfo);
-            &SetSvnDates(\%thistime) if $gCfg{setdates};
+            undef $commitinfo;
+            &SetSvnDates(\%prev) if $gCfg{setdates};
             %thistime = ();
             
         } elsif (defined $commitinfo) {
@@ -331,35 +343,39 @@ ROW:
             $multiple = 0;
             
             &CommitSvn(0, $prev{comment}, $commitinfo);
-            &SetSvnDates(\%thistime) if $gCfg{setdates};
+            undef $commitinfo;
+            &SetSvnDates(\%prev) if $gCfg{setdates};
             %thistime = ();
+        }
+        
+        if (defined $prev{date} && ($row->{date} ne $prev{date})) {
+            $grain = 0.000001;
+            
+            if (defined $commitinfo) {
+                # done with this date, so commit what we have so far
+                &CommitSvn($multiple, $prev{comment}, $commitinfo);
+                undef $commitinfo;
+    
+                &SetSvnDates(\%prev) if $gCfg{setdates};
+                %thistime = ();
+    
+                undef $commitinfo;
+                $multiple = 0;
+            }
         }
         
         $upd = $all{ $row->{file} }++;
+        $commitinfo = &GetVssRevision($row, $upd, \%thistime,);
         
-        $commitinfo = &GetVssRevision($row, $upd, \%thistime,
-                                      sprintf('%09.6f',$grain));
+        %prev = (%$row, (grain => $grain));
         $grain += 0.000001;
-        
-        if (($row->{date} ne $prev{date}) && defined $commitinfo) {
-            # done with this date, so commit what we have so far
-            &CommitSvn($multiple, $prev{comment}, $commitinfo);
-
-            &SetSvnDates(\%thistime) if $gCfg{setdates};
-            %thistime = ();
-
-            undef $commitinfo;
-            $multiple = 0;
-        }
-        
-        %prev = %$row;
 
     }
     
     if (defined $commitinfo) {
         &CommitSvn($multiple, $prev{comment}, $commitinfo);
 
-        &SetSvnDates(\%thistime) if $gCfg{setdates};
+        &SetSvnDates(\%prev) if $gCfg{setdates};
         %thistime = ();
     }
 
@@ -371,7 +387,7 @@ ROW:
 #  GetVssRevision
 ###############################################################################
 sub GetVssRevision {
-    my($row, $upd, $thisRef, $grain) = @_;
+    my($row, $upd, $thisRef) = @_;
     # Gets a version of a file from VSS and adds it to SVN
     # $row is the row hash ref from the history SQLite table
     # $upd is true if this is an update rather than add
@@ -401,10 +417,8 @@ sub GetVssRevision {
         { file => $file,
           user => $row->{user},
           dospath => $dospath,};
-        
-    $thisRef->{$file} = { date => "$row->{date}T$row->{time}:${grain}Z",
-                          dospath => $dospath };
-                        
+
+    $thisRef->{ $row->{file} } = 1;
 
     return $commitinfo;    
 }
@@ -421,6 +435,8 @@ sub CommitSvn {
     
     $multiple? &CommitMultipleItems($commitinfo)
         : &CommitSingleItem($commitinfo);
+        
+    $gCfg{commitNumber}++;
     
 }  #End CommitSvn
 
@@ -453,18 +469,13 @@ sub CommitMultipleItems {
 #  SetSvnDates
 ###############################################################################
 sub SetSvnDates {
-    my($thisRef) = @_;
-    
-    my $cmd;
-   
-    foreach my $file (sort keys %$thisRef) {
-        $cmd = "propset --revprop -rHEAD svn:date $thisRef->{$file}->{date} "
-            . "\"$thisRef->{$file}->{dospath}\\$file\"";
-        $SVN->svn($cmd) or die;
-        
-        last; # I misunderstood revision properties; only need to do this
-              # for one file in the transaction...
-    }
+    my($info) = @_;
+ 
+    my $grain = sprintf '%0.6f', $info->{grain};
+    my $svn_date = "$info->{date}T$info->{time}:${grain}Z";
+
+    my $cmd = "propset --revprop -rHEAD svn:date $svn_date $gCfg{svnrepo}";
+    $SVN->svn($cmd) or die;
 
 }  #End SetSvnDates
 
@@ -552,6 +563,7 @@ sub Initialize {
     %USERS = ( vss_migration => 1, );
     
     $gCfg{globalCount} = 1;
+    $gCfg{commitNumber} = 1;
 
     $gCfg{workbase} = cwd() . "/_vss2svn";
     &RecursiveDelete( $gCfg{workbase} );
@@ -1167,6 +1179,7 @@ sub file_history {
 
     if (defined $self->{use_tempfiles}) {
         $tmpfile = "$self->{use_tempfiles}/file_history.txt";
+        unlink $tmpfile;
         $cmd = "$cmd -O\@$tmpfile";
     }
 
