@@ -65,7 +65,10 @@ use Getopt::Long;
 use Cwd;
 use File::Path;
 
-our(%gCfg, $VSS, $SVN, $TREE, %HIST, %USERS,);
+use DBD::SQLite;
+use DBI;
+
+our(%gCfg, $VSS, $SVN, $TREE, %USERS,);
 
 # http://www.perl.com/tchrist/defop/defconfaq.html#What_is_the_proposed_operat
 sub first(&@);
@@ -74,6 +77,7 @@ sub first(&@);
 &Vss2Svn::VSS::Initialize;
 
 &Initialize;
+&CreateDatabase;
 
 # redirect STDERR to logfile
 open THE_REAL_STDERR, ">&STDERR";
@@ -95,8 +99,12 @@ $SIG{__DIE__} = \&MyDie;
 &BuildHistory;
 &GiveUserMessage unless $gCfg{noprompt};
 
+$gCfg{dbh}->commit;
+
 &SetupSvnProject;
 &ImportSvnHistory;
+
+&CloseDatabase;
 
 sub PrintMsg; # defined later
 
@@ -170,54 +178,66 @@ sub WalkTreeBranch {
 sub AddFileHistory {
     my($project, $file) = @_;
 
-    # build the revision history for this file; %HIST is keyed on date, then
-    # time, then filename; then is an array of hashes (each hash containing
-    # version number, user, and comment), in order of increasing version #s,
-    # for that file on that date at that time; unless someone made multiple
-    # commits in the same minute, this array should have only one value!
+    # build the revision history for this file
 
     my $filepath = "$project/$file";
     my $filehist = $VSS->file_history("$filepath");
     die if !defined $filehist;
     
-    my($ref, $user, $commentfile, $midpath);
-
     PrintMsg "   $filepath\n";
 
     foreach my $rev (@$filehist) {
-        $HIST{ $rev->{date} } = {} unless defined $HIST{ $rev->{date} };
-        $ref = $HIST{ $rev->{date} };
-
-        $ref->{ $rev->{time} } = {} unless defined $ref->{ $rev->{time} };
-        $ref = $ref->{ $rev->{time} };
-
-        $ref->{ $filepath } = [] unless defined $ref->{ $filepath };
-        $ref = $ref->{ $filepath };
+        $gCfg{globalCount}++;
         
-        $user = lc( $rev->{user} );
-        
-        # $midpath simply allows us to spread comment tempfiles out
-        $file =~ m/^(.)(.)/;  # load $1 and $2, and get your mind out of the gutter!
-        $midpath = (defined $1 && defined $2)? lc("$1/$1$2/") : '';
-        
-        $commentfile = "$midpath$file-comment.$gCfg{commentCount}.txt";
-        $gCfg{commentCount}++;
-        
+        $rev->{user} = lc( $rev->{user} );  # normalize usernames to lowercase
         $rev->{comment} .= "\n\n$gCfg{comment}" if defined $gCfg{comment};
         
-        mkpath "$gCfg{tmpfiledir}/$midpath";
-        open COMMENTFILE, ">$gCfg{tmpfiledir}/$commentfile"
-            or die "Couldn't open $gCfg{tmpfiledir}/$commentfile";
-        print COMMENTFILE $rev->{comment} or die;
-        close COMMENTFILE;
-
-        push @$ref, {version => $rev->{version}, user => $user,
-                     commentfile => $commentfile };
+        &InsertDatabaseRevision($filepath, $rev);
         
-        $USERS{$user} = 1;
+        $USERS{ $rev->{user} } = 1;
     }
 
 }
+
+###############################################################################
+#  InsertDatabaseRevision
+###############################################################################
+sub InsertDatabaseRevision {
+    my($filepath, $rev) = @_;
+    
+    #quote the text fields
+    map { $rev->{$_} = $gCfg{dbh}->quote( $rev->{$_} ) }
+        qw(date time user comment);
+
+    $filepath = $gCfg{dbh}->quote($filepath);
+
+    my $cmd = <<"EOSQL";
+INSERT INTO
+    history (
+        date,
+        time,
+        file,
+        version,
+        user,
+        comment,
+        global_count
+    )
+VALUES (
+    $rev->{date},
+    $rev->{time},
+    $filepath,
+    $rev->{version},
+    $rev->{user},
+    $rev->{comment},
+    $gCfg{globalCount}
+)
+EOSQL
+
+    warn $cmd;
+
+    $gCfg{dbh}->do($cmd) or die;
+
+}  #End InsertDatabaseRevision
 
 ###############################################################################
 #  GiveUserMessage
@@ -265,13 +285,12 @@ sub SetupSvnProject {
 #  ImportSvnHistory
 ###############################################################################
 sub ImportSvnHistory {
-    # we will walk the %HIST tree in order of date and time, GETting from VSS
+    # we will walk the history table in date/time order, GETting from VSS
     # as we go. VSS doesn't allow atomic multi-item commits, so we'll detect
     # these assuming if the user and comment are the same from one item to the
     # next, they were part of the "same" action.
 
-    my($date, $time, $file, $ref, $version, $user, $comment,
-       $upd, $commitinfo);
+    my($row, $upd, $commitinfo);
     
     my %prev = (user => '', comment => '');
     my %all = (); # hash of all files ever added
@@ -281,98 +300,86 @@ sub ImportSvnHistory {
     my $grain = 0;
 
     PrintMsg "\n\n**** MIGRATING VSS HISTORY TO SUBVERSION ****\n\n";
+    
+    # date, time, and file fields are formatted to enable sorting numerically
+    my $cmd = "SELECT * FROM history ORDER BY date, time, file";
+    my $sth = $gCfg{dbh}->prepare($cmd) or die;
+    $sth->execute or die;
 
-DATE:
-    foreach $date (sort keys %HIST) {
-        foreach $time (sort keys %{ $HIST{$date} }) {
-            foreach $file (sort keys %{ $HIST{$date}{$time} }) {
-                PrintMsg "   File $file, $date $time...\n";
-                foreach $ref ( @{ $HIST{$date}{$time}{$file} } ) {
-                    
-                    $comment = &GetCommentFromFile($ref->{commentfile});
-                
-                    if (($ref->{user} eq $prev{user}) &&
-                        ($comment eq $prev{comment}) &&
-                        (!defined $thistime{$file})) {
-                        
-                        # user and comment are same; this will be multi-item commit
-                        $multiple = 1;
-                        
-                    } elsif ($multiple) {
-                        # we're in a multi-item commit but user or comment changed;
-                        # commit previous action
-                        $multiple = 0;
-                        &CommitMultipleItems($commitinfo);
-                        &SetSvnDates(\%thistime) if $gCfg{setdates};
-                        %thistime = ();
-                        
-                    } elsif (defined $commitinfo) {
-                        # we're not in a multi-item commit and user or comment
-                        # changed; commit the single file
-                        $multiple = 0;
-                        
-                        &CommitSingleItem($commitinfo);
-                        &SetSvnDates(\%thistime) if $gCfg{setdates};
-                        %thistime = ();
-                    }
-                    
-                    $upd = $all{$file}++;
-                    
-                    $commitinfo = &GetVssRevision($ref, $date, $time, $file, $upd,
-                        \%thistime, sprintf('%09.6f',$grain));
-                    
-                    $grain += 0.000001;
-                    %prev = %$ref;
-                    $prev{comment} = $comment;
-                
-                }
-            }
-        }
-        
-        # done with this date, so commit what we have so far
-        if (defined $commitinfo) {
-            $multiple? &CommitMultipleItems($commitinfo)
-                : &CommitSingleItem($commitinfo);
-
+ROW:
+    while ($row = $sth->fetchrow_hashref) {
+        PrintMsg "   File $row->{file}, $row->{date} $row->{time}...\n";
+       
+        if (($row->{user} eq $prev{user}) &&
+            ($row->{comment} eq $prev{comment}) &&
+            (!defined $thistime{ $row->{file} })) {
+            
+            # user and comment are same; this will be multi-item commit
+            $multiple = 1;
+            
+        } elsif ($multiple) {
+            # we're in a multi-item commit but user or comment changed;
+            # commit previous action
+            $multiple = 0;
+            &CommitSvn(1, $prev{comment}, $commitinfo);
+            &SetSvnDates(\%thistime) if $gCfg{setdates};
+            %thistime = ();
+            
+        } elsif (defined $commitinfo) {
+            # we're not in a multi-item commit and user or comment
+            # changed; commit the single previous file
+            $multiple = 0;
+            
+            &CommitSvn(0, $prev{comment}, $commitinfo);
             &SetSvnDates(\%thistime) if $gCfg{setdates};
             %thistime = ();
         }
         
-        undef $commitinfo;
-        $multiple = 0;
+        $upd = $all{ $row->{file} }++;
+        
+        $commitinfo = &GetVssRevision($row, $upd, \%thistime,
+                                      sprintf('%09.6f',$grain));
+        $grain += 0.000001;
+        
+        if (($row->{date} ne $prev{date}) && defined $commitinfo) {
+            # done with this date, so commit what we have so far
+            &CommitSvn($multiple, $prev{comment}, $commitinfo);
+
+            &SetSvnDates(\%thistime) if $gCfg{setdates};
+            %thistime = ();
+
+            undef $commitinfo;
+            $multiple = 0;
+        }
+        
+        %prev = %$row;
+
     }
     
-}
+    if (defined $commitinfo) {
+        &CommitSvn($multiple, $prev{comment}, $commitinfo);
 
-###############################################################################
-#  GetCommentFromFile
-###############################################################################
-sub GetCommentFromFile {
-    my($file) = @_;
-   
-    open COMMENTFILE, "$gCfg{tmpfiledir}/$file"
-        or die "Couldn't open $gCfg{tmpfiledir}/$file";
-        
-    my $comment = join('', <COMMENTFILE>);
-    close COMMENTFILE;
+        &SetSvnDates(\%thistime) if $gCfg{setdates};
+        %thistime = ();
+    }
+
+    $sth->finish;
     
-    return $comment;
 }
 
 ###############################################################################
 #  GetVssRevision
 ###############################################################################
 sub GetVssRevision {
-    my($ref, $date, $time, $file, $upd, $thisRef, $grain) = @_;
+    my($row, $upd, $thisRef, $grain) = @_;
     # Gets a version of a file from VSS and adds it to SVN
-    # $ref is a reference to a HIST "leaf" hash of rev#, user, comment
+    # $row is the row hash ref from the history SQLite table
     # $upd is true if this is an update rather than add
     
-    my $path;
-    my $vsspath = $file;
+    my $vsspath = $row->{file};
     
-    $file =~ m/^(.*\/)(.*)/ or die;
-    ($path, $file) = ($1, $2);
+    $row->{file} =~ m/^(.*\/)(.*)/ or die;
+    my($path, $file) = ($1, $2);
     
     $path =~ s/$gCfg{vssprojmatch}// or die;
     $path =~ s/\/$//; # remove trailing slash
@@ -381,7 +388,7 @@ sub GetVssRevision {
     $dospath =~ s/\\$//; # remove trailing backslash if $path was empty
     $dospath =~ s/\\\\/\\/g; # replace double backslashes with single
     
-    my $cmd = "GET -GTM -W -GL\"$dospath\" -V$ref->{version} \"$vsspath\"";
+    my $cmd = "GET -GTM -W -GL\"$dospath\" -V$row->{version} \"$vsspath\"";
     $VSS->ss($cmd) or die;
     
     chdir $dospath or die;
@@ -391,17 +398,31 @@ sub GetVssRevision {
     }
 
     my $commitinfo =
-        { cmd => "commit --file \"$gCfg{tmpfiledir}/$ref->{commentfile}\"",
-          file => $file,
-          user => $ref->{user},
+        { file => $file,
+          user => $row->{user},
           dospath => $dospath,};
         
-    $thisRef->{$file} = { date => "${date}T${time}:${grain}Z",
+    $thisRef->{$file} = { date => "$row->{date}T$row->{time}:${grain}Z",
                           dospath => $dospath };
                         
 
     return $commitinfo;    
 }
+
+###############################################################################
+#  CommitSvn
+###############################################################################
+sub CommitSvn {
+    my($multiple, $comment, $commitinfo) = @_;
+    
+    open COMMENTFILE, ">$gCfg{tmpfiledir}/comment.txt" or die;
+    print COMMENTFILE $comment;
+    close COMMENTFILE;
+    
+    $multiple? &CommitMultipleItems($commitinfo)
+        : &CommitSingleItem($commitinfo);
+    
+}  #End CommitSvn
 
 ###############################################################################
 #  CommitSingleItem
@@ -412,7 +433,8 @@ sub CommitSingleItem {
     warn "SINGLE COMMIT\n";
     chdir $commitinfo->{dospath} or die;
     $SVN->{user} = $commitinfo->{user};
-    $SVN->svn("$commitinfo->{cmd} --non-recursive $commitinfo->{file}") or die;
+    $SVN->svn("commit --file \"$gCfg{tmpfiledir}/comment.txt\" "
+              . "--non-recursive $commitinfo->{file}") or die;
 }
 
 ###############################################################################
@@ -424,7 +446,7 @@ sub CommitMultipleItems {
     warn "MULTIPLE COMMIT\n";
     chdir $gCfg{workdir} or die;
     $SVN->{user} = $commitinfo->{user};
-    $SVN->svn("$commitinfo->{cmd} \".\"") or die;
+    $SVN->svn("commit --file \"$gCfg{tmpfiledir}/comment.txt\" \".\"") or die;
 }
 
 ###############################################################################
@@ -439,6 +461,9 @@ sub SetSvnDates {
         $cmd = "propset --revprop -rHEAD svn:date $thisRef->{$file}->{date} "
             . "\"$thisRef->{$file}->{dospath}\\$file\"";
         $SVN->svn($cmd) or die;
+        
+        last; # I misunderstood revision properties; only need to do this
+              # for one file in the transaction...
     }
 
 }  #End SetSvnDates
@@ -526,7 +551,7 @@ sub Initialize {
     
     %USERS = ( vss_migration => 1, );
     
-    $gCfg{commentCount} = 1;
+    $gCfg{globalCount} = 1;
 
     $gCfg{workbase} = cwd() . "/_vss2svn";
     &RecursiveDelete( $gCfg{workbase} );
@@ -541,7 +566,42 @@ sub Initialize {
     $gCfg{tmpfiledir} = "$gCfg{workbase}/tmpfile";
     mkdir $gCfg{tmpfiledir} or die "Couldn't create $gCfg{tmpfiledir}";
     
+    $gCfg{dbdir} = "$gCfg{workbase}/db";
+    mkdir $gCfg{dbdir} or die "Couldn't create $gCfg{dbdir}";
+    
 }
+
+###############################################################################
+#  CreateDatabase
+###############################################################################
+sub CreateDatabase {
+    $gCfg{dbh} = DBI->connect("dbi:SQLite(RaiseError=>1,AutoCommit=>0)"
+                              . ":dbname=$gCfg{dbdir}/vss2svn.db","","");
+    my $cmd;
+    
+    $cmd = <<"EOSQL";
+CREATE TABLE history
+(
+    date    char(8)        NOT NULL,
+    time    char(5)        NOT NULL,
+    file    varchar(1024)  NOT NULL,
+    version long           NOT NULL,
+    user    varchar(256)   NOT NULL,
+    comment blob           NOT NULL,
+    global_count    long   NOT NULL
+)
+EOSQL
+
+    $gCfg{dbh}->do($cmd) or die;
+}  #End CreateDatabase
+
+###############################################################################
+#  CloseDatabase
+###############################################################################
+sub CloseDatabase {
+    $gCfg{dbh}->commit;
+    $gCfg{dbh}->disconnect;
+}  #End CloseDatabase
 
 ###############################################################################
 #  GiveHelp
@@ -854,7 +914,6 @@ sub first(&@);
 
 use Carp;
 our $VERSION = '1.05';
-our $MAKE = $ENV{MAKE} || undef;
 
 our(%gErrMatch, %gHistLineMatch, @gDevPatterns);
 
