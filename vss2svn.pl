@@ -1430,8 +1430,13 @@ HISTLINE:
                 }
 
                 $year = ($year > 79)? "19$year" : "20$year";
-                $hour += 12 if $ampm =~ /p/i;
-                
+
+                if ($ampm =~ /p/i && $hour < 12) {
+                    $hour += 12;
+                } elsif ($ampm =~ /a/i && $hour == 12) {
+                    $hour = 0;
+                }
+
                 if ($self->{timebias} != 0) {
                     my $basis = parsedate("$year/$month/$day $hour:$min");
                     (my $bias = $self->{timebias}) =~ s/^(\d+)/+ $1/;

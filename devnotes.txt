@@ -8,3 +8,7 @@ UTF-8 support in Perl 5.8
 Date/Time Localization
     HKEY_CURRENT_USER\Control Panel\International
     HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\TimeZoneInformation
+      ActiveTimeBias is number of minutes to subtract from GMT
+    
+Calculate two's complement (for ActiveTimeBias):
+    use integer; $a = $a + 0;
