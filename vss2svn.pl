@@ -30,6 +30,9 @@ use Win32::TieRegistry (Delimiter => '/');
 
 our(%gCfg, $VSS, $SVN, $TREE, %USERS,);
 
+eval "use Encode";
+$gCfg{allowUtf8} = !$@;
+
 # http://www.perl.com/tchrist/defop/defconfaq.html#What_is_the_proposed_operat
 sub first(&@);
 sub PrintMsg; # defined later
@@ -137,7 +140,7 @@ sub GetProjectTree {
     PrintMsg "\n\n**** BUILDING INITIAL STRUCTURES; PLEASE WAIT... ****\n\n";
 
     &SetStatus(0,"Building initial structures");
-    
+
     $TREE = $VSS->project_tree($gCfg{vssproject},1,1,1)
         or die "Couldn't create project tree for $gCfg{vssproject}";
 }
@@ -365,7 +368,7 @@ sub SetupSvnProject {
     PrintMsg "\n\n**** SETTING UP SUBVERSION DIRECTORIES ****\n\n";
 
     &SetStatus(1,"Setting up Subversion directories");
-    
+
     chdir $gCfg{importdir}
         or die "Could not change to directory $gCfg{importdir}";
 
@@ -401,13 +404,13 @@ sub ImportSvnHistory {
     my $grain = 0.000001;
 
     PrintMsg "\n\n**** MIGRATING VSS HISTORY TO SUBVERSION ****\n\n";
-
-    &SetStatus(2,"Migrating VSS history to Subversion");
     
+    &SetStatus(2,"Migrating VSS history to Subversion");
+
     # date, time, and file fields are formatted to enable sorting numerically
     my $cmd = "SELECT * FROM vss2svn_history WHERE imported = 0 "
         . "ORDER BY date, time, file";
-    
+
     my $sth = $gCfg{dbh}->prepare($cmd)
         or die "Could not prepare DBD::SQLite command";
     $sth->execute
@@ -519,7 +522,7 @@ sub GetVssRevision {
         
     if (!$upd) {
         $SVN->svn("add", $file)
-            or die "Could not perform SVN add of $file";
+        or die "Could not perform SVN add of $file";
     }
 
     my $commitinfo =
@@ -538,6 +541,8 @@ sub GetVssRevision {
 sub CommitSvn {
     my($multiple, $comment, $commitinfo) = @_;
     
+    $comment = Encode::encode('utf8', $comment) if $gCfg{utf8};
+
     open COMMENTFILE, ">$gCfg{tmpfiledir}/comment.txt"
         or die "Could not open $gCfg{tmpfiledir}/comment.txt for writing";
     print COMMENTFILE $comment;
@@ -562,8 +567,10 @@ sub CommitSingleItem {
     chdir $commitinfo->{dospath}
         or die "Could not change to directory $commitinfo->{dospath}";
 
+    my $enc = $gCfg{utf8}? ' --encoding UTF-8' : '';
+
     $SVN->{user} = $commitinfo->{user};
-    $SVN->svn("commit --file \"$gCfg{tmpfiledir}/comment.txt\" "
+    $SVN->svn("commit$enc --file \"$gCfg{tmpfiledir}/comment.txt\" "
               . "--non-recursive", $commitinfo->{file})
         or die "Could not perform SVN commit on \"$commitinfo->{file}\". "
         . "Have you set your httpd authorization file correctly?";
@@ -579,8 +586,10 @@ sub CommitMultipleItems {
     chdir $gCfg{workdir}
         or die "Could not change to directory $gCfg{workdir}";
 
+    my $enc = $gCfg{utf8}? ' --encoding UTF-8' : '';
+
     $SVN->{user} = $commitinfo->{user};
-    $SVN->svn("commit --file \"$gCfg{tmpfiledir}/comment.txt\" \".\"")
+    $SVN->svn("commit$enc --file \"$gCfg{tmpfiledir}/comment.txt\" \".\"")
         or die "Could not perform SVN commit. "
         . "Have you set your httpd authorization file correctly?";
 }
@@ -682,13 +691,23 @@ EOERR
 sub Initialize {
     GetOptions(\%gCfg,'vssproject=s','vssexclude=s@','svnrepo=s','comment=s',
                'vsslogin=s','setdates','noprompt','timebias=i','restart',
-               'debug','help',);
+               'utf8','debug','help',);
 
     &GiveHelp(undef, 1) if defined $gCfg{help};
     
     defined $gCfg{vssproject} or GiveHelp("must specify --vssproject\n");
     defined $gCfg{svnrepo} or GiveHelp("must specify --svnrepo\n");
-    defined $ENV{SSDIR} or GiveHelp("\$SSDIR not defined");
+    defined $ENV{SSDIR} or GiveHelp("\$SSDIR not defined\n");
+
+    if ($gCfg{utf8} && ! $gCfg{allowUtf8}) {
+        my $msg = <<"EOMSG";
+ERROR: UTF-8 support is only available with the "Encoding" module, which
+requires Perl 5.7.3 or higher. You must either install a newer version of Perl
+or use the statically-compiled version of vss2svn to get UTF-8 support.
+EOMSG
+        $msg = fill('', '', $msg);
+        die "\n$msg\n";
+    }
 
     $gCfg{vssproject} =~ s:/$:: unless $gCfg{vssproject} eq '$/';
     $gCfg{vssprojmatch} = quotemeta( $gCfg{vssproject} );
@@ -728,7 +747,7 @@ sub Initialize {
     $gCfg{commitNumber} = 1;
     
     $gCfg{workbase} = cwd() . "/_vss2svn";
-    
+
     print "\nCleaning up any previous vss2svn runs...\n\n";
     &RecursiveDelete( $gCfg{workbase} );
     mkdir $gCfg{workbase} or die "Couldn't create $gCfg{workbase} (does "
@@ -770,6 +789,7 @@ sub CheckForExe {
     my($exe, $desc) = @_;
     
     foreach my $dir (split ';', ".;$ENV{PATH}") {
+        $dir =~ s/"//g;
         if (-f "$dir\\$exe") {
             return "$dir\\$exe";
         }
@@ -799,17 +819,17 @@ CREATE TABLE vss2svn_history
 (
     date            long            NOT NULL,
     time            long            NOT NULL,
-    file            varchar(1024)   NOT NULL,
-    version         long            NOT NULL,
-    user            varchar(256)    NOT NULL,
-    comment         blob            NOT NULL,
+    file    varchar(1024)  NOT NULL,
+    version long           NOT NULL,
+    user    varchar(256)   NOT NULL,
+    comment blob           NOT NULL,
     imported        integer         NOT NULL,
-    global_count    long            NOT NULL
+    global_count    long   NOT NULL
 )
 EOSQL
 
     $gCfg{dbh}->do($cmd) or die;
-    
+
     $cmd = <<"EOSQL";    
 CREATE TABLE vss2svn_status
 (
@@ -837,7 +857,7 @@ sub SetStatus {
     my($status, $desc) = @_;
     $desc = $gCfg{dbh}->quote($desc);
     my $now = time;
-    
+
     my $cmd = <<"EOSQL";
 INSERT INTO
     vss2svn_status (
@@ -855,7 +875,7 @@ EOSQL
     $gCfg{dbh}->do($cmd) or die;
     $gCfg{dbh}->commit;
 }  # End SetStatus
-    
+
 ###############################################################################
 #  GiveHelp
 ###############################################################################
@@ -1072,7 +1092,7 @@ sub svn {
         }
     
     }
-    
+
     if (defined $path) {
         $cmd .= " -- \"$path\"";
         $disp_cmd .= " -- \"$path\"";
@@ -1485,7 +1505,7 @@ HISTLINE:
                 }
 
                 $year = ($year > 79)? "19$year" : "20$year";
-
+                
                 if ($ampm =~ /p/i && $hour < 12) {
                     $hour += 12;
                 } elsif ($ampm =~ /a/i && $hour == 12) {
@@ -1929,6 +1949,14 @@ a username! (This is an unavoidable Microsoft bug).
 Override the script's guess as to the number of minutes it should
 add to your local time to get to GMT (for example, if you are
 in Eastern Daylight Time [-0400], this should be 240).
+
+=item --utf8:
+
+Some users with non-English locales may find that the svn client
+causes errors when importing comments containing non-English
+characters. If this is the case with you, use this switch to
+explicitly convert all comment messages to UTF-8 before importing
+to Subversion.
 
 =item --noprompt:
 
