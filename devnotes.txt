@@ -12,3 +12,6 @@ Date/Time Localization
     
 Calculate two's complement (for ActiveTimeBias):
     use integer; $a = $a + 0;
+    
+VSS error messages
+    http://msdn.microsoft.com/library/default.asp?url=/library/en-us/guides/html/vsorierrormessages.asp
