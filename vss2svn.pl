@@ -136,6 +136,8 @@ sub SetupLogfile {
 sub GetProjectTree {
     PrintMsg "\n\n**** BUILDING INITIAL STRUCTURES; PLEASE WAIT... ****\n\n";
 
+    &SetStatus(0,"Building initial structures");
+    
     $TREE = $VSS->project_tree($gCfg{vssproject},1,1,1)
         or die "Couldn't create project tree for $gCfg{vssproject}";
 }
@@ -292,19 +294,20 @@ sub InsertDatabaseRevision {
     
     #quote the text fields
     map { $data{$_} = $gCfg{dbh}->quote( $rev->{$_} ) }
-        qw(date time user comment);
+        qw(user comment);
 
     $filepath = $gCfg{dbh}->quote($filepath);
 
     my $cmd = <<"EOSQL";
 INSERT INTO
-    history (
+    vss2svn_history (
         date,
         time,
         file,
         version,
         user,
         comment,
+        imported,
         global_count
     )
 VALUES (
@@ -314,6 +317,7 @@ VALUES (
     $data{version},
     $data{user},
     $data{comment},
+    0,
     $gCfg{globalCount}
 )
 EOSQL
@@ -360,6 +364,8 @@ EOTXT
 sub SetupSvnProject {
     PrintMsg "\n\n**** SETTING UP SUBVERSION DIRECTORIES ****\n\n";
 
+    &SetStatus(1,"Setting up Subversion directories");
+    
     chdir $gCfg{importdir}
         or die "Could not change to directory $gCfg{importdir}";
 
@@ -395,11 +401,15 @@ sub ImportSvnHistory {
     my $grain = 0.000001;
 
     PrintMsg "\n\n**** MIGRATING VSS HISTORY TO SUBVERSION ****\n\n";
+
+    &SetStatus(2,"Migrating VSS history to Subversion");
     
     # date, time, and file fields are formatted to enable sorting numerically
-    my $cmd = "SELECT * FROM history ORDER BY date, time, file";
+    my $cmd = "SELECT * FROM vss2svn_history WHERE imported = 0 "
+        . "ORDER BY date, time, file";
+    
     my $sth = $gCfg{dbh}->prepare($cmd)
-        or die "Could not execute DBD::SQLite command";
+        or die "Could not prepare DBD::SQLite command";
     $sth->execute
         or die "Could not execute DBD::SQLite command";
 
@@ -508,8 +518,8 @@ sub GetVssRevision {
         or die "Could not switch to directory $dospath";
         
     if (!$upd) {
-        $SVN->svn("add \"$file\"")
-        or die "Could not perform SVN add of $file";
+        $SVN->svn("add", $file)
+            or die "Could not perform SVN add of $file";
     }
 
     my $commitinfo =
@@ -554,7 +564,7 @@ sub CommitSingleItem {
 
     $SVN->{user} = $commitinfo->{user};
     $SVN->svn("commit --file \"$gCfg{tmpfiledir}/comment.txt\" "
-              . "--non-recursive \"$commitinfo->{file}\"")
+              . "--non-recursive", $commitinfo->{file})
         or die "Could not perform SVN commit on \"$commitinfo->{file}\". "
         . "Have you set your httpd authorization file correctly?";
 }
@@ -671,7 +681,7 @@ EOERR
 ###############################################################################
 sub Initialize {
     GetOptions(\%gCfg,'vssproject=s','vssexclude=s@','svnrepo=s','comment=s',
-               'vsslogin=s','setdates','noprompt','timebias=i',
+               'vsslogin=s','setdates','noprompt','timebias=i','restart',
                'debug','help',);
 
     &GiveHelp(undef, 1) if defined $gCfg{help};
@@ -718,6 +728,8 @@ sub Initialize {
     $gCfg{commitNumber} = 1;
     
     $gCfg{workbase} = cwd() . "/_vss2svn";
+    
+    print "\nCleaning up any previous vss2svn runs...\n\n";
     &RecursiveDelete( $gCfg{workbase} );
     mkdir $gCfg{workbase} or die "Couldn't create $gCfg{workbase} (does "
         . "another program have a lock on this directory or its files?)";
@@ -783,15 +795,27 @@ sub CreateDatabase {
     my $cmd;
     
     $cmd = <<"EOSQL";
-CREATE TABLE history
+CREATE TABLE vss2svn_history
 (
-    date    char(8)        NOT NULL,
-    time    char(5)        NOT NULL,
-    file    varchar(1024)  NOT NULL,
-    version long           NOT NULL,
-    user    varchar(256)   NOT NULL,
-    comment blob           NOT NULL,
-    global_count    long   NOT NULL
+    date            long            NOT NULL,
+    time            long            NOT NULL,
+    file            varchar(1024)   NOT NULL,
+    version         long            NOT NULL,
+    user            varchar(256)    NOT NULL,
+    comment         blob            NOT NULL,
+    imported        integer         NOT NULL,
+    global_count    long            NOT NULL
+)
+EOSQL
+
+    $gCfg{dbh}->do($cmd) or die;
+    
+    $cmd = <<"EOSQL";    
+CREATE TABLE vss2svn_status
+(
+    code            long           NOT NULL,
+    desc            varchar(1024)  NOT NULL,
+    datestamp       long           NOT NULL
 )
 EOSQL
 
@@ -806,6 +830,32 @@ sub CloseDatabase {
     $gCfg{dbh}->disconnect;
 }  #End CloseDatabase
 
+###############################################################################
+#   SetStatus
+###############################################################################
+sub SetStatus {
+    my($status, $desc) = @_;
+    $desc = $gCfg{dbh}->quote($desc);
+    my $now = time;
+    
+    my $cmd = <<"EOSQL";
+INSERT INTO
+    vss2svn_status (
+        code,
+        desc,
+        datestamp
+    )
+VALUES (
+    $status,
+    $desc,
+    $now,
+)
+EOSQL
+
+    $gCfg{dbh}->do($cmd) or die;
+    $gCfg{dbh}->commit;
+}  # End SetStatus
+    
 ###############################################################################
 #  GiveHelp
 ###############################################################################
@@ -940,7 +990,7 @@ sub new {
         }, $class;
 
     # test to ensure 'svn' command is available
-    $self->svn("help", -2) or
+    $self->svn("help", undef, -2) or
         croak "Could not run Subversion 'svn' command: "
             . "ensure it is in your PATH";
 
@@ -976,14 +1026,14 @@ sub do {
     $url .= $file if defined $file;
     $args = '' unless defined $args;
     
-    return $self->svn("$cmd $url $args", $silent);
+    return $self->svn("$cmd $url $args", undef, $silent);
 }
 
 ###############################################################################
 #  svn
 ###############################################################################
 sub svn {
-    my($self, $cmd, $silent) = @_;
+    my($self, $cmd, $path, $silent) = @_;
     # "raw" svn client access.
 
     # silent values:
@@ -1021,6 +1071,11 @@ sub svn {
             }
         }
     
+    }
+    
+    if (defined $path) {
+        $cmd .= " -- \"$path\"";
+        $disp_cmd .= " -- \"$path\"";
     }
 
     $cmd = "svn $cmd";
