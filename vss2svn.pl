@@ -2,8 +2,18 @@
 
 # sorry to embed HTML, I'm too lazy to keep two versions of this!
 our $USAGE = <<'EOUSAGE';
-    vss2svn.pl, written by Toby Johnson, toby@etjohnson.us
-    This program is free software; it is released to the public domain.
+    vss2svn.pl, Copyright (C) 2004 by Toby Johnson.
+
+    This program is free software; you can redistribute it and/or
+    modify it under the terms of the GNU General Public License
+    as published by the Free Software Foundation; either version 2
+    of the License, or (at your option) any later version.
+    
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+    http://www.gnu.org/copyleft/gpl.html
 
     <b>usage: vss2svn.pl [options] --vssproject $/vss/project --svnrepo http://svn/repository/url</b>
 
@@ -108,6 +118,7 @@ $gCfg{dbh}->commit;
 &ImportSvnHistory;
 
 &CloseDatabase;
+PrintMsg "\n\n**** VSS MIGRATION COMPLETED SUCCESSFULLY!! ****\n";
 
 close STDERR;
 open STDERR, ">&THE_REAL_STDERR"; # yes, we're about to exit, but leaving
@@ -132,7 +143,6 @@ sub BuildHistory {
     chdir "$gCfg{importdir}" or die;
     
     PrintMsg "\n\n**** BUILDING VSS HISTORY ****\n\n";
-    $VSS->{use_tempfiles} = "$gCfg{tmpfiledir}";
     
     &WalkTreeBranch($TREE, $gCfg{vssproject});
 }
@@ -552,7 +562,7 @@ sub Initialize {
     $gCfg{vssprojmatch} = quotemeta( $gCfg{vssproject} );
     
     $VSS = Vss2Svn::VSS->new($ENV{SSDIR}, $gCfg{vssproject});
-    $VSS->{interactive} = 0;
+    $VSS->{interactive} = 'Y';
     $VSS->{_debug} = 1;
     
     if (defined $gCfg{login}) {
@@ -585,7 +595,8 @@ sub Initialize {
     
     $gCfg{dbdir} = "$gCfg{workbase}/db";
     mkdir $gCfg{dbdir} or die "Couldn't create $gCfg{dbdir}";
-    
+
+    $VSS->{use_tempfiles} = "$gCfg{tmpfiledir}";    
 }
 
 ###############################################################################
@@ -1183,20 +1194,8 @@ sub file_history {
     my $cmd = "HISTORY \"$file\"";
     my $tmpfile = '';
 
-    if (defined $self->{use_tempfiles}) {
-        $tmpfile = "$self->{use_tempfiles}/file_history.txt";
-        unlink $tmpfile;
-        $cmd = "$cmd -O\@$tmpfile";
-    }
-
     $self->ss($cmd, -2) or return undef;
     
-    if (defined $self->{use_tempfiles}) {
-        open SS_OUTPUT, "$tmpfile" or die "Can't open HISTORY tempfile $tmpfile";
-        $self->{last_ss_output} = join('', <SS_OUTPUT>);
-        close SS_OUTPUT;
-    }
-
     my $hist = [];
 
     my $last = 0; # what type was the last line read?
@@ -1401,8 +1400,10 @@ sub ss {
 
     $cmd =~ s/^\s+//;
     $cmd =~ s/\s+$//;
+    
+    (my $cmd_word = lc($cmd)) =~ s/^(ss(\.exe)?\s+)?(\S+).*/$3/i;
 
-    $cmd = "ss $cmd" unless ($cmd =~ m/^ss\s/i);
+    $cmd = "ss $cmd" unless ($cmd =~ m/^ss(\.exe)?\s/i);
 
     if ($self->{interactive} =~ m/^y/i) {
         $cmd = "$cmd -I-Y";
@@ -1428,14 +1429,34 @@ sub ss {
     warn "DEBUG: $disp_cmd\n\n" if $self->{_debug};
 
     $ENV{SSDIR} = $self->{database};
-    open SSOUT, '-|', "$cmd 2>&1";
 
-    while (<SSOUT>) {
-        $output .= $_;
+    if ($self->{use_tempfiles} &&
+        $cmd_word =~ /^(dir|filetype|history|properties)$/) {
+        my $tmpfile = "$self->{use_tempfiles}/${cmd_word}_cmd.txt";
+        unlink $tmpfile;
+        $cmd = "$cmd \"-O\&$tmpfile\"";
+        system $cmd;
+
+        if (open SS_OUTPUT, "$tmpfile") {
+            local $/;
+            $output = scalar <SS_OUTPUT>;
+            close SS_OUTPUT;
+            unlink $tmpfile;
+        } else {
+            warn "Can't open '$cmd_word' tempfile $tmpfile";
+            undef $output;
+        }
+        
+    } else {
+        open SS_OUTPUT, '-|', "$cmd 2>&1";
+    
+        while (<SS_OUTPUT>) {
+            $output .= $_;
+        }
+    
+        close SS_OUTPUT;
+        $output =~ s/\s+$// if defined $output;
     }
-
-    close SSOUT;
-    $output =~ s/\s+$// if defined $output;
 
     if ($silent <= 1) {
         if ($self->{paginate}) {
