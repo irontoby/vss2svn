@@ -20,13 +20,15 @@ If using the Windows Installer version, be sure to specify that you want the loc
 
 =head3 Required Perl Modules
 
-This script depends on the following Perl modules. All but the first two are included as part of the base ActiveState Perl install.
+This script depends on the following Perl modules. All but the first three are included as part of the base ActiveState Perl install.
 
 =over 4
 
 =item * DBI
 
 =item * DBD::SQLite
+
+=item * Time::ParseDate (install "Time-modules" from PPM)
 
 =item * Getopt::Long
 
@@ -46,7 +48,7 @@ This script depends on the following Perl modules. All but the first two are inc
 
 The easiest way to install the C<DBI> and C<DBD::SQLite> modules is using ActiveState's C<ppm> (programmer's package manager) utility. ActivePerl must already be installed before running C<ppm>. From the Command Prompt, type C<ppm>, or, if using ActivePerl 5.6, C<ppm3>. (Older versions of ActivePerl probably use just C<ppm>, but the syntax may be a bit different).
 
-You should be able to type just C<install DBI> and C<install DBD::SQLite> from the C<ppm> prompt.
+You should be able to type just C<install DBI>, C<install DBD::SQLite>, and C<install Time-modules> from the C<ppm> prompt. Alternatively, you can perform each install as a separate C<ppm> command, such as C<ppm install DBI>.
 
    ppm> install DBI
    ====================

@@ -815,6 +815,10 @@ sub GiveHelp {
     
     $msg .= "USE --help TO VIEW FULL HELP INFORMATION\n" unless $verbose;
     
+    if ($0 =~ /exe$/) {
+        &GiveExeHelp($msg, $verbose); # will be created by .exe build script
+    }
+    
     pod2usage(
               {
                 -message => $msg,
@@ -1787,6 +1791,9 @@ sub first(&@) {
 	return undef;
 }
 
+package main;
+
+## EXE PRECOMPILE HERE
 
 1;
 
@@ -1873,6 +1880,4 @@ the first stage.
 Print all program output to screen as well as logfile.
 
 =back
-
-=head1 DESCRIPTION
 

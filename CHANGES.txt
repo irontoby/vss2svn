@@ -1,3 +1,13 @@
+0.3.1
+    * Fixed issue with compiled .exe not printing help info correctly
+    * Updated INSTALL file to reflect Time::ParseDate requirement
+    * Updated README file
+
+  Known Issues:
+    * Still doesn't handle label comments correctly
+    * Doesn't handle VSS cloaked projects correctly
+    * Currently works only with English version of VSS.
+
 0.3.0
     * Generally much more user friendly, with useful prompts, error msgs, etc.
     * Automatically detect user's regionalized date and time formats from

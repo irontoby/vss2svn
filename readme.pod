@@ -39,3 +39,33 @@ for more info.
 
 =head2 HOW IT WORKS
 
+TODO...
+
+=head2 KNOWN PROBLEMS
+
+Following is a list of known problems with this script. Listing a known issue
+here implies that I have plans to correct it in the future but haven't gotten
+around to it yet.
+
+=over 4
+
+Labels: Label support is currently poor. This will hopefully be fixed
+soon. In particular, label comments as well as SS.EXE label info output is
+currently added to the respective revision's comment in Subversion. This script
+may or may not eventually correctly parse labels and create a corresponding
+/labels area in Subversion.
+
+English-Only SS.EXE supported: Currently, only the English-language
+version of the VSS command-line utility SS.EXE is supported. Non-English
+characters are allowed in filenames and comments, but the SS.EXE program itself
+must be English. A workaround for this issue is to find and rename the SSxx.DLL
+in your VSS installation, where "xx" is your two-character language code. Then
+rename the DLL back after the migration. Support for other languages will be
+added soon.
+
+Cloaked Projects: If your VSS projects have cloaked projects, this
+script will crash. Un-cloak any projects before running this script.
+
+=back
+
+=end
