@@ -58,7 +58,6 @@ our $USAGE = <<'EOUSAGE';
 EOUSAGE
 
 use warnings;
-use diagnostics;
 use strict;
 
 use Getopt::Long;
@@ -75,6 +74,10 @@ sub first(&@);
 
 &Vss2Svn::Subversion::Initialize;
 &Vss2Svn::VSS::Initialize;
+
+sub PrintMsg; # defined later
+
+warn "\n\n**** BUILDING INITIAL STRUCTURES; PLEASE WAIT... ****\n\n";
 
 &Initialize;
 &CreateDatabase;
@@ -106,8 +109,6 @@ $gCfg{dbh}->commit;
 
 &CloseDatabase;
 
-sub PrintMsg; # defined later
-
 close STDERR;
 open STDERR, ">&THE_REAL_STDERR"; # yes, we're about to exit, but leaving
                                   # STDERR dangling always makes me nervous!
@@ -120,7 +121,8 @@ exit(0);
 #  GetProjectTree
 ###############################################################################
 sub GetProjectTree {
-    $TREE = $VSS->project_tree($gCfg{vssproject},1,1);
+    $TREE = $VSS->project_tree($gCfg{vssproject},1,1)
+        or die "Couldn't create project tree for $gCfg{vssproject}";
 }
 
 ###############################################################################
@@ -142,7 +144,7 @@ sub WalkTreeBranch {
     my($branch, $project) = @_;
     PrintMsg "ENTERING PROJECT $project...\n";
 
-    my($key, $val);
+    my($key, $val, $newproj);
     my @branches = ();
 
     foreach $key (sort keys %$branch) {
@@ -164,9 +166,10 @@ sub WalkTreeBranch {
     foreach my $subbranch (@branches) {
         mkdir $subbranch->{project};
         chdir $subbranch->{project} or die;
+        
+        ($newproj = "$project/$subbranch->{project}") =~ s://:/:;
 
-        &WalkTreeBranch($subbranch->{branch},
-                        "$project/" . $subbranch->{project});
+        &WalkTreeBranch($subbranch->{branch}, $newproj);
 
         chdir '..';
     }
@@ -180,7 +183,7 @@ sub AddFileHistory {
 
     # build the revision history for this file
 
-    my $filepath = "$project/$file";
+    (my $filepath = "$project/$file") =~ s://:/:;
     my $filehist = $VSS->file_history("$filepath");
     die if !defined $filehist;
     
@@ -208,8 +211,10 @@ sub AddFileHistory {
 sub InsertDatabaseRevision {
     my($filepath, $rev) = @_;
     
+    my %data = %$rev; # don't pollute $rev
+    
     #quote the text fields
-    map { $rev->{$_} = $gCfg{dbh}->quote( $rev->{$_} ) }
+    map { $data{$_} = $gCfg{dbh}->quote( $rev->{$_} ) }
         qw(date time user comment);
 
     $filepath = $gCfg{dbh}->quote($filepath);
@@ -226,12 +231,12 @@ INSERT INTO
         global_count
     )
 VALUES (
-    $rev->{date},
-    $rev->{time},
+    $data{date},
+    $data{time},
     $filepath,
-    $rev->{version},
-    $rev->{user},
-    $rev->{comment},
+    $data{version},
+    $data{user},
+    $data{comment},
     $gCfg{globalCount}
 )
 EOSQL
@@ -543,7 +548,7 @@ sub Initialize {
     defined $gCfg{svnrepo} or GiveHelp("must specify --svnrepo\n");
     defined $ENV{SSDIR} or GiveHelp("\$SSDIR not defined");
     
-    $gCfg{vssproject} =~ s/\/$// unless $gCfg{vssproject} eq '$/';
+    $gCfg{vssproject} =~ s:/$:: unless $gCfg{vssproject} eq '$/';
     $gCfg{vssprojmatch} = quotemeta( $gCfg{vssproject} );
     
     $VSS = Vss2Svn::VSS->new($ENV{SSDIR}, $gCfg{vssproject});
@@ -941,7 +946,8 @@ sub new {
 
     $db =~ s/[\/\\]?(srcsafe.ini)?$//i;
 
-    if (defined $project && $project ne '' && $project !~ /^\$\//) {
+    if (defined $project && $project ne ''
+        && $project ne '$' && $project !~ /^\$\//) {
         croak "Project path must be absolute (begin with $/)";
     }
 
@@ -1519,7 +1525,7 @@ sub Initialize {
 
 # TIMEFORMAT: modify "userdttm" below if necessary for your format.
     %gHistLineMatch = (
-                           version    => qr/^\*+\s*Version\s+(\d)+\s*\*+\s*$/,
+                           version    => qr/^\*+\s*Version\s+(\d+)\s*\*+\s*$/,
                            userdttm   => qr/^User:\s+([\S]+)\s+Date:\s+(\d+)\/(\d+)
                                          \/(\d+)\s+Time:\s+(\d+):(\d+)([ap]*)\s*$/x,
                            comment    => qr/^Comment:\s*/,

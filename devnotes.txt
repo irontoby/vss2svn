@@ -1,0 +1,6 @@
+This file is for my own development use only! These are just notes to myself
+whenever I think of something that might come in useful later.
+
+UTF-8 support in Perl 5.8
+use Encode;
+decode("utf-8", $string);
