@@ -1,6 +1,6 @@
 =pod
 
-=head1 Install and Usage Instructions for C<vss2svn.pl>
+=head1 Installation Instructions for C<vss2svn.pl>
 
 =head2 INSTALLATION
 
@@ -33,6 +33,12 @@ This script depends on the following Perl modules. All but the first two are inc
 =item * Cwd
 
 =item * File::Path
+
+=item * Pod::Usage
+
+=item * Text::Wrap
+
+=item * Win32::TieRegistry
 
 =back
 
@@ -69,15 +75,12 @@ You should be able to type just C<install DBI> and C<install DBD::SQLite> from t
 You should now be able to run C<vss2svn.pl>. The Visual SourceSafe C<ss.exe> command, the Subversion C<svn.exe> command, and C<perl> should all be in your PATH. To check for this, issue the following three commands from the Command Prompt in the directory where C<vss2svn.pl> is located. To open a Windows Command Prompt, choose C<Run> from the Start Menu (or press Windows Key + R) and type C<cmd>.
 
   C:\vss2svn> ss help
-  C:\vss2svn> svn --version
+  C:\vss2svn> svn help
   C:\vss2svn> perl -v
 
 All three should return with some status information about the version you have installed. If you get an error message instead, modify your PATH environment variable (from Control Panel, choose System, Advanced, Environment Variables or something similar; it doesn't matter whether you use the User or System PATH variable, as they will be merged). While you are there, ensure the C<SSDIR> environment variable points to the root of your VSS database (wherever the F<srcsafe.ini> file is located). After changing these settings, you must close and re-open your Command Prompt.
 
-=head1 RUNNING THE SCRIPT
-
-Once you have all of the above set up, type C<perl vss2svn.pl --help> at the Command Prompt. You should get usage information regarding the script's command-line arguments. Refer to this information to start your migration. Be sure to read all directions first!
-
 If you are using ActivePerl 5.6, you may receive a C<DBD::SQLite> fatal error when the script is first run. In that case, try using our pre-built C<DBD::SQLite> binary files instead, available at:
 
 L<http://vss2svn.tigris.org/servlets/ProjectDocumentList?folderID=2788>
+

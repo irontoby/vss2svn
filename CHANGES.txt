@@ -1,0 +1,43 @@
+0.3.0
+    * Generally much more user friendly, with useful prompts, error msgs, etc.
+    * Automatically detect user's regionalized date and time formats from
+      Windows registry
+    * Explicitly checks for ss.exe and svn.exe on path before starting
+    * No longer dies on VSS "pinned" files
+    * Attempt to correct for user's timezone
+    * Remove redundant internal "filetype" check when building file histories
+    * Add --exclude switch to allow excluding arbitrary subprojects
+      from migration
+    * Revived --debug switch; this sends *all* output to the screen! (Still
+      goes to logfile as well)
+    * Add --timebias switch to override timezone detection
+    * Changed --login argument to --vsslogin
+    * The following new Perl modules are now required (all are base
+      to ActiveState build)
+        - Win32::TieRegistry
+        - Pod::Usage
+        - Text::Wrap
+        
+  Known Issues:
+    * Still doesn't handle label comments correctly
+
+0.2.2
+    * Use tempfiles for more ss.exe commands instead of piping
+      directly to STDOUT; this prevents ss.exe from undesirably
+      line-breaking and paginating output. (bugzilla issue #1)
+    
+    * Change license from "public domain" to Gnu GPL. 
+0.2.1
+    * fix reading version numbers greater than 9.
+    * handle "--vssproject $/" correctly
+    * remove "use diagnostics", which only confuses regular users
+    * print startup message so doesn't appear to hang on large projects
+    * passing an invalid project is a fatal error
+    * prevent SQL quotes from appearing in users prompt 
+
+0.2.0
+    * Use the DBD::SQLite driver instead of temporary text files;
+      performance greatly improved on large VSS databases
+
+0.1.0
+    * Initial import of script.

@@ -39,12 +39,13 @@ sub PrintMsg; # defined later
 
 &Regionalize;
 &Initialize;
-&GiveStartupMessage unless $gCfg{noprompt};
+&GiveStartupMessage;
 &SetupLogfile;
 
 &CreateDatabase;
 
 &GetProjectTree;
+&PruneVssExcludes;
 &BuildHistory;
 &GiveHttpdAuthMessage unless $gCfg{noprompt};
 
@@ -60,18 +61,9 @@ close STDERR;
 open STDERR, ">&THE_REAL_STDERR"; # yes, we're about to exit, but leaving
                                   # STDERR dangling always makes me nervous!
                                   
+$gCfg{hooray} = 1; # to suppress Win32::TieRegistry global destruction errors
 exit(0);
 
-
-###############################################################################
-#  GetProjectTree
-###############################################################################
-sub GetProjectTree {
-    PrintMsg "\n\n**** BUILDING INITIAL STRUCTURES; PLEASE WAIT... ****\n\n";
-
-    $TREE = $VSS->project_tree($gCfg{vssproject},1,1)
-        or die "Couldn't create project tree for $gCfg{vssproject}";
-}
 
 ###############################################################################
 #  GiveStartupMessage
@@ -98,11 +90,18 @@ EOMSG
 
          ss.exe Found: $gCfg{ssbin}
         svn.exe Found: $gCfg{svnbin}
+
           VSS Project: $gCfg{vssproject}
        Subversion URL: $gCfg{svnrepo}
- Set SVN Commit Dates: $setdates$datemsg
 
+    Local Date Format: $Vss2Svn::VSS::gCfg{dateString}
+    Local Time Format: $Vss2Svn::VSS::gCfg{timeString}
+ Time Bias To Get GMT: $gCfg{timebias} minutes
+
+ Set SVN Commit Dates: $setdates$datemsg
 EOMSG
+
+    return if $gCfg{noprompt};
 
     print "Continue with these settings? [Y/n]";
     my $reply = <STDIN>;
@@ -127,8 +126,74 @@ sub SetupLogfile {
     select STDOUT;
     
     # since we redirected STDERR, make sure user sees die() messages!
-    $SIG{__DIE__} = \&MyDie;    
+    $SIG{__DIE__} = \&MyDie;
+    $SIG{__WARN__} = \&PrintMsg if $gCfg{debug};
 }
+
+###############################################################################
+#  GetProjectTree
+###############################################################################
+sub GetProjectTree {
+    PrintMsg "\n\n**** BUILDING INITIAL STRUCTURES; PLEASE WAIT... ****\n\n";
+
+    $TREE = $VSS->project_tree($gCfg{vssproject},1,1,1)
+        or die "Couldn't create project tree for $gCfg{vssproject}";
+}
+
+###############################################################################
+#  PruneVssExcludes
+###############################################################################
+sub PruneVssExcludes {
+    
+    return unless defined $gCfg{vssexclude};
+    
+    # By this point, we already have the entire "naked" directory structure
+    # in $TREE, and we prune off any branches that match exclude. It may seem
+    # wasteful to go to the trouble of building $TREE if we're just gonna
+    # cut large chunks off now, but since we had to parse the entire output of
+    # "ss DIR" on "vssproject" anyway, we wouldn't have saved much time by
+    # using these at that stage.
+    
+    my($ref, $parent, $subdir, $last);
+    
+EXCLUDE:
+    foreach my $exclude ( sort @{ $gCfg{vssexclude} }) {
+        # by sorting, we get parents before their subdirectories, to give more
+        # meaningful warning messages
+
+        $exclude =~ s/^\s*(.*?)\s*$/$1/;
+        $exclude =~ s:^$gCfg{vssprojmatch}/?::;
+
+        if ($exclude =~ m:^\$/:) {
+            PrintMsg "**WARNING: Exclude path \"$exclude\" is not underneath "
+                . "$gCfg{vssproject}; ignoring...\n";
+            next EXCLUDE;
+        }
+        
+        # Perl doesn't allow us to delete() a hash ref, so we must also keep
+        # track of the parent to fully get rid of the entry
+        $ref = $parent = $TREE;
+        
+        foreach $subdir (split '\/', $exclude) {
+            if (!exists $ref->{$subdir}) {
+                PrintMsg "**WARNING: Exclude path \"$exclude\" not found in "
+                    . "$gCfg{vssproject} (or a parent directory was already "
+                    . "excluded); ignoring...\n";
+                next EXCLUDE;
+            }
+            
+            # can't use foreach() iterator outside of loop, so keep track of it
+            $last = $subdir;
+            $parent = $ref;
+            $ref = $ref->{$subdir};
+        }
+        
+        delete $parent->{$last};
+        1;
+        
+    }
+
+}  #  End PruneVssExcludes
 
 ###############################################################################
 #  BuildHistory
@@ -186,16 +251,21 @@ sub WalkTreeBranch {
 ###############################################################################
 sub AddFileHistory {
     my($project, $file) = @_;
-
+    
     # build the revision history for this file
 
     (my $filepath = "$project/$file") =~ s://:/:;
+    
+    # SS.exe uses a semicolon to indicate a "pinned" file
+    $filepath =~ s/;(.*)//;
+    
     my $filehist = $VSS->file_history("$filepath");
     die "Internal error while reading VSS file history for $filepath"
         if !defined $filehist;
     
     PrintMsg "   $filepath\n";
 
+REV:
     foreach my $rev (@$filehist) {
         $gCfg{globalCount}++;
         
@@ -295,7 +365,8 @@ sub SetupSvnProject {
 
     PrintMsg "   Importing directory structure from Subversion...\n";
     $SVN->do('import', '.', '--message "Initial Import"', 0)
-        or die "Could not perform SVN import of $gCfg{importdir}";
+        or die "Could not perform SVN import of $gCfg{importdir}. Have you "
+        . "set your httpd authorization file correctly?";
     
     chdir $gCfg{workdir}
         or die "Could not change to directory $gCfg{workdir}";
@@ -462,6 +533,8 @@ sub CommitSvn {
     print COMMENTFILE $comment;
     close COMMENTFILE;
     
+    PrintMsg "   (COMMITTING SVN...)\n";
+    
     $multiple? &CommitMultipleItems($commitinfo)
         : &CommitSingleItem($commitinfo);
         
@@ -482,7 +555,8 @@ sub CommitSingleItem {
     $SVN->{user} = $commitinfo->{user};
     $SVN->svn("commit --file \"$gCfg{tmpfiledir}/comment.txt\" "
               . "--non-recursive \"$commitinfo->{file}\"")
-        or die "Could not perform SVN commit on \"$commitinfo->{file}\"";
+        or die "Could not perform SVN commit on \"$commitinfo->{file}\". "
+        . "Have you set your httpd authorization file correctly?";
 }
 
 ###############################################################################
@@ -497,7 +571,8 @@ sub CommitMultipleItems {
 
     $SVN->{user} = $commitinfo->{user};
     $SVN->svn("commit --file \"$gCfg{tmpfiledir}/comment.txt\" \".\"")
-        or die "Could not perform SVN commit";
+        or die "Could not perform SVN commit. "
+        . "Have you set your httpd authorization file correctly?";
 }
 
 ###############################################################################
@@ -546,7 +621,7 @@ sub RecursiveDelete {
 ###############################################################################
 sub PrintMsg {
     # print to logfile (redirected STDERR) and screen (STDOUT)
-    warn @_;
+    print STDERR @_;
     print THE_REAL_STDERR @_;
 }  #End PrintMsg
 
@@ -555,14 +630,39 @@ sub PrintMsg {
 ###############################################################################
 sub MyDie {
     # any die() is trapped by $SIG{__DIE__} to ensure user sees fatal errors
+    exit(255) if $gCfg{died}; # don't die 2x if fatal error in global cleanup
+    exit(0) if $gCfg{hooray};
+    
     warn @_;
     print THE_REAL_STDERR "\n", @_;
     
     (my $logfile = $gCfg{logfile}) =~ s:/:\\:g;
+    
+    my ($vsserr, $svnerr) = ('') x 2;
+    
+    if ((defined $VSS) && (defined $VSS->{ss_error})) {
+        $vsserr = "\nLAST VSS COMMAND:\n$VSS->{ss_error}\n\n(You may find "
+        . "more info on this error at the following website:\n"
+        . "http://msdn.microsoft.com/library/default.asp?url=/library/"
+        . "en-us/guides/html/vsorierrormessages.asp )";
+    }
+    
+    if ((defined $SVN) && (defined $SVN->{svn_error})) {
+        $svnerr = "\nLAST SVN COMMAND:\n$SVN->{svn_error}\n";
+    }
+    
     print THE_REAL_STDERR <<"EOERR";
 
-A fatal error has occured. See $logfile for more information.
+******************************FATAL ERROR********************************
+*************************************************************************
+
+A fatal error has occured. The output from the last VSS or SVN command is
+below, if available.
+
+See $logfile for more information.
+$vsserr$svnerr
 EOERR
+    $gCfg{died} = 1;
     exit(255);
 }  #End MyDie
 
@@ -570,9 +670,9 @@ EOERR
 #  Initialize
 ###############################################################################
 sub Initialize {
-    GetOptions(\%gCfg,'vssproject=s','svnrepo=s','comment=s',
-               'vsslogin=s','setdates','noprompt','interactive','timebias=i',
-               'help');
+    GetOptions(\%gCfg,'vssproject=s','vssexclude=s@','svnrepo=s','comment=s',
+               'vsslogin=s','setdates','noprompt','timebias=i',
+               'debug','help',);
 
     &GiveHelp(undef, 1) if defined $gCfg{help};
     
@@ -582,6 +682,9 @@ sub Initialize {
 
     $gCfg{vssproject} =~ s:/$:: unless $gCfg{vssproject} eq '$/';
     $gCfg{vssprojmatch} = quotemeta( $gCfg{vssproject} );
+    
+    @{ $gCfg{vssexclude} } = split(',', join(',' ,@{ $gCfg{vssexclude} } ))
+        if defined $gCfg{vssexclude};
     
     $gCfg{ssbin} = &CheckForExe
         ("ss.exe", "the Microsoft Visual SourceSafe client");
@@ -616,7 +719,8 @@ sub Initialize {
     
     $gCfg{workbase} = cwd() . "/_vss2svn";
     &RecursiveDelete( $gCfg{workbase} );
-    mkdir $gCfg{workbase} or die "Couldn't create $gCfg{workbase}";
+    mkdir $gCfg{workbase} or die "Couldn't create $gCfg{workbase} (does "
+        . "another program have a lock on this directory or its files?)";
 
     $gCfg{workdir} = "$gCfg{workbase}/work";
     mkdir $gCfg{workdir} or die "Couldn't create $gCfg{workdir}";
@@ -706,16 +810,16 @@ sub CloseDatabase {
 #  GiveHelp
 ###############################################################################
 sub GiveHelp {
-    my($msg, $full) = @_;
+    my($msg, $verbose) = @_;
     $msg .= "\n" if defined $msg;
     
-    my $verbose = $full? 2 : 1;
+    $msg .= "USE --help TO VIEW FULL HELP INFORMATION\n" unless $verbose;
     
     pod2usage(
               {
                 -message => $msg,
                 -verbose => $verbose,
-                -exitval => $verbose,  # if user requested --help, go to STDOUT
+                -exitval => $verbose, # if user requested --help, go to STDOUT
               }
              );
 
@@ -820,6 +924,7 @@ sub new {
             verbose              => undef,
             paginate             => 0,
             svn_output           => undef,
+            svn_error            => undef,
             get_readonly         => 1,
             get_compare          => 1,
             get_eol_type         => 0,
@@ -955,6 +1060,12 @@ sub svn {
     my $ev = $? >> 8;
     my $success = !$ev;
 
+    if ($success) {
+        $self->{svn_error} = undef;
+    } else {
+        $self->{svn_error} = "$disp_cmd\n$output";
+    }
+
     if (!$success && ($silent == 0 || $silent == 2)) {
 
         carp "\nERROR in Vss2Svn::Subversion-\>ss\n"
@@ -1008,7 +1119,7 @@ sub first(&@);
 use Carp;
 our $VERSION = '1.05';
 
-our(%gErrMatch, %gHistLineMatch, @gDevPatterns);
+our(%gCfg, %gErrMatch, %gHistLineMatch, @gDevPatterns);
 
 ###############################################################################
 #   new
@@ -1039,7 +1150,8 @@ sub new {
             silent               => undef,
             verbose              => undef,
             paginate             => 0,
-            last_ss_output       => undef,
+            ss_output            => undef,
+            ss_error             => undef,
             get_readonly         => 1,
             get_compare          => 1,
             get_eol_type         => 0,
@@ -1056,11 +1168,11 @@ sub new {
     $self->ss("WHOAMI", -2) or
         croak "Could not run VSS 'ss' command: ensure it is in your PATH";
 
-    $self->{_whoami} = $self->{last_ss_output};
+    $self->{_whoami} = $self->{ss_output};
     $self->{_whoami} =~ s/\s*$//;
     $self->{_whoami} =~ s/^.*\n//;
 
-    if ($self->{last_ss_output} =~ /changing project/im ||
+    if ($self->{ss_output} =~ /changing project/im ||
          !$self->_check_ss_inifile) {
         croak "FATAL ERROR: You must not set the Force_Dir or Force_Prj VSS\n"
             . "variables when running SourceSync. These variables can be\n"
@@ -1071,7 +1183,7 @@ sub new {
     if ($project eq '') {
         $self->ss('PROJECT', -2);
 
-        $project = $self->{last_ss_output};
+        $project = $self->{ss_output};
         $project =~ s/^Current project is *//i;
         $project .= '/' unless $project =~ m/\/$/;
 
@@ -1119,7 +1231,7 @@ sub set_project {
 
     $self->ss("CP \"$project\"", -2) or
         croak "Could not set current project to $project:\n"
-            . "  $self->{last_ss_output}\n ";
+            . "  $self->{ss_output}\n ";
 
     $self->{project} = $project;
 
@@ -1165,7 +1277,7 @@ sub project_tree {
     my $match_project = quotemeta($project);
 
 LINE:
-    foreach my $line (split "\n", $self->{last_ss_output}) {
+    foreach my $line (split "\n", $self->{ss_output}) {
         $line =~ s/\s+$//;
 
         if ($line eq '') {
@@ -1226,7 +1338,7 @@ LINE:
 
             if ($remove_dev) {
                 foreach my $pattern (@gDevPatterns) {
-                    next LINE if $line =~ m/$pattern/;
+                    next LINE if $line =~ m/$pattern/i;
                 }
             }
 
@@ -1254,11 +1366,6 @@ sub file_history {
 
     $file = $self->full_path($file);
 
-    if ($self->filetype($file) < 1) { # regular files are type 1 or 2
-        carp "file_history(): '$file' is not a valid regular file";
-        return undef;
-    }
-    
     my $cmd = "HISTORY \"$file\"";
     my $tmpfile = '';
 
@@ -1276,7 +1383,7 @@ sub file_history {
     my($year,$month,$day,$hour,$min,$ampm,$comment,$version);
 
 HISTLINE:
-    foreach my $line (split "\n", $self->{last_ss_output}) {
+    foreach my $line (split "\n", $self->{ss_output}) {
         if ($self->{_debug}) {
             warn "\nDEBUG:($last)<$line>\n";
         }
@@ -1323,7 +1430,7 @@ HISTLINE:
                 
                 if ($self->{timebias} != 0) {
                     my $basis = parsedate("$year/$month/$day $hour:$min");
-                    (my $bias = $gCfg{timebias}) =~ s/^(\d+)/+ $1/;
+                    (my $bias = $self->{timebias}) =~ s/^(\d+)/+ $1/;
                     my $epoch_secs = parsedate("$bias minutes",
                                                NOW => $basis);
 
@@ -1412,7 +1519,7 @@ sub filetype {
     return 0 if $file eq '$/';
     return -1 if $file eq '$';
 
-    # VSS has no decent way of determining whether an item is a project of
+    # VSS has no decent way of determining whether an item is a project or
     # a file, so we do this in a somewhat roundabout way
 
     $file =~ s/[\/\\]$//;
@@ -1426,14 +1533,14 @@ sub filetype {
     my $match_isproject = "^Project:.*$bare\\s*\$";
     my $match_notfound = "$bare\\s*is not an existing filename or project";
 
-    if ($self->{last_ss_output} =~ m/$match_isproject/mi) {
+    if ($self->{ss_output} =~ m/$match_isproject/mi) {
         return 0;
-    } elsif ($self->{last_ss_output} =~ m/$match_notfound/mi) {
+    } elsif ($self->{ss_output} =~ m/$match_notfound/mi) {
         return -1;
      } else {
         $self->ss("FILETYPE \"$file\"", -3) or return -1;
 
-        if ($self->{last_ss_output} =~ m/^$bare\s*Text/mi) {
+        if ($self->{ss_output} =~ m/^$bare\s*Text/mi) {
             return 1;
         } else {
             return 2;
@@ -1590,6 +1697,12 @@ sub ss {
         }
 
     }
+    
+    if ($success) {
+        $self->{ss_error} = undef;
+    } else {
+        $self->{ss_error} = "$disp_cmd\n$output";
+    }
 
     if (!$success && ($silent == 0 || $silent == 2)) {
 
@@ -1600,7 +1713,7 @@ sub ss {
 
     }
 
-    $self->{last_ss_output} = $output;
+    $self->{ss_output} = $output;
     return $success;
 
 }  # End ss
@@ -1633,6 +1746,16 @@ sub Initialize {
                              . 'International/sTime'} || ':';
     $gCfg{dateFormat} = $dateFormat;
 
+    if ($dateFormat == 1) {
+        $gCfg{dateString} = "DD${dateSep}MM${dateSep}YY";
+    } elsif ($dateFormat == 2) {
+        $gCfg{dateString} = "YY${dateSep}MM${dateSep}DD";
+    } else {
+        $gCfg{dateString} = "MM${dateSep}DD${dateSep}YY";
+    }
+    
+    $gCfg{timeString} = "HH${timeSep}MM";
+
     # see ss method for explanation of this
     %gErrMatch = (
                     GET    => 'is not an existing filename or project',
@@ -1650,12 +1773,11 @@ sub Initialize {
     );
 
     # patterns to match development files that project_tree will ignore
-#    @gDevPatterns = (
-#                        qr/\.perlproj$/,
-#                        qr/\.vspscc$/,
-#                        qr/\.vssscc$/,
-#                        qr/\.sln$/,
-#                    );
+    @gDevPatterns = (
+                        qr/\.vspscc$/,
+                        qr/\.vssscc$/,
+                        qr/^vssver\.scc$/,
+                    );
 
 }  # End Initialize
 
@@ -1706,6 +1828,14 @@ URL to target Subversion repository
 
 =over 4
 
+=item --exclude <EXCLUDE_PROJECTS>:
+
+Exclude the given projects from the migration. To list multiple projects,
+separate with commas or use multiple --exclude commands.
+
+Each project can be given as an absolute path (beginning with $/) or
+relative to --vssproject.
+
 =item --comment "MESSAGE":
 
 add MESSAGE to end of every migrated comment
@@ -1720,48 +1850,29 @@ problems if not done correctly. Using this also requires the
 "pre-revprop-change" Hook Script to be set; see
 L<http://svnbook.red-bean.com/svnbook/ch05s02.html#svn-ch-5-sect-2.1>
 
-=item --login "USER:PASSWD":
+=item --vsslogin "USER:PASSWD":
 
 Set VSS username and password, separated by a colon.
 B<WARNING --> if the username/password combo you provide is
 incorrect, this program will hang as ss.exe prompts you for
 a username! (This is an unavoidable Microsoft bug).
 
+=item --timebias <OFFSET_MINUTES>:
+
+Override the script's guess as to the number of minutes it should
+add to your local time to get to GMT (for example, if you are
+in Eastern Daylight Time [-0400], this should be 240).
+
 =item --noprompt:
 
-Don't prompt to create usernames after the first stage
-of the migration (see last paragraph below)
+Don't prompt to confirm settings or to create usernames after
+the first stage.
+
+=item --debug:
+
+Print all program output to screen as well as logfile.
 
 =back
 
-B<USE --help TO VIEW FULL HELP INFORMATION>
-
 =head1 DESCRIPTION
 
-The URL you provide for "svnrepo" will become the base URL for all migrated
-files, so for the usage example above, B<$/vss/project/foo.c> would become
-B<http://svn/repository/url/foo.c>. Plan your migration accordingly so that you
-end up with the structure that you want. The URL also cannot contain any
-existing files; but as long as the "parent" of the URL is a Subversion
-repository, any non-existent directories in the URL will be created.
-
-The B<$SSDIR> environment variable must be set to the directory where your
-system srcsafe.ini file is located; see the VSS online help for more info.
-The "svn" and "ss" command-line executables must also be in your PATH.
-
-This script is released into the public domain. In case you're wondering
-about why the Vss2Svn packages have unused methods, it's because they came
-from in-house modules which had more functionality than just this conversion.
-
-I recommend converting only a small branch at first to see how things go.
-This process takes a very long time for large databases. I have made liberal
-
-Partway through the migration, you will be presented with a list of all
-usernames which performed any checkin operations in the given VSS project.
-If you want these user names to be preserved, you must add this list
-(including a user "vss_migration" for creating directories and such) to your
-Apache AuthUserFile with *blank passwords*. Apache must also *require* that
-usernames be passed, otherwise SVN will use anonymous access and you lose
-the usernames. So you need an "AuthType Basic" line or the like, as well as
-an AuthUserFile. See L<http://svnbook.red-bean.com/svnbook/ch06s04.html#svn-ch-6-sect-4.3>
-for more info.

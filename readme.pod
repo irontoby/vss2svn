@@ -1,0 +1,41 @@
+=pod
+
+=head1 Running The C<vss2svn.pl> Script
+
+(NOTE: THIS DOC IS STILL A WORK IN PROGRESS!)
+
+=head2 RUNNING THE SCRIPT
+
+See INSTALL.txt for instructions on how to install the necessary modules for this script to run.
+Start a Windows Command Prompt, change to the directory where C<vss2svn.pl> is located, and type C<perl vss2svn.pl --help>. You should get usage information regarding the script's command-line arguments. If you get a Perl error message instead, you have not installed all required modules properly.
+
+The URL you provide for "svnrepo" will become the base URL for all migrated
+files, so for the usage example above, B<$/vss/project/foo.c> would become
+B<http://svn/repository/url/foo.c>. Plan your migration accordingly so that you
+end up with the structure that you want. The URL also cannot contain any
+existing files; but as long as the "parent" of the URL is a Subversion
+repository, any non-existent directories in the URL will be created.
+
+The B<$SSDIR> environment variable must be set to the directory where your
+system srcsafe.ini file is located; see the VSS online help for more info.
+The "svn" and "ss" command-line executables must also be in your PATH.
+
+This script is released into the public domain. In case you're wondering
+about why the Vss2Svn packages have unused methods, it's because they came
+from in-house modules which had more functionality than just this conversion.
+
+I recommend converting only a small branch at first to see how things go.
+This process takes a very long time for large databases. I have made liberal
+
+Partway through the migration, you will be presented with a list of all
+usernames which performed any checkin operations in the given VSS project.
+If you want these user names to be preserved, you must add this list
+(including a user "vss_migration" for creating directories and such) to your
+Apache AuthUserFile with *blank passwords*. Apache must also *require* that
+usernames be passed, otherwise SVN will use anonymous access and you lose
+the usernames. So you need an "AuthType Basic" line or the like, as well as
+an AuthUserFile. See L<http://svnbook.red-bean.com/svnbook/ch06s04.html#svn-ch-6-sect-4.3>
+for more info.
+
+=head2 HOW IT WORKS
+
