@@ -177,7 +177,7 @@ sub AddFileHistory {
     # commits in the same minute, this array should have only one value!
 
     my $filepath = "$project/$file";
-    my $filehist = $VSS->file_history($filepath);
+    my $filehist = $VSS->file_history("$filepath");
     die if !defined $filehist;
     
     my($ref, $user, $commentfile, $midpath);
@@ -381,7 +381,7 @@ sub GetVssRevision {
     $dospath =~ s/\\$//; # remove trailing backslash if $path was empty
     $dospath =~ s/\\\\/\\/g; # replace double backslashes with single
     
-    my $cmd = "GET -GTM -W -GL\"$dospath\" -V$ref->{version} $vsspath";
+    my $cmd = "GET -GTM -W -GL\"$dospath\" -V$ref->{version} \"$vsspath\"";
     $VSS->ss($cmd) or die;
     
     chdir $dospath or die;
@@ -961,7 +961,7 @@ sub set_project {
 
     $project .= '/' unless $project =~ m/\/$/;
 
-    $self->ss("CP $project", -2) or
+    $self->ss("CP \"$project\"", -2) or
         croak "Could not set current project to $project:\n"
             . "  $self->{last_ss_output}\n ";
 
@@ -987,7 +987,7 @@ sub project_tree {
         return undef;
     }
 
-    my $cmd = "DIR $project";
+    my $cmd = "DIR \"$project\"";
     $cmd .= ($recursive)? ' -R' : ' -R-';
 
     $self->ss($cmd, -2) or return undef;
@@ -1103,8 +1103,8 @@ sub file_history {
         return undef;
     }
     
-    my $cmd = "HISTORY $file";
-    my $tmpfile;
+    my $cmd = "HISTORY \"$file\"";
+    my $tmpfile = '';
 
     if (defined $self->{use_tempfiles}) {
         $tmpfile = "$self->{use_tempfiles}/file_history.txt";
@@ -1241,7 +1241,7 @@ sub filetype {
     my($self, $file) = @_;
     return -1 unless defined $file;
 
-    $file =~ s/\s//g;
+    #$file =~ s/\s//g;
 
     # special cases
     return 0 if $file eq '$/';
@@ -1256,7 +1256,7 @@ sub filetype {
     $bare =~ s/.*[\/\\]//;
     $bare = quotemeta($bare);
 
-    $self->ss("PROPERTIES $file -R-", -3) or return -1;
+    $self->ss("PROPERTIES \"$file\" -R-", -3) or return -1;
 
     my $match_isproject = "^Project:.*$bare\\s*\$";
     my $match_notfound = "$bare\\s*is not an existing filename or project";
@@ -1266,7 +1266,7 @@ sub filetype {
     } elsif ($self->{last_ss_output} =~ m/$match_notfound/mi) {
         return -1;
      } else {
-        $self->ss("FILETYPE $file", -3) or return -1;
+        $self->ss("FILETYPE \"$file\"", -3) or return -1;
 
         if ($self->{last_ss_output} =~ m/^$bare\s*Text/mi) {
             return 1;
