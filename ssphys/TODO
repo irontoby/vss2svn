@@ -1,0 +1,23 @@
+TODO:
+
++++ General +++
+ * better exception handling and error reporting
+ * better command line argument handling
+ * handle the missing actions
+   Recovered_Project
+   Recovered_File
+   action 12
+   action 13
+   Shared_File
+   Branch_File
+   action 18
+   RollBack
+
++++ ssphys.exe +++
+ * see what is needed for an integration with another scripting tool
+  
++++ ssrep.exe +++
+ * start the work on the ss.exe replacment tool again
+
++++ ssapi.lib +++
+ * abandon the project

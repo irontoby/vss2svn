@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- edited with XMLSpy v2005 rel. 3 U (http://www.altova.com) by www.serials.ws (www.serials.ws) -->
+<xs:schema xmlns="http://tempuri.org/vss.xsd" xmlns:mstns="http://tempuri.org/vss.xsd" xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata" targetNamespace="http://tempuri.org/vss.xsd" elementFormDefault="qualified" attributeFormDefault="qualified" id="vss">
+	<xs:element name="Version">
+		<xs:complexType>
+			<xs:all>
+				<xs:element name="VersionNumber" type="xs:string"/>
+				<xs:element name="UserName" type="xs:string"/>
+				<xs:element name="Action">
+					<xs:complexType>
+						<xs:all>
+							<xs:element name="Physical" type="xs:string" minOccurs="0"/>
+							<xs:element name="SSName" type="SSNameType" minOccurs="0"/>
+							<xs:element name="NewName" type="xs:string" minOccurs="0"/>
+							<xs:element name="NewSSName" type="SSNameType" minOccurs="0"/>
+							<xs:element ref="CheckIn" minOccurs="0"/>
+							<xs:element name="Label" type="xs:string" minOccurs="0"/>
+							<xs:element name="LabelComment" type="CommentType" minOccurs="0"/>
+						</xs:all>
+						<xs:attribute ref="ActionID" use="required"/>
+					</xs:complexType>
+				</xs:element>
+				<xs:element name="Date" type="xs:dateTime"/>
+				<xs:element name="Comment" type="CommentType" minOccurs="0"/>
+			</xs:all>
+			<xs:attribute name="offset" type="xs:integer" use="required"/>
+		</xs:complexType>
+	</xs:element>
+	<xs:complexType name="CommentType">
+		<xs:simpleContent>
+			<xs:extension base="xs:string">
+				<xs:attribute name="offset" type="xs:integer" use="required"/>
+			</xs:extension>
+		</xs:simpleContent>
+	</xs:complexType>
+	<xs:complexType name="SSNameType">
+		<xs:simpleContent>
+			<xs:extension base="xs:string">
+				<xs:attribute name="type" use="required">
+					<xs:simpleType>
+						<xs:restriction base="xs:string">
+							<xs:enumeration value="Project"/>
+							<xs:enumeration value="File"/>
+						</xs:restriction>
+					</xs:simpleType>
+				</xs:attribute>
+				<xs:attribute name="offset" type="xs:integer" use="required"/>
+			</xs:extension>
+		</xs:simpleContent>
+	</xs:complexType>
+	<xs:element name="CheckIn" type="xs:base64Binary"/>
+	<xs:attribute name="ActionID">
+		<xs:simpleType>
+			<xs:restriction base="xs:string">
+				<xs:enumeration value="Labeled"/>
+				<xs:enumeration value="CreatedProject"/>
+				<xs:enumeration value="AddedProject"/>
+				<xs:enumeration value="AddedFile"/>
+				<xs:enumeration value="DestroyedProject"/>
+				<xs:enumeration value="DestroyedFile"/>
+				<xs:enumeration value="DeletedProject"/>
+				<xs:enumeration value="DeletedFile"/>
+				<xs:enumeration value="RecoveredProject"/>
+				<xs:enumeration value="RecoveredFile"/>
+				<xs:enumeration value="RenamedProject"/>
+				<xs:enumeration value="RenamedFile"/>
+				<xs:enumeration value="Action12"/>
+				<xs:enumeration value="Action13"/>
+				<xs:enumeration value="SharedFile"/>
+				<xs:enumeration value="BranchFile"/>
+				<xs:enumeration value="CreatedFile"/>
+				<xs:enumeration value="Checkedin"/>
+				<xs:enumeration value="Action18"/>
+				<xs:enumeration value="RollBack"/>
+			</xs:restriction>
+		</xs:simpleType>
+	</xs:attribute>
+	<xs:group name="Test">
+		<xs:sequence/>
+	</xs:group>
+</xs:schema>

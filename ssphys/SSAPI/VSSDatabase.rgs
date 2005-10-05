@@ -1,0 +1,25 @@
+HKCR
+{
+	SSAPI.VSSDatabase.1 = s 'VSSDatabase Class'
+	{
+		CLSID = s '{783CD4E4-9D54-11CF-B8EE-00608CC9A71F}'
+	}
+	SSAPI.VSSDatabase = s 'VSSDatabase Class'
+	{
+		CLSID = s '{783CD4E4-9D54-11CF-B8EE-00608CC9A71F}'
+		CurVer = s 'SSAPI.VSSDatabase.1'
+	}
+	NoRemove CLSID
+	{
+		ForceRemove {783CD4E4-9D54-11CF-B8EE-00608CC9A71F} = s 'VSSDatabase Class'
+		{
+			ProgID = s 'SSAPI.VSSDatabase.1'
+			VersionIndependentProgID = s 'SSAPI.VSSDatabase'
+			ForceRemove 'Programmable'
+			InprocServer32 = s '%MODULE%'
+			{
+			}
+			'TypeLib' = s '{783CD4E0-9D54-11CF-B8EE-00608CC9A71F}'
+		}
+	}
+}

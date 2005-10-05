@@ -1,0 +1,1 @@
+perl -Ilib test.pl

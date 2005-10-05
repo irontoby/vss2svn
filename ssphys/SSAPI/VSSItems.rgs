@@ -1,0 +1,26 @@
+HKCR
+{
+	SSAPI.VSSItems.1 = s 'VSSItems Class'
+	{
+		CLSID = s '{656ABA1F-EA6F-43E3-9383-28DCDE381FFB}'
+	}
+	SSAPI.VSSItems = s 'VSSItems Class'
+	{
+		CLSID = s '{656ABA1F-EA6F-43E3-9383-28DCDE381FFB}'
+		CurVer = s 'SSAPI.VSSItems.1'
+	}
+	NoRemove CLSID
+	{
+		ForceRemove {656ABA1F-EA6F-43E3-9383-28DCDE381FFB} = s 'VSSItems Class'
+		{
+			ProgID = s 'SSAPI.VSSItems.1'
+			VersionIndependentProgID = s 'SSAPI.VSSItems'
+			ForceRemove 'Programmable'
+			InprocServer32 = s '%MODULE%'
+			{
+				val ThreadingModel = s 'Apartment'
+			}
+			'TypeLib' = s '{783CD4E0-9D54-11CF-B8EE-00608CC9A71F}'
+		}
+	}
+}

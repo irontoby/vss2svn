@@ -1,0 +1,26 @@
+HKCR
+{
+	SSAPI.VSSVersions.1 = s 'VSSVersions Class'
+	{
+		CLSID = s '{27808E78-2421-452A-978A-9BE02035CD85}'
+	}
+	SSAPI.VSSVersions = s 'VSSVersions Class'
+	{
+		CLSID = s '{27808E78-2421-452A-978A-9BE02035CD85}'
+		CurVer = s 'SSAPI.VSSVersions.1'
+	}
+	NoRemove CLSID
+	{
+		ForceRemove {27808E78-2421-452A-978A-9BE02035CD85} = s 'VSSVersions Class'
+		{
+			ProgID = s 'SSAPI.VSSVersions.1'
+			VersionIndependentProgID = s 'SSAPI.VSSVersions'
+			ForceRemove 'Programmable'
+			InprocServer32 = s '%MODULE%'
+			{
+				val ThreadingModel = s 'Apartment'
+			}
+			'TypeLib' = s '{783CD4E0-9D54-11CF-B8EE-00608CC9A71F}'
+		}
+	}
+}
