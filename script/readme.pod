@@ -1,0 +1,59 @@
+=pod
+
+=head1 Running The C<vss2svn.pl> Script
+
+(NOTE: THIS DOC IS STILL A WORK IN PROGRESS!)
+
+=head2 INSTALLING PERL MODULES 
+
+=head2 RUNNING THE SCRIPT
+
+This script runs on Windows only.
+
+Start a Windows Command Prompt, change to the directory where C<vss2svn.pl> is located, and type C<perl vss2svn.pl --help>. You should get usage information regarding the script's command-line arguments. If you get a Perl error message instead, you have not installed all required modules properly; see INSTALLING PERL MODULES above.
+
+I highly recommend converting only a small branch at first to see how things go. See BEST PRACTICES below for recommendations on converting your VSS repository. The time you take to carefully plan your migration to Subversion (SVN) ahead of time will be well worth it if you can avoid having to perform the migration multiple times!
+
+Make sure you understand what all the options are and decide what works best for your particular situation. Everyone uses version control differently, and the method you use to convert your repository will depend on your particular usage.
+
+=head2 SVN:DATE WARNING
+
+Although preserving the original VSS commit timestamps in your Subversion repository is very convenient, this is not always conceivable depending on how you perform your migration and whether your Subversion repository is brand new (at revision 0). See "Setting commit timestamps" under BEST PRACTICES below for more information. 
+
+=head2 BEST PRACTICES
+
+=over 4
+
+In-Use VSS Databases:
+
+This script will not attempt to determine whether anyone is logged in to the database while you are performing the conversion. It is highly recommended that you either use VSS Admin to lock out all users, or else make a local copy of the VSS database for purposes of the conversion. See below for more on local copies. 
+
+Local vs. Network:
+
+Placing a VSS repository on a network share is very common. However, during the conversion to SVN, you will notice a significant speed increase if you copy the VSS repository to a local drive and run the conversion from there instead. This will also help ensure that no one else is using the VSS repository while it is being converted.
+
+Setting commit timestamps:
+
+It is recommended that you only set SVN timestamps (i.e. the svn:date revision property) if you are converting to a brand-new Subversion repository. This is because SVN optimizes several of its operations based on the assumption that the timestamp of each revision is chronologically later than that of the previous revision.
+
+This means that if you convert a VSS repository "into" an SVN repository that already has commits, or if you convert your VSS repository(ies) in multiple stages, you could end up with out-of-order svn:date values. This could render such SVN features as blame, checkout by date, etc. unusable. 
+
+Rearranging projects: 
+
+=head2 HOW IT WORKS
+
+TODO...
+
+=head2 KNOWN PROBLEMS
+
+Following is a list of known problems with this script. These may or may not be fixed in a later version.
+
+=over 4
+
+Labels, Shares: These features are currently ignored.
+
+Cloaked Projects: Cloaked projects are ignored by default.
+
+=back
+
+=end

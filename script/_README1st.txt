@@ -1,0 +1,1 @@
+NOTE: This directory contains the "rewrite" of the vss2svn.pl script. It is currently not yet functional at all. You probably want the /legacy script.

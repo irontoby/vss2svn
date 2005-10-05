@@ -1,0 +1,41 @@
+DEVELOPMENT NOTES - VSS2SVN 0.10+
+
+These are the development notes for the "new, improved" vss2svn script. Previous versions (0.1 - 0.3) were based on parsing output from Microsoft's ss.exe tool. The script was rewritten to instead use the ssphys.exe command-line tool, which is the result of a reverse-engineering effort on the VSS backend database files.
+
+SQLITE SCHEMA
+
+All information about the conversion is stored in a SQLite version 2 database, using the DBD::SQLite Perl module. This is a wholly self-contained DBMS which offers SQL syntax, transactions, and a single database file. It is available in ActiveState's PPM repository, which means it is pre-compiled for Windows users.
+
+Following is a description of the SQLite schema used by this project:
+
+    'Physical' table : contains information about physical VSS files
+        physname (VARCHAR)  : name of physical VSS file
+        status (INTEGER)    : 0 = history not yet retrieved
+                              1 = history has been retrieved from this file
+    
+    'Action' table : contains information about individual actions performed
+                     in VSS history
+        action_id (INTEGER) : primary key for Action table
+        physname (VARCHAR)  : name of physical VSS file
+        type (VARCHAR)      : type of action (ADD, RENAME, LABEL, etc.)
+        itemname (VARCHAR)  : name of item being acted upon
+        itemtype (INTEGER)  : 1 = project
+                              2 = file
+        timestamp (VARCHAR) : timestamp in yyyymmdd.hhmmss.x format
+                              (.x is literal to prevent treating as numeric)
+        author (VARCHAR)    : name of user who performed action
+        info (VARCHAR)      : action-specific info (such as previous name on
+                              renames)
+        comment (TEXT)      : user-supplied comment for this action
+    
+    'Revision' table: contains information about eventual atomic SVN revisions
+        revision_id (INT.)  : primare key for Revision table
+        svndate (VARCHAR)   : svn:date formatted timestamp
+        author (VARCHAR)    : name of author for this atomic revision
+        comment (TEXT)      : comment for this atomic revision
+        status              : 0 = revision has been imported to SVN
+                              1 = revision not yet imported
+
+    'RevisionAction' table: many-to-many link between Revision and Action
+        revision_id (INT.)  : primary key for Revision table
+        action_id (INTEGER) : primary key for Action table
