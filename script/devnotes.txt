@@ -12,6 +12,10 @@ Following is a description of the SQLite schema used by this project:
         physname (VARCHAR)  : name of physical VSS file
         status (INTEGER)    : 0 = history not yet retrieved
                               1 = history has been retrieved from this file
+                              
+    'NameLookup' table: containse references to item names from VSS names.dat
+        offset              : primary key; byte offset from names.dat file
+        name                : item name
     
     'Action' table : contains information about individual actions performed
                      in VSS history

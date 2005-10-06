@@ -74,10 +74,31 @@ sub RunConversion {
 sub LoadVssNames {
     &DoSsCmd("info -a \"$gCfg{vssdatadir}\\names.dat\" -s xml");
     
-    my $xs = XML::Simple->new();
-    my $ref = $xs->XMLin($gSysOut);
+    my $xs = XML::Simple->new(KeyAttr => []);
+    my $xml = $xs->XMLin($gSysOut);
     
-    1; # TODO: load names entries
+    my $namesref = $xml->{NameCacheEntry} || return 1;
+    
+    my($entry, $count, $offset, $name);
+    
+    &DeleteTable('NameLookup');
+    &StartDataCache('NameLookup');
+    
+    if (ref $namesref eq 'ARRAY') {
+        foreach $entry (@$namesref) {
+            $offset = $entry->{offset};
+            $count = $entry->{NrOfEntries};
+            
+            $name = ($count == 1)?
+                $entry->{Entry}->{content}
+                : $entry->{Entry}->[$count - 1]->{content};
+
+            &AddDataCache($offset, $name);
+        }
+    }
+    
+    &CommitDataCache();
+
 }  #  End LoadVssNames
 
 ###############################################################################
@@ -104,7 +125,7 @@ sub FoundSsFile {
     my $vssdatadir = quotemeta($gCfg{vssdatadir});
     
     if ($path =~ m:^$vssdatadir/./([a-z]{8})$:i) {
-        &AddDataCache("$1\t0");
+        &AddDataCache($1, 0);
     }
 
 }  #  End FoundSsFile
@@ -175,6 +196,27 @@ EOSQL
     $sth->execute($status, $physname);    
 
 }  #  End SetPhysStatus
+
+###############################################################################
+#  ImportToSvn
+###############################################################################
+sub ImportToSvn {
+    defined($gCfg{svnurl})? &CheckinToSvn : &CreateSvnDumpfile;
+}  #  End ImportToSvn
+
+###############################################################################
+#  CheckinToSvn
+###############################################################################
+sub CheckinToSvn {
+    
+}  #  End CheckinToSvn
+
+###############################################################################
+#  CreateSvnDumpfile
+###############################################################################
+sub CreateSvnDumpfile {
+    
+}  #  End CreateSvnDumpfile
 
 ###############################################################################
 #  ShowHeader
@@ -416,6 +458,16 @@ EOSQL
 }  #  End SetSystemStep
 
 ###############################################################################
+#  DeleteTable
+###############################################################################
+sub DeleteTable {
+    my($table) = @_;
+    
+    my $sth = &PrepSql("DELETE FROM $table");
+    return $sth->execute;
+}  #  End DeleteTable
+
+###############################################################################
 #  StartDataCache
 ###############################################################################
 sub StartDataCache {
@@ -534,6 +586,17 @@ EOSQL
     
     $sql = <<"EOSQL";
 CREATE TABLE
+    NameLookup (
+        offset      INTEGER,
+        name        VARCHAR
+    )
+EOSQL
+
+    $sth = &PrepSql($sql);
+    $sth->execute;
+    
+    $sql = <<"EOSQL";
+CREATE TABLE
     Action (
         action_id   INTEGER PRIMARY KEY,
         physname    VARCHAR,
@@ -642,6 +705,7 @@ FIELD:
 sub Initialize {
     GetOptions(\%gCfg,'vssdir=s','tempdir=s','resume','debug','task=s');
     
+    &GiveHelp("Must specify --vssdir") if !defined($gCfg{vssdir});
     $gCfg{tempdir} = '.\\_vss2svn' if !defined($gCfg{tempdir});
 
     $gCfg{sqlitedb} = "$gCfg{tempdir}\\vss_data.db";
