@@ -32,32 +32,43 @@ svn checkout http://vss2svn.tigris.org/svn/vss2svn/trunk vss2svn --username <em>
 	<th>Notes</th>
 </tr>
 <tr>
-	<td>PLANNED</td>
+	<td style="background-color: #9ff; color: blue; border: 2px blue solid; text-align: center">
+        PLANNED
+    </td>
 	<td>0.11</td>
-	<td>Add support for converting labels, shares, and other VSS features.</td>
+	<td>Add support for converting labels, shares, and other VSS features. This will be the basis of the 1.0 release.</td>
 </tr>
 <tr>
-	<td>IN PROGRESS</td>
+	<td style="background-color: #fc9; color: #f60; border: 2px #f60 solid; text-align: center">
+        IN PROGRESS
+    </td>
 	<td>0.10</td>
 	<td>Complete rewrite of the script using Dirk Luetjen's "ssphys" backend parser. This version will not be feature-complete and will not include support for labels, shares, or other non-trivial VSS actions. Support restartability at every step of the migration.</td>
 </tr>
 <tr>
-	<td style="background-color: #fcc;">CANCELED</td>
+	<td style="background-color: pink; color: red; border: 2px red solid; text-align: center">
+        CANCELED</td>
 	<td>0.4</td>
 	<td>Internationalization: move English-specific code to easily-customizable strings, recognize SourceSafe output in multiple languages, etc. Allow conversion to be restarted if interrupted. Add better label-handling logic to prevent polluting comments.</td>
 </tr>
 <tr>
-	<td style="background-color: lightgreen">COMPLETE</td>
+	<td style="background-color: lightgreen; color: green; border: 2px green solid; text-align: center">
+        COMPLETE
+    </td>
 	<td><a href="http://vss2svn.tigris.org/servlets/ProjectDocumentList?folderID=2789">0.3</a></td>
 	<td>Make more user-friendly with better error messages, etc. Recognize multiple date and time formats in SourceSafe, depending on user's locale setting.</td>
 </tr>
 <tr>
-	<td style="background-color: lightgreen">COMPLETE</td>
+	<td style="background-color: lightgreen; color: green; border: 2px green solid; text-align: center">
+        COMPLETE
+    </td>
 	<td><a href="http://vss2svn.tigris.org/servlets/ProjectDocumentList?folderID=2789">0.2</a></td>
 	<td>Use DBD::SQLite instead of temporary text files</td>
 </tr>
 <tr>
-	<td style="background-color: lightgreen">COMPLETE</td>
+	<td style="background-color: lightgreen; color: green; border: 2px green solid; text-align: center">
+        COMPLETE
+    </td>
 	<td><a href="http://vss2svn.tigris.org/servlets/ProjectDocumentList?folderID=2789">0.1</a></td>
 	<td>Initial import of script</td>
 </tr>
