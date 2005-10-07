@@ -9,8 +9,9 @@ use DBD::SQLite2;
 use XML::Simple;
 use File::Find;
 use Time::CTime;
+use Data::Dumper;
 
-our(%gCfg, %gSth, @gErr, %gFh, $gSysOut);
+our(%gCfg, %gSth, @gErr, %gFh, $gSysOut, %gActionType, %gNameLookup);
 
 our $VERSION = '0.10';
 
@@ -36,10 +37,10 @@ sub RunConversion {
             LOADVSSNAMES    => {handler => \&LoadVssNames,
                                 next    => 'FINDDBFILES'},
             FINDDBFILES     => {handler => \&FindPhysDbFiles,
-                                next    => 'GETHIST'},
-            GETHIST         => {handler => \&GetVssHistory,
-                                next    => 'LOADHIST'},
-            LOADHIST        => {handler => \&LoadVssHistory,
+                                next    => 'GETPHYSHIST'},
+            GETPHYSHIST     => {handler => \&GetPhysVssHistory,
+                                next    => 'BUILDACTIONHIST'},
+            BUILDACTIONHIST => {handler => \&BuildVssActionHistory,
                                 next    => 'BUILDREVS'},
             BUILDREVS       => {handler => \&BuildRevs,
                                 next    => 'IMPORTSVN'},
@@ -74,27 +75,27 @@ sub RunConversion {
 sub LoadVssNames {
     &DoSsCmd("info -a \"$gCfg{vssdatadir}\\names.dat\" -s xml");
     
-    my $xs = XML::Simple->new(KeyAttr => []);
+    my $xs = XML::Simple->new(KeyAttr => [],
+                              ForceArray => [qw(Entry)],);
+
     my $xml = $xs->XMLin($gSysOut);
     
     my $namesref = $xml->{NameCacheEntry} || return 1;
     
     my($entry, $count, $offset, $name);
     
-    &DeleteTable('NameLookup');
-    &StartDataCache('NameLookup');
+    &StartDataCache('NameLookup', 1);
     
-    if (ref $namesref eq 'ARRAY') {
-        foreach $entry (@$namesref) {
-            $offset = $entry->{offset};
-            $count = $entry->{NrOfEntries};
-            
-            $name = ($count == 1)?
-                $entry->{Entry}->{content}
-                : $entry->{Entry}->[$count - 1]->{content};
+ENTRY:
+    foreach $entry (@$namesref) {
+        $count = $entry->{NrOfEntries};
+        next ENTRY unless $count > 1;
+        
+        $offset = $entry->{offset};
+        
+        $name = $entry->{Entry}->[$count - 1]->{content};
 
-            &AddDataCache($offset, $name);
-        }
+        &AddDataCache($offset, $name);
     }
     
     &CommitDataCache();
@@ -106,9 +107,9 @@ sub LoadVssNames {
 ###############################################################################
 sub FindPhysDbFiles {
     
-    &StartDataCache('Physical');
+    &StartDataCache('Physical', 1);
     
-    find(\&FoundSsFile, $gCfg{datadir});
+    find(\&FoundSsFile, $gCfg{vssdatadir});
     
     &CommitDataCache();
     
@@ -125,18 +126,21 @@ sub FoundSsFile {
     my $vssdatadir = quotemeta($gCfg{vssdatadir});
     
     if ($path =~ m:^$vssdatadir/./([a-z]{8})$:i) {
-        &AddDataCache($1, 0);
+        &AddDataCache(uc($1), 0);
     }
 
 }  #  End FoundSsFile
 
 ###############################################################################
-#  GetVssHistory
+#  GetPhysVssHistory
 ###############################################################################
-sub GetVssHistory {
-    my($sql, $sth, $row, $physname, $dir, $physpath);
+sub GetPhysVssHistory {
+    my($sql, $sth, $row, $physname, $physdir);
     
-    $sql = "SELECT * FROM Physical WHERE status = 0";
+    &LoadNameLookup;
+    &StartDataCache('PhysicalAction', 1);
+    
+    $sql = "SELECT * FROM Physical";
     $sth = &PrepSql($sql);
     $sth->execute();
     
@@ -144,58 +148,102 @@ sub GetVssHistory {
     my $data = $sth->fetchall_arrayref( {} );
     $sth->finish();
     
-    my $xs = XML::Simple->new();
+    my $xs = XML::Simple->new(ForceArray => [qw(Version)]);
     
     foreach $row (@$data) {
         $physname = $row->{physname};
 
-        $dir = substr($physname, 0, 1);
-        ($physpath = "$gCfg{vssdir}\\data\\$dir\\$physname") =~ s:/:\\:g;
+        $physdir = "$gCfg{vssdir}\\data\\" . substr($physname, 0, 1);
 
-        &GetVssPhysInfo($physpath, $xs);
-        &SetPhysStatus($physname, 1);
+        &GetVssPhysInfo($physdir, $physname, $xs);
     }
 
-}  #  End GetVssHistory
+}  #  End GetPhysVssHistory
 
 ###############################################################################
 #  GetVssPhysInfo
 ###############################################################################
 sub GetVssPhysInfo {
-    my($physpath, $xs) = @_;
+    my($physdir, $physname, $xs) = @_;
     
-    &DoSsCmd("info -a \"$physpath\" -s xml");
+    &DoSsCmd("info -a \"$physdir\\$physname\" -s xml");
     
-    my $ref = $xs->XMLin($gSysOut);
-    1;  # TODO: load physical file info
+    my $xml = $xs->XMLin($gSysOut);
+
+    if (defined $xml->{ProjectItem}) {
+        &GetVssProjectInfo($physname, $xml);
+    } elsif (defined $xml->{FileItem}) {
+        &GetVssFileInfo($physname, $xml);
+    }
 }  #  End GetVssPhysInfo
 
 ###############################################################################
-#  SetPhysStatus
+#  GetVssProjectInfo
 ###############################################################################
-sub SetPhysStatus {
-    my($physname, $status) = @_;
+sub GetVssProjectInfo {
+    my($physname, $xml) = @_;
     
-    my($sql, $sth);
+    # project physical files are where we get the info on the name histories
+    # of their children as well as when they were created/deleted
     
-    $sth = $gSth{'SETPHYSSTATUS'};
+    return 0 unless defined $xml->{Version};
     
-    if (!defined $sth) {
-        $sql = <<"EOSQL";
-UPDATE
-    Physical
-SET
-    status = ?
-WHERE
-    physname = ?
-EOSQL
+    my($version, $action, $name, $actionid, $actiontype, $tphysname, $itemname,
+       $itemtype, $user, $timestamp, $comment, $info);
+    
+VERSION:
+    foreach $version (@{ $xml->{Version} }) {
+        $action = $version->{Action};
+        $name = $action->{SSName};
+        $tphysname = $action->{Physical};
+        $user = $version->{UserName};
+        $timestamp = $version->{Date};
+        
+        $itemname = $gNameLookup{ $name->{offset} } || $name->{content};
+        
+        if (!defined($tphysname) || ref $tphysname) {
+            if($physname eq 'AAAAAAAA') {
+                $tphysname = $physname;
+                $itemname = '/';
+            } else {
+                &ThrowError("Unknown physical name:\n" . Dumper($xml));
+            }
+        }
 
-        $sth = $gSth{'SETPHYSSTATUS'} = &PrepSql($sql);
+        $actionid = $action->{ActionId};
+        $info = $gActionType{$actionid} || next VERSION;  # unknown action
+        $itemtype = $info->{type};
+        $actiontype = $info->{action};
+        
+        $comment = $version->{Comment} || undef;
+        
+        &AddDataCache($tphysname, $actiontype, $itemname, $itemtype,
+                      $timestamp, $user, undef, $comment);
+
     }
-    
-    $sth->execute($status, $physname);    
 
-}  #  End SetPhysStatus
+}  #  End GetVssProjectInfo
+
+###############################################################################
+#  GetVssFileInfo
+###############################################################################
+sub GetVssFileInfo {
+    my($physname, $xml) = @_;
+}  #  End GetVssFileInfo
+
+###############################################################################
+#  LoadNameLookup
+###############################################################################
+sub LoadNameLookup {
+    my($sth, $row);
+    
+    $sth = &PrepSql('SELECT offset, name FROM NameLookup');
+    $sth->execute();
+    
+    while(defined($row = $sth->fetchrow_hashref() )) {
+        $gNameLookup{ $row->{offset} } = $row->{name};
+    }
+}  #  End LoadNameLookup
 
 ###############################################################################
 #  ImportToSvn
@@ -340,7 +388,7 @@ sub DoSysCmd {
 ###############################################################################
 sub ThrowWarning {
     my($msg) = @_;
-    warn "ERROR -- $msg\n" if $gCfg{debug};
+    warn "ERROR -- $msg\n";
     print "ERROR -- $msg\n" if $gCfg{log};
     push @gErr, $msg;
 }  #  End ThrowWarning
@@ -471,7 +519,12 @@ sub DeleteTable {
 #  StartDataCache
 ###############################################################################
 sub StartDataCache {
-    my($table) = @_;
+    my($table, $delete) = @_;
+    
+    if ($delete) {
+        &DeleteTable($table);
+    }
+    
     $gCfg{cachetarget} = $table;
     unlink $gCfg{datacache};
     
@@ -528,8 +581,9 @@ sub PrepSql {
 sub ConnectDatabase {
     my $db = $gCfg{sqlitedb};
     
-    if (!$gCfg{resume} ||
-        (defined($gCfg{task}) && $gCfg{task} eq 'INIT')) {
+    if (-e $db && (!$gCfg{resume} ||
+                   (defined($gCfg{task}) && $gCfg{task} eq 'INIT'))) {
+
         unlink $db or &ThrowError("Could not delete existing database "
                                   .$gCfg{sqlitedb});
     }
@@ -565,6 +619,13 @@ sub SetupGlobals {
     (-d "$gCfg{vssdatadir}") or &ThrowError("$gCfg{vssdir} does not appear "
                                             . "to be a valid VSS database");
     
+    my($id, $type, $action);
+    while(<DATA>) {
+        chomp;
+        ($id, $type, $action) = split "\t";
+        $gActionType{$id} = {type => $type, action => $action};
+    }
+    
 }  #  End SetupGlobals
 
 ###############################################################################
@@ -576,8 +637,7 @@ sub InitSysTables {
     $sql = <<"EOSQL";
 CREATE TABLE
     Physical (
-        physname    VARCHAR,
-        status      INTEGER
+        physname    VARCHAR
     )
 EOSQL
 
@@ -597,16 +657,45 @@ EOSQL
     
     $sql = <<"EOSQL";
 CREATE TABLE
-    Action (
-        action_id   INTEGER PRIMARY KEY,
+    PhysicalAction (
         physname    VARCHAR,
         type        VARCHAR,
         itemname    VARCHAR,
         itemtype    INTEGER,
-        timestamp   VARCHAR,
+        timestamp   INTEGER,
         author      VARCHAR,
         info        VARCHAR,
         comment     TEXT
+    )
+EOSQL
+
+    $sth = &PrepSql($sql);
+    $sth->execute;
+    
+    $sql = <<"EOSQL";
+CREATE TABLE
+    Action (
+        action_id   INTEGER PRIMARY KEY,
+        physname    VARCHAR,
+        type        VARCHAR,
+        itempath    VARCHAR,
+        itemtype    INTEGER,
+        timestamp   INTEGER,
+        author      VARCHAR,
+        info        VARCHAR,
+        comment     TEXT
+    )
+EOSQL
+
+    $sth = &PrepSql($sql);
+    $sth->execute;
+    
+    $sql = <<"EOSQL";
+CREATE TABLE
+    ItemNameHistory (
+        physname    VARCHAR,
+        timestamp   INTEGER,
+        itemname    VARCHAR
     )
 EOSQL
 
@@ -776,3 +865,12 @@ EOTXT
     exit(1);
 }  #  End GiveHelp
 
+__DATA__
+CreatedProject	1	ADD
+AddedProject	1	ADD
+RenamedProject	1	RENAME
+DeletedProject	1	DELETE
+RecoveredProject	1	RECOVER
+CreatedFile	2	ADD
+AddedFile	2	ADD
+RenamedFile	2	RENAME

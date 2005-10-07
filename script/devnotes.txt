@@ -1,39 +1,59 @@
 DEVELOPMENT NOTES - VSS2SVN 0.10+
 
-These are the development notes for the "new, improved" vss2svn script. Previous versions (0.1 - 0.3) were based on parsing output from Microsoft's ss.exe tool. The script was rewritten to instead use the ssphys.exe command-line tool, which is the result of a reverse-engineering effort on the VSS backend database files.
+These are the development notes for the "new, improved" vss2svn script. Previous
+versions (0.1 - 0.3) were based on parsing output from Microsoft's ss.exe tool.
+The script was rewritten to instead use the ssphys.exe command-line tool, which
+is the result of a reverse-engineering effort on the VSS backend database files.
+
+REQUIRED PERL MODULES
+
+DBI
+DBD::SQLite2
+Time::CTime (Time-modules)
 
 SQLITE SCHEMA
 
-All information about the conversion is stored in a SQLite version 2 database, using the DBD::SQLite Perl module. This is a wholly self-contained DBMS which offers SQL syntax, transactions, and a single database file. It is available in ActiveState's PPM repository, which means it is pre-compiled for Windows users.
+All information about the conversion is stored in a SQLite version 2 database,
+using the DBD::SQLite Perl module. This is a wholly self-contained DBMS which
+offers SQL syntax, transactions, and a single database file. It is available in
+ActiveState's PPM repository, which means it is pre-compiled for Windows users.
 
 Following is a description of the SQLite schema used by this project:
 
-    'Physical' table : contains information about physical VSS files
+    'Physical' table : list of physical VSS files
         physname (VARCHAR)  : name of physical VSS file
-        status (INTEGER)    : 0 = history not yet retrieved
-                              1 = history has been retrieved from this file
                               
-    'NameLookup' table: containse references to item names from VSS names.dat
+    'NameLookup' table: references to item names from VSS names.dat
         offset              : primary key; byte offset from names.dat file
         name                : item name
     
-    'Action' table : contains information about individual actions performed
-                     in VSS history
-        action_id (INTEGER) : primary key for Action table
+    'PhysicalAction' : history of actions as they pertain to physical VSS files
         physname (VARCHAR)  : name of physical VSS file
         type (VARCHAR)      : type of action (ADD, RENAME, LABEL, etc.)
         itemname (VARCHAR)  : name of item being acted upon
         itemtype (INTEGER)  : 1 = project
                               2 = file
-        timestamp (VARCHAR) : timestamp in yyyymmdd.hhmmss.x format
-                              (.x is literal to prevent treating as numeric)
+        timestamp (INTEGER) : timestamp in VSS internal format
+                              (seconds since Jan. 1, 1970)
         author (VARCHAR)    : name of user who performed action
         info (VARCHAR)      : action-specific info (such as previous name on
                               renames)
         comment (TEXT)      : user-supplied comment for this action
-    
+        
+    'Action' : history of actions on logical VSS items (files/projects)
+        action_id (INTEGER) : primary key for Action table
+        type (VARCHAR)      : type of action (ADD, RENAME, LABEL, etc.)
+        itempath (VARCHAR)  : path to item being acted upon
+        itemtype (INTEGER)  : 1 = project
+                              2 = file
+        timestamp (INTEGER) : timestamp in VSS internal format
+        author (VARCHAR)    : name of user who performed action
+        info (VARCHAR)      : action-specific info (such as previous name on
+                              renames)
+        comment (TEXT)      : user-supplied comment for this action        
+
     'Revision' table: contains information about eventual atomic SVN revisions
-        revision_id (INT.)  : primare key for Revision table
+        revision_id (INT.)  : primary key for Revision table
         svndate (VARCHAR)   : svn:date formatted timestamp
         author (VARCHAR)    : name of author for this atomic revision
         comment (TEXT)      : comment for this atomic revision
@@ -43,3 +63,26 @@ Following is a description of the SQLite schema used by this project:
     'RevisionAction' table: many-to-many link between Revision and Action
         revision_id (INT.)  : primary key for Revision table
         action_id (INTEGER) : primary key for Action table
+
+NOTES ON PHYSICAL VS. LOGICAL NAMES IN VSS
+
+Every item in the VSS repository, whether a file or project, is represented on
+the backend by a "physical" file. The name of this physical file never changes,
+even if the name of the corresponding "logical" version-controlled item does
+change.
+
+Unfortunately, only the original name for any item is stored in that item's
+physical file. If it is renamed (whether it is a project or a regular file),
+information about the rename is stored in the physical file of its *parent*
+instead.
+
+This makes it rather difficult to figure out what name an item actually had when
+an action was performed on it. For this reason, we must maintain a history of
+all the names that an item ever had and the timestamp when that name became
+effective, so we can cross-reference this information during reconstruction of
+its history. This is the purpose of the 'ItemNameHistory' table.
+
+The problem is compounded by the fact that we must figure out not only the name
+of a particular item at a given point in time, but also the name of its parent
+folder and all its ancestor folders at that moment as well. Luckily, physical
+files are created in an easily determined order, and because a file 
