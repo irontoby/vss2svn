@@ -3,36 +3,6 @@ Microsoft Developer Studio Workspace File, Format Version 6.00
 
 ###############################################################################
 
-Project: "SSAPI"=.\SSAPI\SSAPI.dsp - Package Owner=<4>
-
-Package=<5>
-{{{
-}}}
-
-Package=<4>
-{{{
-    Begin Project Dependency
-    Project_Dep_Name SSPhysLib
-    End Project Dependency
-}}}
-
-###############################################################################
-
-Project: "SSLib"=.\SSLib\SSLib.dsp - Package Owner=<4>
-
-Package=<5>
-{{{
-}}}
-
-Package=<4>
-{{{
-    Begin Project Dependency
-    Project_Dep_Name SSPhysLib
-    End Project Dependency
-}}}
-
-###############################################################################
-
 Project: "SSPhysLib"=.\SSPhysLib\SSPhysLib.dsp - Package Owner=<4>
 
 Package=<5>
@@ -53,24 +23,6 @@ Package=<5>
 
 Package=<4>
 {{{
-    Begin Project Dependency
-    Project_Dep_Name SSPhysLib
-    End Project Dependency
-}}}
-
-###############################################################################
-
-Project: "ssrep"=.\SSRep\ssrep.dsp - Package Owner=<4>
-
-Package=<5>
-{{{
-}}}
-
-Package=<4>
-{{{
-    Begin Project Dependency
-    Project_Dep_Name SSLib
-    End Project Dependency
     Begin Project Dependency
     Project_Dep_Name SSPhysLib
     End Project Dependency
