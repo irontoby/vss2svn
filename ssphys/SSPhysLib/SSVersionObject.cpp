@@ -282,7 +282,7 @@ SSAction* SSAction::MakeAction (SSRecordPtr pRecord)
   else if (pVersion->ActionID == Shared_File)
     return new SSSharedAction (pRecord);
   else if (pVersion->ActionID == Branch_File)
-    return new SSRollbackAction (pRecord);
+    return new SSBranchFileAction (pRecord);
   else if (pVersion->ActionID == Created_File)
     return new SSCreatedFileAction (pRecord);
   else if (pVersion->ActionID == Checked_in)
@@ -480,14 +480,17 @@ std::string SSSharedAction::FormatActionString ()
 { 
   std::ostringstream str;
   SSName name (m_Action.name);
-  if (m_Action.pinnedToVersion == -1)
-    str << m_Action.srcPathSpec << "/" << name.GetFullName() << ";" << m_Action.version << " shared";
-  else if (m_Action.pinnedToVersion == 0)
-    str << m_Action.srcPathSpec << "/" << name.GetFullName() << " pinned to version " << m_Action.version;
-  else if (m_Action.version == 0)
-    str << m_Action.srcPathSpec << "/" << name.GetFullName() << " unpinned";
-  else 
-    throw SSException ("bad share/pin/unpin action: version should be 0");
+  if (m_Action.subActionAndVersion == -1)
+  {
+    str << m_Action.srcPathSpec << "/" << name.GetFullName();
+    if (m_Action.pinnedToVersion > 0)
+      str << ";" << m_Action.pinnedToVersion;
+    str << " shared";
+  }
+  else if (m_Action.subActionAndVersion == 0)
+    str << m_Action.srcPathSpec << "/" << name.GetFullName() << " pinned to version " << m_Action.pinnedToVersion;
+  else if (m_Action.subActionAndVersion > 0)
+    str << m_Action.srcPathSpec << "/" << name.GetFullName() << " unpinned version " << m_Action.subActionAndVersion;
 
   return str.str();
 }
@@ -498,13 +501,28 @@ void SSSharedAction::ToXml (XMLNode* pParent) const
   SSItemAction<SSSharedAction, SHARED_FILE_ACTION>::ToXml(pParent);
 
   XMLElement srcPathNode (pParent, "SrcPath", GetSrcPathSpec ());
-  XMLElement pinnedNode  (pParent, "PinnedToVersion", GetPinnedToVersion ());
-  XMLElement versionNode (pParent, "Version", GetVersion ());
+  if (GetActionID () == Unpinned_File)
+    XMLElement unpinnedNode (pParent, "UnpinnedFromVersion", GetUnpinnedVersion());
+  if (GetPinnedToVersion () > 0)
+    XMLElement pinnedNode  (pParent, "PinnedToVersion", GetPinnedToVersion ());
 }
 
 void SSSharedAction::Dump (std::ostream& os) const
 {
   SSItemAction<SSSharedAction, SHARED_FILE_ACTION>::Dump(os);
+}
+
+//---------------------------------------------------------------------------
+void SSBranchFileAction::ToXml (XMLNode* pParent) const
+{
+  SSItemAction<SSBranchFileAction, BRANCH_FILE_ACTION>::ToXml (pParent);
+
+  XMLElement parentNode (pParent, "Parent", GetParent());
+}
+
+void SSBranchFileAction::Dump (std::ostream& os) const
+{
+  SSItemAction<SSBranchFileAction, BRANCH_FILE_ACTION>::Dump (os);
 }
 
 //---------------------------------------------------------------------------

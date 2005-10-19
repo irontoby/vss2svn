@@ -232,8 +232,12 @@ enum eAction {
   Created_File = 16,
   Checked_in = 17,
   // missing action 18
-  RollBack = 19
+  RollBack = 19,
   // missing known actions: archives, restores
+
+  /// --- pseudo actions ---
+  Pinned_File = 20,
+  Unpinned_File = 21
 };
 
 inline eAction ushortToAction (const ushort& v, int)
@@ -355,10 +359,10 @@ struct RENAMED_ACTION {
 struct SHARED_FILE_ACTION {
   char srcPathSpec[260];
   SSNAME name;
-  short pinnedToVersion;  // -1: shared, 0: pinned; >0 unpinned und letzte Version?
-  short version;          // >0: version, ==0 unpinned
-  short padding2;         // reference ins project file? Nr des shares?
-  char physical[10];
+  short subActionAndVersion; // -1: shared, 0: pinned; >0 unpinned, number denotes the Version which was unpinned
+  short pinnedToVersion;     // >0: pinned to version, ==0 unpinned
+  short padding2;            // reference ins project file? Nr des shares?
+  char  physical[10];
 } ;
 
 //struct CREATED_FILE_ACTION {
@@ -378,6 +382,11 @@ struct ROLLBACK_ACTION {
   char parent[10];
 };
 
+struct BRANCH_FILE_ACTION {
+  SSNAME name;
+  char physical[10];
+  char parent[10];
+};
 
 struct CF {
   char User[32];

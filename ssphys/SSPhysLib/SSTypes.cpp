@@ -26,8 +26,12 @@ extern char* g_szActions[] = {
   "Created File",       // = 16
   "Checked in",         // = 17
   "Action 18",          // missing action 18
-  "RollBack"            // = 19
+  "RollBack",           // = 19
   // missing known actions: branches, archives, restores
+
+  /// --- pseudo actions ---
+  "Pinned File",        // = 20
+  "Unpinned File"       // = 21
 };
 
 const char* CAction::ActionToString (eAction e)

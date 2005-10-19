@@ -29,12 +29,12 @@ class SSRenamedProjectAction;     // Renamed_Project = 10,
 class SSRenamedFileAction;        // Renamed_File = 11,
 //class SSAction12                // missing action 12,
 //class SSAction13                // missing action 13
-class SSSharedAction;         // Shared_File = 14, 	
-class SSRollbackAction;           // RollBack_File = 15,
+class SSSharedAction;             // Shared_File = 14, 	
+class SSBranchFileAction;         // Branch_File = 15,
 class SSCreatedFileAction;        // Created_File = 16,
 class SSCheckedInAction;          // Checked_in = 17,
 //class SSAction18                // missing action 18
-//class SSRollBackAction          // RollBack = 19
+class SSRollbackAction;           // RollBack = 19
   
 class ISSActionVisitor
 {
@@ -48,6 +48,7 @@ public:
   virtual bool Apply (const SSDeletedFileAction& rAction) = 0;
   virtual bool Apply (const SSRecoveredProjectAction& rAction) = 0;
   virtual bool Apply (const SSRecoveredFileAction& rAction) = 0;
+  virtual bool Apply (const SSBranchFileAction& rAction) = 0;
   virtual bool Apply (const SSRollbackAction& rAction) = 0;
 
   virtual bool Apply (const SSDestroyedProjectAction& rAction) = 0;
@@ -67,7 +68,7 @@ public:
 
   static SSAction* MakeAction (SSRecordPtr pRecord);
   
-  eAction GetActionID () const         { return m_ActionId; }
+  virtual eAction GetActionID () const         { return m_ActionId; }
 
   virtual std::string FormatActionString () = 0;
   virtual bool Accept (ISSActionVisitor& rVisitor) = 0;
@@ -93,7 +94,7 @@ public:
 
 //  BOOST_PP_SEQ_FOR_EACH(DEFINE_ACCESSORS, GetData(), VERSION_RECORD_SEQ);
   ulong   GetPrevious ()                    const { return GetData ()->Previous; }
-  eAction  GetActionID  ()                  const { return static_cast <eAction> (GetData ()->ActionID); }
+  eAction  GetActionID  ()                  const { return static_cast <eAction> (GetAction ()->GetActionID ()); }
   short   GetVersionNumber ()               const { return GetData ()->VersionNumber; }
   time_t  GetDate ()                        const { return GetData ()->Date; }
   std::string GetUsername ()                const { return std::string (GetData ()->Username, 32); }
@@ -280,6 +281,21 @@ public:
 };
 
 //---------------------------------------------------------------------------
+class SSBranchFileAction : public SSItemAction<SSBranchFileAction, BRANCH_FILE_ACTION>
+{
+public:
+  SSBranchFileAction (SSRecordPtr pRecord)
+    : SSItemAction<SSBranchFileAction, BRANCH_FILE_ACTION> (pRecord, "Branched file ")
+  {
+  }
+
+  std::string GetParent ()  const { return std::string (m_Action.parent, 8); }
+
+  virtual void ToXml (XMLNode* pParent) const;
+  virtual void Dump (std::ostream& os) const;
+};
+
+//---------------------------------------------------------------------------
 class SSRollbackAction : public SSItemAction<SSRollbackAction, ROLLBACK_ACTION>
 {
 public:
@@ -288,8 +304,8 @@ public:
   {
   }
 
-  std::string GetParent () const { return std::string (m_Action.parent, 8); }
-
+  std::string GetParent ()  const { return std::string (m_Action.parent, 8); }
+ 
   virtual void ToXml (XMLNode* pParent) const;
   virtual void Dump (std::ostream& os) const;
 };
@@ -396,7 +412,19 @@ public:
 
   std::string GetSrcPathSpec () const   { return m_Action.srcPathSpec; }
   short GetPinnedToVersion () const     { return m_Action.pinnedToVersion; }
-  short GetVersion () const             { return m_Action.version; }
+  short GetSubActionAndVersion () const { return m_Action.subActionAndVersion; }
+
+  short GetUnpinnedVersion () const     { return m_Action.subActionAndVersion >= 0 ? m_Action.subActionAndVersion : 0; }
+  
+  virtual eAction GetActionID () const
+  { 
+    if (m_Action.subActionAndVersion < 0)
+      return Shared_File;
+    else if (m_Action.subActionAndVersion == 0)
+      return Pinned_File;
+    /* else if (m_Action.subActionAndVersion > 0) */
+    return Unpinned_File;
+  }
 
   virtual std::string FormatActionString ();
 

@@ -100,6 +100,7 @@ public:
   virtual bool Apply (const SSDeletedFileAction& rAction)       { return Apply ((const SSAction&) rAction); }
   virtual bool Apply (const SSRecoveredProjectAction& rAction)  { return Apply ((const SSAction&) rAction); }
   virtual bool Apply (const SSRecoveredFileAction& rAction)     { return Apply ((const SSAction&) rAction); }
+  virtual bool Apply (const SSBranchFileAction& rAction)        { return Apply ((const SSAction&) rAction); }
   virtual bool Apply (const SSRollbackAction& rAction)          { return Apply ((const SSAction&) rAction); }
 
   virtual bool Apply (const SSDestroyedProjectAction& rAction)  { return Apply ((const SSAction&) rAction); }
