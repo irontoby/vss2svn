@@ -46,7 +46,8 @@ class CFormatter : public COptions
 {
 public:
   // The xml formatter needs to output the physical filename
-  virtual void SetFileName (std::string fileName) {};
+  virtual void BeginFile (std::string fileName) {};
+  virtual void EndFile () {};
 
   virtual void Format (const SSObject& object, const ISSContext* pCtx = NULL) = 0;
 };

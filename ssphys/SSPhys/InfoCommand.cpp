@@ -64,7 +64,7 @@ bool CInfoCommand::SetArguments (CArguments& args)
 void CInfoCommand::Execute ()
 {
   std::auto_ptr <SSRecordFile> pFile (SSRecordFile::MakeFile (m_PhysFile));
-  g_pFormatter->SetFileName (m_PhysFile);
+  g_pFormatter->BeginFile (m_PhysFile);
 //  std::auto_ptr<ISSObjectVisitor> pFormatter (CPhysFormatterFactory::MakeFormatter ());
   if (pFile.get ())
   {
@@ -95,4 +95,5 @@ void CInfoCommand::Execute ()
     else
       pFile->Dump (std::cout);
   }
+  g_pFormatter->EndFile ();
 }

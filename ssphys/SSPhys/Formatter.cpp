@@ -61,13 +61,22 @@ public:
   }
   ~CXMLFormatter ()
   {
-    delete m_pXMLNode; 
+    EndFile ();
   }
-  void SetFileName (std::string fileName)
+  void BeginFile (std::string fileName)
   {
+    // finish a previous file
+    if (m_pXMLNode)
+      EndFile ();
+
     AttribMap map;
     map ["Name"]=fileName;
     m_pXMLNode = new XMLNode (NULL, "File", map);
+  }
+  void EndFile ()
+  {
+    delete m_pXMLNode; 
+    m_pXMLNode = NULL;
   }
 
   virtual bool SetOption (const COption& option)
