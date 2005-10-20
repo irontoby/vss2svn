@@ -28,7 +28,7 @@ SSItemInfoObject::SSItemInfoObject (SSRecordPtr pRecord)
   if (pRecord->GetLen() < sizeof (DH))
     throw SSRecordException ("not enough data for info object");
   
-  memcpy (&m_InfoItem, pRecord->GetBuffer(), sizeof (DH));
+  m_pInfoItem = GetData ();
 }
 
 SSItemInfoObject::~SSItemInfoObject ()
@@ -158,17 +158,18 @@ void SSItemInfoObject::Dump (std::ostream& os) const
 
   os << "Item Type:                      ";
  
-  switch (m_InfoItem.Type)
+  assert (m_pInfoItem);
+  switch (m_pInfoItem->Type)
   {
   case 1: os << "Project" << std::endl; break;
   case 2: os << "File" << std::endl; break;
-  default: os << "Unknown (" << m_InfoItem.Type << ")" << std::endl; break;
+  default: os << "Unknown (" << m_pInfoItem->Type << ")" << std::endl; break;
   }
 
   SSName ssName (GetSSName ());
   os << "Last Name:                      " << ssName << std::endl;
 //  os << "Number Of Records:              " << GetNumberOfRecords () << std::endl;
-  os << "LatestExt of last version:        " << m_InfoItem.LatestExt[0] << m_InfoItem.LatestExt[1] << std::endl;
+  os << "LatestExt of last version:        " << m_pInfoItem->LatestExt[0] << m_pInfoItem->LatestExt[1] << std::endl;
   os << "Offset to first History record: 0x" << std::hex << GetHistoryOffsetBegin()<< std::dec << std::endl;
   os << "Offset to last History record:  0x" << std::hex << GetHistoryOffsetLast() << std::dec << std::endl;
   os << "Offset to the end of the file:  0x" << std::hex << GetHistoryOffsetEnd()  << std::dec << std::endl;
@@ -185,12 +186,10 @@ SSProjectItem::SSProjectItem (SSRecordPtr pRecord)
 {
   if (pRecord->GetLen() < sizeof (DH_PROJECT))
     throw SSRecordException ("not enough data for project info object");
+
+  m_pProjectInfo = GetData ();
 }
 
-std::string SSProjectItem::GetName () const
-{
-  return ("ProjectItem");
-}
 void SSProjectItem::ToXml (XMLNode* pParent) const
 {
   SSItemInfoObject::ToXml (pParent);
@@ -220,6 +219,8 @@ SSFileItem::SSFileItem (SSRecordPtr pRecord)
 {
   if (pRecord->GetLen() < sizeof (DH_FILE))
     throw SSRecordException ("not enough data for file info object");
+
+  m_pFileInfo = GetData ();
 }
 
 bool SSFileItem::Validate()
@@ -288,10 +289,6 @@ SSBranchFileObject* SSFileItem::GetFirstBranchFile ()
   return new SSBranchFileObject (pRecord);
 }
 
-std::string SSFileItem::GetName () const
-{
-  return ("FileItem");
-}
 void SSFileItem::ToXml (XMLNode* pParent) const
 {
   SSItemInfoObject::ToXml (pParent);

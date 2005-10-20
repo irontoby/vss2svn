@@ -27,7 +27,8 @@ public:
 //  const char* GetName ()        { return NULL; /* return m_InfoItem.spec; */ }
 //  SSItemInfoObject* GetParent ()          { return NULL; }
   
-  // BOOST_PP_SEQ_FOR_EACH(DEFINE_ACCESSORS, GetData(), DH_SEQ);
+  // accessors
+  // BOOST_PP_SEQ_FOR_EACH (DEFINE_ACCESSORS, GetData(), DH_SEQ);
   short       GetType ()                const { return GetData()->Type; }
   short       GetNumberOfActions ()     const { return GetData()->NumberOfActions; }
   SSName      GetSSName ()              const { return GetData()->SSName; }
@@ -37,10 +38,10 @@ public:
   ulong       GetHistoryOffsetEnd ()    const { return GetData()->HistoryOffsetEnd; }
 
   // return the last known name of the item
-  std::string GetName ()    const { SSName name (GetSSName ()); return name.GetFullName(); }
+  std::string GetName ()                const { SSName name (GetSSName ()); return name.GetFullName(); }
 
-  SSVersionObject GetHistoryLast () const { return SSVersionObject (GetFile ()->GetRecord (GetHistoryOffsetLast())); }
-  std::string GetDataFileName ()    const { return GetFile ()->GetFileName () + GetLatestExt (); }
+  SSVersionObject GetHistoryLast ()     const { return SSVersionObject (GetFile ()->GetRecord (GetHistoryOffsetLast())); }
+  std::string GetDataFileName ()        const { return GetFile ()->GetFileName () + GetLatestExt (); }
   
 //  bool GetDeleted ()            { return 0; }
 //  bool GetCheckedOut ()         { return 0; }
@@ -66,17 +67,17 @@ public:
   void Dump (std::ostream& os)  const;
 
 private:
-  DH m_InfoItem;
+  // pointer to data for debugging convinience
+  const DH* m_pInfoItem;
 };
 
 
 class SSProjectItem : public SSItemInfoObject
 {
-protected:
-  friend SSItemInfoObject* SSItemInfoObject::MakeItemInfo (SSRecordPtr pRecord);
+public:
   SSProjectItem (SSRecordPtr pRecord);
 
-public:
+  // accessors
   std::string GetParentSpec ()            const { return GetData()->ParentSpec; }
   std::string GetParentPhys ()            const { return GetData()->ParentPhys; }
   short       GetNumberOfItems ()         const { return GetData()->NumberOfItems; }
@@ -86,21 +87,20 @@ public:
 
   const DH_PROJECT* GetData ()  const { return reinterpret_cast <const DH_PROJECT*> (SSObject::GetData ()); }
 
-  std::string GetName ()        const;
   void ToXml (XMLNode* pParent) const;
   void Dump (std::ostream& os)  const;
 
 private:
+  // pointer to data for debugging convinience
+  const DH_PROJECT* m_pProjectInfo;
 };
 
 
 class SSFileItem : public SSItemInfoObject
 {
-protected:
-  friend SSItemInfoObject* SSItemInfoObject::MakeItemInfo (SSRecordPtr pRecord);
+public:
   SSFileItem (SSRecordPtr pRecord);
 
-public:
   // accessors
   short       GetFlag ()                  const { return GetData ()->Flag; }
   std::string GetShareSrcPhys ()          const { return std::string (GetData ()->ShareSrcSpec, 8); }
@@ -127,11 +127,12 @@ public:
 
   const DH_FILE* GetData () const { return reinterpret_cast <const DH_FILE*> (SSObject::GetData ()); }
 
-  std::string GetName ()        const;
   void ToXml (XMLNode* pParent) const;
   void Dump (std::ostream& os)  const;
 
 private:
+  // pointer to data for debugging convinience
+  const DH_FILE* m_pFileInfo;
 };
 
 #endif // !defined(AFX_SSITEMS_H__716758E6_2B77_471C_B08A_424412E9B758__INCLUDED_)
