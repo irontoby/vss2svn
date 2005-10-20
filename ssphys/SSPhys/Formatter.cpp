@@ -58,6 +58,7 @@ public:
   CXMLFormatter ()
     : m_pXMLNode (NULL)
   {
+    std::cout << "<?xml version=\"1.0\" encoding=\"windows-1252\"?>" << std::endl;
   }
   ~CXMLFormatter ()
   {
