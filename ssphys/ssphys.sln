@@ -1,0 +1,30 @@
+Microsoft Visual Studio Solution File, Format Version 8.00
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "SSPhysLib", "SSPhysLib\SSPhysLib.vcproj", "{8FFB1124-075F-48EC-914C-235E3FF8AB75}"
+	ProjectSection(ProjectDependencies) = postProject
+	EndProjectSection
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ssphys", "SSPhys\ssphys.vcproj", "{FCF4A98B-3FE2-452D-9816-A67927261F25}"
+	ProjectSection(ProjectDependencies) = postProject
+		{8FFB1124-075F-48EC-914C-235E3FF8AB75} = {8FFB1124-075F-48EC-914C-235E3FF8AB75}
+	EndProjectSection
+EndProject
+Global
+	GlobalSection(SolutionConfiguration) = preSolution
+		Debug = Debug
+		Release = Release
+	EndGlobalSection
+	GlobalSection(ProjectConfiguration) = postSolution
+		{8FFB1124-075F-48EC-914C-235E3FF8AB75}.Debug.ActiveCfg = Debug|Win32
+		{8FFB1124-075F-48EC-914C-235E3FF8AB75}.Debug.Build.0 = Debug|Win32
+		{8FFB1124-075F-48EC-914C-235E3FF8AB75}.Release.ActiveCfg = Release|Win32
+		{8FFB1124-075F-48EC-914C-235E3FF8AB75}.Release.Build.0 = Release|Win32
+		{FCF4A98B-3FE2-452D-9816-A67927261F25}.Debug.ActiveCfg = Debug|Win32
+		{FCF4A98B-3FE2-452D-9816-A67927261F25}.Debug.Build.0 = Debug|Win32
+		{FCF4A98B-3FE2-452D-9816-A67927261F25}.Release.ActiveCfg = Release|Win32
+		{FCF4A98B-3FE2-452D-9816-A67927261F25}.Release.Build.0 = Release|Win32
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+	EndGlobalSection
+	GlobalSection(ExtensibilityAddIns) = postSolution
+	EndGlobalSection
+EndGlobal

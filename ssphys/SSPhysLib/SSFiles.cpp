@@ -637,7 +637,7 @@ std::auto_ptr<SSItemInfoObject> SSHistoryFile::GetItemInfo ()
 //        return *itor;
 //    }
 //    return NULL;
-  return SSItemInfoObject::MakeItemInfo (GetRecord (GetHeaderLength ()));
+  return std::auto_ptr<SSItemInfoObject> (SSItemInfoObject::MakeItemInfo (GetRecord (GetHeaderLength ())));
 }
 
 SSVersionObject SSHistoryFile::GetLastVersion ()

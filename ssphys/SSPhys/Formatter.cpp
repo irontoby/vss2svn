@@ -321,14 +321,14 @@ void CVssFormatter::Apply (const SSNameObject& object, const ISSContext* pCtx)
 std::auto_ptr<CFormatter> CFormatterFactory::MakeFormatter (eStyle style, tristate value)
 {
   if (style == eBinary)
-    return new CBinaryFormatter (value);
+    return std::auto_ptr<CFormatter> (new CBinaryFormatter (value));
   if (style == eXML)
-    return new CXMLFormatter ();
+    return std::auto_ptr<CFormatter> (new CXMLFormatter ());
   if (style == eVSS)
-    return new CVssFormatter ();
+    return std::auto_ptr<CFormatter> (new CVssFormatter ());
   if (style == eDump)
-    return new CPhysFormatter ();
+    return std::auto_ptr<CFormatter> (new CPhysFormatter ());
 
-  return NULL;
+  return std::auto_ptr<CFormatter> (NULL);
 }
 
