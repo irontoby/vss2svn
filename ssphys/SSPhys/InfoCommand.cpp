@@ -82,8 +82,13 @@ void CInfoCommand::Execute (po::variables_map const& options, std::string const&
     else
     {
       SSRecordPtr pRecord = pFile->GetFirstRecord();
+
+      // In a names.dat file, the first record "NamesCache" is also some kind of InfoObject
+      // so simply report on the first record
+
       // try, wether the first record is an item info object?
-      std::auto_ptr<SSObject> pObject (SSItemInfoObject::MakeItemInfo(pRecord));
+      // std::auto_ptr<SSObject> pObject (SSItemInfoObject::MakeItemInfo(pRecord));
+
       Info (pRecord, bBasicInfo);
     }
 
