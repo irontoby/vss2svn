@@ -57,6 +57,9 @@ public:
   XMLNode (XMLNode* pParent, std::string name)
     : m_pParent (pParent), m_Name (name), bHasChilds (false)
   {
+    if (pParent)
+      pParent->AddChild (this);
+
     // closing bracket will be written in destructor or when elements are added
     std::cout << "<" << name << /*">" << */ std::endl;
   }
@@ -64,6 +67,9 @@ public:
   XMLNode (XMLNode* pParent, std::string name, AttribMap attrib)
     : m_pParent (pParent), m_Name (name), bHasChilds (false)
   {
+    if (pParent)
+      pParent->AddChild (this);
+
     std::cout << "<" << name;
     AttribMap::iterator itor = attrib.begin ();
     for (; itor != attrib.end (); ++itor)
@@ -72,6 +78,14 @@ public:
     }
     // closing bracket will be written in destructor or when elements are added
     // std::cout << ">" << std::endl;
+  }
+
+  void AddChild (XMLNode* pChild)
+  {
+    if (!bHasChilds)
+      std::cout << ">" << std::endl;
+
+    bHasChilds = true;
   }
 
   void AddChild (XMLElement* pChild)
@@ -114,6 +128,9 @@ public:
   template <class T>
   XMLElement (XMLNode* pParent, std::string name, AttribMap attrib, const T& element)
   {
+    if (pParent)
+      pParent->AddChild (this);
+
     std::cout << "<" << name;
     AttribMap::iterator itor = attrib.begin ();
     for (; itor != attrib.end (); ++itor)
