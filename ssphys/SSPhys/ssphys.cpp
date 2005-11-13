@@ -2,6 +2,7 @@
 //
 
 #include "stdafx.h"
+#include "..\version.h"
 
 #include "SSTests.h"
 #include "CommandLine.h"
@@ -62,7 +63,7 @@ void PrintUsage ()
 //---------------------------------------------------------------------------
 void PrintVersion ()
 {
-  std::cout << "ssphys v0.16" << std::endl;
+  std::cout << "ssphys " << STRFILEVER << std::endl;
 }
 
 bool HandleGlobalOptions (po::variables_map vm)
