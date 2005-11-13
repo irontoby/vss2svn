@@ -14,55 +14,66 @@
 
 //---------------------------------------------------------------------------
 CHistoryCommand::CHistoryCommand ()
-  : CCommand ("history"),
+  : CMultiArgCommand ("history", "Shows the history of a VSS phyiscal file"),
     m_bIncludeDeadRecords (false),
     m_bIncludeLabels (false),
     m_bIncludeActions (true)
 {
 }
 
-COptionInfoList CHistoryCommand::GetOptionsInfo () const
+po::options_description CHistoryCommand::GetOptionsDescription () const
 {
-  COptionInfoList options = CCommand::GetOptionsInfo();
-  options.push_back (COptionInfo ('d', 'd', "dead", "include dead records", COptionInfo::tristateArgument));
-  options.push_back (COptionInfo ('l', 'l', "label", "include label records", COptionInfo::tristateArgument));
-  return options;
+  po::options_description descr (CMultiArgCommand::GetOptionsDescription());
+  descr.add_options ()
+    ("dead,d",   "display only dead records\n"
+                 "append [+|-] to include or exclude dead records in the output\n"
+                 "by default dead records are not printed")
+    ("labels,l", "display only label records\n"
+                 "append [+|-] to include or exclude label records in the output\n"
+                 "by default label records are not printed");
+  descr.add (CMultiArgCommand::GetOptionsDescription());
+  return descr;
 }
 
-bool CHistoryCommand::SetOption (const COption& option)
+po::options_description CHistoryCommand::GetHiddenDescription () const
+{ 
+  po::options_description descr (CMultiArgCommand::GetHiddenDescription());
+  descr.add_options ()
+    ("show-dead",   po::value<std::string> ()->default_value ("exclude"), "internal option for --dead")
+    ("show-labels", po::value<std::string> ()->default_value ("include"), "internal option for --labels");
+  descr.add (CMultiArgCommand::GetHiddenDescription());
+  return descr;
+}
+
+
+void CHistoryCommand::Execute (po::variables_map const& options, std::string const& arg)
 {
-  switch (option.id)
+  m_bIncludeDeadRecords = false;
+  bool m_bIncludeHealthyRecords = true;
+  if (options.count("show-dead"))
   {
-  case 'd':
-    m_bIncludeDeadRecords = true;
-    m_bOnlyDeadRecords &= option.value.pTristateValue;
-    break;
-  case 'l':
-    m_bIncludeLabels = true;
-    if (option.value.pTristateValue == set)
-      m_bIncludeActions = false;
-    else if (option.value.pTristateValue == cleared)
-      m_bIncludeLabels = false;
-    break;
-  default:
-    return false;
+    if (options["show-dead"].as<std::string> () == "include")
+      m_bIncludeDeadRecords = true;
+    else if (options["show-dead"].as<std::string> () == "only")
+    {
+      m_bIncludeDeadRecords = true;
+      m_bIncludeHealthyRecords = false;
+    }
+    else if (options["show-dead"].as<std::string> () == "exclude")
+      m_bIncludeDeadRecords = true;
   }
-  return true;
-}
-
-bool CHistoryCommand::SetArguments (CArguments& args)
-{
-  if (args.empty ())
-    throw SSException ("no argument");
   
-  m_PhysFile = args.front ();
-  args.pop ();    
-  return true;
-}
+  m_bIncludeActions = true;
+  m_bIncludeLabels = true;
+  if (options.count("show-label"))
+  {
+    if (options["show-dead"].as<std::string> () == "only")
+      m_bIncludeActions = false;
+    else if (options["show-dead"].as<std::string> () == "exclude")
+      m_bIncludeLabels = false;
+  }
 
-void CHistoryCommand::Execute ()
-{
-  SSHistoryFile file(m_PhysFile);
+  SSHistoryFile file(arg);
 
   const CVersionFilter* pFilter = NULL; // m_pOptions->GetVersionFilter ();
 //  std::auto_ptr <ISSObjectVisitor> pFormatter (CVssFormatterFactory::MakeFormatter());
@@ -79,7 +90,7 @@ void CHistoryCommand::Execute ()
       bFiltered = true;
 
     if (!bFiltered)
-      g_pFormatter->Format (version);
+      GetFormatter()->Format (version);
 
     version = file.GetPrevVersion(version);
   }

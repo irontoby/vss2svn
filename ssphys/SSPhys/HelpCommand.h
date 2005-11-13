@@ -14,17 +14,12 @@
 
 class CCommandFactory;
 //---------------------------------------------------------------------------
-class CHelpCommand : public CCommand
+class CHelpCommand : public CMultiArgCommand
 {
 public:
-  CHelpCommand (CCommandFactory* pFactory = NULL)
-    : CCommand ("help"), m_pFactory (pFactory)
-  {
-  }
+  CHelpCommand (CCommandFactory* pFactory = NULL);
 
-  virtual bool SetOption (const COption& option);
-  virtual bool SetArguments (CArguments& args);
-  void Execute ();
+  virtual void Execute (po::variables_map const& options, std::string const& arg);
 
 protected:
   CCommandFactory* m_pFactory;

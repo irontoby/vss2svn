@@ -42,9 +42,11 @@ public:
 //  virtual void Apply(const SSObject& object, const ISSContext* pCtx) = 0;
 //};
 
-class CFormatter : public COptions
+class CFormatter
 {
 public:
+  virtual ~CFormatter () {};
+
   // The xml formatter needs to output the physical filename
   virtual void BeginFile (std::string fileName) {};
   virtual void EndFile () {};
@@ -52,14 +54,14 @@ public:
   virtual void Format (const SSObject& object, const ISSContext* pCtx = NULL) = 0;
 };
 
-//////////////////////////////////////////////////////////////////////
-extern std::auto_ptr<CFormatter> g_pFormatter;
 
 //////////////////////////////////////////////////////////////////////
 class CFormatterFactory
 {
 public:
-  static std::auto_ptr<CFormatter>        MakeFormatter (eStyle style, tristate value);
+  static std::auto_ptr<CFormatter>  MakeFormatter (eStyle style, po::variables_map const& vm);
+  static std::auto_ptr<CFormatter>  MakeFormatter (po::variables_map const& vm);
+  static po::options_description    GetOptionsDescription ();
 };
 
 

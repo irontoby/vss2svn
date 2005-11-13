@@ -11,36 +11,16 @@
 
 //---------------------------------------------------------------------------
 CValidateCommand::CValidateCommand ()
-  : CCommand ("validate")
+  : CMultiArgCommand ("validate", "Validates the condition of a VSS physical file")
 {
 }
 
-COptionInfoList CValidateCommand::GetOptionsInfo () const
-{
-  COptionInfoList options = CCommand::GetOptionsInfo();
-  return options;
-}
 
-bool CValidateCommand::SetOption (const COption& option)
-{
-  return true;
-}
-
-bool CValidateCommand::SetArguments (CArguments& args)
-{
-  if (args.empty ())
-    throw SSException ("no argument");
-  
-  m_PhysFile = args.front ();
-  args.pop ();    
-  return true;
-}
-
-void CValidateCommand::Execute ()
+void CValidateCommand::Execute (po::variables_map const& options, std::string const& arg)
 {
   try
   {
-    std::auto_ptr<SSRecordFile> pFile (SSRecordFile::MakeFile (m_PhysFile));
+    std::auto_ptr<SSRecordFile> pFile (SSRecordFile::MakeFile (arg));
     if (pFile.get())
     {
       pFile->Validate ();

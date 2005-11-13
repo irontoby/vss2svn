@@ -11,18 +11,14 @@
 
 #include "Command.h"
 
-class CFileTypeCommand : public CCommand
+class CFileTypeCommand : public CMultiArgCommand
 {
 public:
   CFileTypeCommand ();
 
-  virtual COptionInfoList GetOptionsInfo () const;
-  virtual bool SetOption (const COption& option);
-  virtual bool SetArguments (CArguments& args);
-  void Execute ();
+  virtual void Execute (const po::variables_map& vm, std::string const& arg);
 
 protected:
-  std::string m_PhysFile;
 };
 
 #endif // !defined(AFX_FILETYPECOMMAND_H__A66D5425_5DF0_46BD_8664_EF74FE905B1B__INCLUDED_)

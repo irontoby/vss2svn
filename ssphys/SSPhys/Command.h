@@ -11,32 +11,55 @@
 
 #include "Options.h"
 #include "Arguments.h"
+#include "CommandLine.h"
+#include "Formatter.h"
 
 //---------------------------------------------------------------------------
-class CCommand : public COptions
+class CCommand
 {
+protected:
+  CCommand (std::string commandName, std::string description);
+
 public:
-  CCommand (std::string commandName);
   virtual ~CCommand ();
 
-  std::string GetCommandName () const
-  {
-    return m_CommandName;
-  }
+  std::string GetCommandName () const           { return m_CommandName; }
+  std::string GetCommandDescription () const    { return m_CommandDescription; }
   
-  virtual bool SetArguments (CArguments& args)
-  {
-    return false;
-  }
+  virtual po::options_description GetOptionsDescription () const;
+  virtual po::options_description GetHiddenDescription () const;
+  virtual po::positional_options_description GetPositionalOptionsDescription () const;
   
-  virtual void Execute () = 0;
+  int Execute (std::vector <std::string> const& args);
+  virtual void Execute (po::variables_map const & options, std::vector<po::option> const & args) = 0;
   
-  virtual void PrintUsage () const;
-
+  void PrintUsage () const;
 protected:
   std::string m_CommandName;
+  std::string m_CommandDescription;
+  po::variables_map m_VariablesMap;
+//  po::options_description m_OptionsDescription;
+//  po::options_description m_HiddenDescription;
+
+  std::auto_ptr<CFormatter>& GetFormatter ();
+private:
+  std::auto_ptr<CFormatter> m_pFormatter;
 };
 
+//---------------------------------------------------------------------------
+class CMultiArgCommand : public CCommand
+{
+public:
+  CMultiArgCommand (std::string commandName, std::string description);
+
+  virtual po::positional_options_description GetPositionalOptionsDescription () const;
+  virtual po::options_description GetHiddenDescription () const;
+
+  virtual void Execute (po::variables_map const& options, std::vector<po::option> const& args);
+  virtual void Execute (po::variables_map const& options, std::string const& arg) = 0;
+
+protected:
+};
 
 
 

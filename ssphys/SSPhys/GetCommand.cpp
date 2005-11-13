@@ -31,59 +31,39 @@ bool fexists (const char* file)
 
 //---------------------------------------------------------------------------
 CGetCommand::CGetCommand ()
-  : CCommand ("get"),
+  : CCommand ("get", "Retrieve old versions from a VSS physical file"),
     m_Version (-1),
     m_bForceOverwrite (false),
     m_bBulkGet (false)
 {
 }
 
-COptionInfoList CGetCommand::GetOptionsInfo () const
+po::options_description CGetCommand::GetOptionsDescription () const
 {
-  COptionInfoList options = CCommand::GetOptionsInfo();
-  options.push_back (COptionInfo ('v', 'v', "version", "version to get", COptionInfo::requiredArgument));
-  options.push_back (COptionInfo ('f', 'f', "force-overwrite", "overwrite target file", COptionInfo::noArgument));
-  options.push_back (COptionInfo ('b', 'b', "bulk", "bulk operation: get all intermediate files with the same name as the source name", COptionInfo::noArgument));
-  return options;
+  po::options_description descr (CCommand::GetOptionsDescription());
+  descr.add_options ()
+    ("version,v", po::value<int>(), "Get a specific old version")
+    ("force-overwrite", "overwrite target file")
+    ("bulk,b", "bulk operation: get all intermediate files with the same name as the source name");
+  return descr;
 }
 
-bool CGetCommand::SetOption (const COption& option)
+po::options_description CGetCommand::GetHiddenDescription () const
 {
-  switch (option.id)
-  {
-  case 'v':
-    m_Version = atoi ((const char*) option.value);
-    break;
-  case 'f':
-    m_bForceOverwrite = true;
-    break;
-  case 'b':
-    m_bBulkGet = true;
-    break;
-  default:
-    return false;
-  }
-  return true;
+  po::options_description descr (CCommand::GetHiddenDescription());
+  descr.add_options ()
+    ("input", po::value<std::string>(), "physical file name")
+    ("output", po::value<std::string>(), "target file name");
+  return descr;
 }
 
-bool CGetCommand::SetArguments (CArguments& args)
+po::positional_options_description CGetCommand::GetPositionalOptionsDescription () const
 {
-  if (args.empty ())
-    throw SSException ("no argument");
-  
-  m_PhysFile = args.front ();
-  args.pop ();
-
-  if (args.empty ())
-    throw SSException ("missing argument");
-  
-  m_DestFile = args.front ();
-  args.pop ();
-  
-  return true;
-  
+  po::positional_options_description positional (CCommand::GetPositionalOptionsDescription());
+  positional.add ("input", 1);
+  positional.add ("output", 2);
+  return positional;
 }
-
 
 class CActionVisitor : public ISSActionVisitor
 {
@@ -223,7 +203,7 @@ public:
   
   bool operator () (std::istream& input, std::ostream& output) const
   {
-    for (long i = 0; i < m_length; )
+    for (size_t i = 0; i < m_length; )
     {
       const FD* pfd = (const FD*) (m_pBuffer+i);
       i += sizeof(FD);
@@ -331,7 +311,7 @@ public:
 
   virtual bool Apply (const SSAction& rAction) 
   {
-    throw SSException ("unsuported action in CReverseHistoryHandler");
+    throw SSException (std::string ("unsuported action in CReverseHistoryHandler: ").append (CAction::ActionToString(rAction.GetActionID())));
   }
 
 };
@@ -570,8 +550,25 @@ bool CProjectHistoryHandler::Apply (const SSRenamedFileAction& rAction)
 
 
 
-void CGetCommand::Execute ()
+void CGetCommand::Execute (po::variables_map const & options, std::vector<po::option> const & args)
 {
+  if (options.count("version"))
+    m_Version = options["version"].as<int>();
+  if (options.count("force-overwrite"))
+    m_bForceOverwrite = true;
+  if (options.count("bulk"))
+    m_bBulkGet = true;
+
+  if (options.count("input"))
+    m_PhysFile = options["input"].as<std::string>();
+  if (options.count("output"))
+    m_DestFile = options["output"].as<std::string> ();
+
+
+
+  if (m_PhysFile.empty ())
+    throw SSException ("please specify a source file for the get operation");
+
   if (m_DestFile.empty ())
     throw SSException ("please specify a destination file for the get operation");
 
@@ -591,6 +588,9 @@ void CGetCommand::Execute ()
   else
     pVisitor = std::auto_ptr<CHistoryHandler> (new CProjectHistoryHandler (lastDataFileName));
 
+
+  if (m_Version < 0)
+    m_Version = pItem->GetNumberOfActions () - m_Version + 1;
 
   SSVersionObject version (pItem->GetHistoryLast ());
   while (version && version.GetVersionNumber() > m_Version)
@@ -613,6 +613,6 @@ void CGetCommand::Execute ()
   }
 
   if (!pVisitor->SaveAs (m_DestFile.c_str(), m_bForceOverwrite))
-    throw SSException ("failed to create target file");
+    throw SSException (std::string ("failed to create target file ").append (m_DestFile));
 }
 

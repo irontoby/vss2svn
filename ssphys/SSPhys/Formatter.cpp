@@ -37,11 +37,6 @@ protected:
 class CPhysFormatter : public CFormatter
 {
 public:
-  virtual bool SetOption (const COption& option)
-  {
-    return false;
-  }
-
   void Format (const SSObject& object, const ISSContext* pCtx)
   {
     object.Dump (std::cout);
@@ -80,16 +75,11 @@ public:
     m_pXMLNode = NULL;
   }
 
-  virtual bool SetOption (const COption& option)
-  {
-    return false;
-  }
-  
   void Format (const SSObject& object, const ISSContext* pCtx)
   {
     AttribMap map;
     map ["offset"] = boost::lexical_cast<std::string>(object.GetOffset ());
-    XMLNode node (m_pXMLNode, object.GetName (), map);
+    XMLNode node (m_pXMLNode, object.GetTypeName (), map);
     object.ToXml (&node);
   }
 
@@ -136,14 +126,9 @@ void hexdump( const unsigned char *buffer, int size )
 class CBinaryFormatter : public CFormatter
 {
 public:
-  CBinaryFormatter (tristate value)
-    : m_Value (value)
+  CBinaryFormatter (/*tristate value*/)
+/*    : m_Value (value)*/
   {
-  }
-
-  virtual bool SetOption (const COption& option)
-  {
-    return false;
   }
 
   void Format (const SSObject& object, const ISSContext* pCtx)
@@ -153,7 +138,7 @@ public:
     std::cout << " Type: "  << SSRecord::TypeToString(pRecord->GetType());
     std::cout << " Len: "   << pRecord->GetLen();
 
-    if (m_Value == set)
+/*    if (m_Value == set) */
     {
       std::cout << std::endl;
       hexdump (object.GetRecord()->GetBuffer(), object.GetRecord()->GetLen());
@@ -161,7 +146,7 @@ public:
   }
 
 private:
-  tristate m_Value;
+/*  tristate m_Value;*/
 };
 
 
@@ -179,11 +164,6 @@ public:
   virtual void Apply (const SSProjectObject& object, const ISSContext* pCtx);
   virtual void Apply (const SSCommentObject& object, const ISSContext* pCtx);
   virtual void Apply (const SSNameObject& object, const ISSContext* pCtx);
-
-  virtual bool SetOption (const COption& option)
-  {
-    return false;
-  }
 
   void Format (const SSObject& object, const ISSContext* pCtx)
   {
@@ -318,10 +298,10 @@ void CVssFormatter::Apply (const SSNameObject& object, const ISSContext* pCtx)
 }
 
 //////////////////////////////////////////////////////////////////////
-std::auto_ptr<CFormatter> CFormatterFactory::MakeFormatter (eStyle style, tristate value)
+std::auto_ptr<CFormatter> CFormatterFactory::MakeFormatter (eStyle style, po::variables_map const& vm)
 {
   if (style == eBinary)
-    return std::auto_ptr<CFormatter> (new CBinaryFormatter (value));
+    return std::auto_ptr<CFormatter> (new CBinaryFormatter (/*value*/));
   if (style == eXML)
     return std::auto_ptr<CFormatter> (new CXMLFormatter ());
   if (style == eVSS)
@@ -330,5 +310,32 @@ std::auto_ptr<CFormatter> CFormatterFactory::MakeFormatter (eStyle style, trista
     return std::auto_ptr<CFormatter> (new CPhysFormatter ());
 
   return std::auto_ptr<CFormatter> (NULL);
+}
+
+std::auto_ptr<CFormatter> CFormatterFactory::MakeFormatter (po::variables_map const& options)
+{
+  std::string style = options["style"].as<std::string>();
+  for (size_t i = 0; i < style.size(); ++i)
+    style[i] = char(tolower(style[i]));
+
+  if (style == "binary")
+    return std::auto_ptr<CFormatter> (new CBinaryFormatter (/*value*/));
+  if (style == "xml")
+    return std::auto_ptr<CFormatter> (new CXMLFormatter ());
+  if (style == "vss")
+    return std::auto_ptr<CFormatter> (new CVssFormatter ());
+  if (style == "dump")
+    return std::auto_ptr<CFormatter> (new CPhysFormatter ());
+
+  throw SSException (std::string("invalid Formatter ").append (style));
+  return std::auto_ptr<CFormatter> (NULL);
+}
+
+po::options_description CFormatterFactory::GetOptionsDescription ()
+{
+  po::options_description descr ("Formatter options");
+  descr.add_options ()
+    ("style,s", po::value<std::string>()->default_value("XML"), "output style {XML|binary|vss|dump}");
+  return descr;
 }
 

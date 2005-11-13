@@ -12,21 +12,16 @@
 #include "Command.h"
 #include "Formatter.h"
 
-class CPropertiesCommand : public CCommand, public IFormattingContext
+class CPropertiesCommand : public CMultiArgCommand, public IFormattingContext
 {
 public:
   CPropertiesCommand ();
-
-  virtual COptionInfoList GetOptionsInfo () const;
-  virtual bool SetOption (const COption& option);
-  virtual bool SetArguments (CArguments& args);
-  void Execute ();
+  virtual void Execute (po::variables_map const& options, std::string const& arg);
 
   // IFormattingContext
   virtual bool GetExtendedOutput () const { return true; }
 
 protected:
-  std::string m_PhysFile;
 };
 
 #endif // !defined(AFX_PROPERTIESCOMMAND_H__0F1C2110_04E9_4DC1_A999_D40711F4DE15__INCLUDED_)

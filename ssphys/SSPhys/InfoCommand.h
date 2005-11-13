@@ -12,22 +12,16 @@
 #include "Command.h"
 
 //---------------------------------------------------------------------------
-class CInfoCommand : public CCommand
+class CInfoCommand : public CMultiArgCommand
 {
 public:
   CInfoCommand ();
 
-  virtual COptionInfoList GetOptionsInfo () const;
-  virtual bool SetOption (const COption& option);
-  virtual bool SetArguments (CArguments& args);
-  void Execute ();
+  virtual po::options_description GetOptionsDescription () const;
+  virtual void Execute (po::variables_map const& options, std::string const& arg);
 
 protected:
-  std::string m_PhysFile;
-  bool m_bAllRecords;
-  bool m_bOnlyRecords;
-  bool m_bDisplayAtOffset;
-  int m_Offset;
+  void Info (SSRecordPtr pRecord, bool bBasicInfo);
 };
 
 #endif // !defined(AFX_INFOCOMMAND_H__44ECA882_85A1_410E_B764_E2AF098446C7__INCLUDED_)

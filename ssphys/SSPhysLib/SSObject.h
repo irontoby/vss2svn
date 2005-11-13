@@ -58,6 +58,7 @@ protected:
   SSObject ();
 
 public:
+  SSObject (SSRecordPtr pRecord);
   virtual ~SSObject ();
 
   static SSObject* MakeObject (SSRecordPtr pRecord);
@@ -75,7 +76,7 @@ public:
 
   operator bool ()         const { return m_pRecord; }
   
-  virtual std::string GetName ()        const;
+  std::string GetTypeName ()        const;
   virtual void ToXml (XMLNode* pParent) const;
   virtual void Dump (std::ostream& os)  const;
 

@@ -13,6 +13,22 @@
 
 class CCommandLine;
 
+/** Class thrown when the command name is not recognized. */
+class unknown_command : public SSException {
+public:
+  unknown_command(const std::string& name)
+    : SSException(std::string("unknown command ").append(name)) 
+  {}
+};
+
+/** Class thrown when no command name was specified. */
+class missing_command : public SSException {
+public:
+  missing_command()
+    : SSException(std::string("missing command ")) 
+  {}
+};
+
 class CCommandFactory  
 {
 public:
@@ -20,8 +36,8 @@ public:
 	virtual ~CCommandFactory();
 
   CCommand* MakeCommand (std::string command);
-
   void PrintUsage () const;
+
 protected:
 };
 

@@ -14,35 +14,14 @@
 
 //---------------------------------------------------------------------------
 CFileTypeCommand::CFileTypeCommand ()
-  : CCommand ("filetype")
+  : CMultiArgCommand ("filetype", "Displays the type (text or binary) of a VSS physical file")
 {
 }
 
-COptionInfoList CFileTypeCommand::GetOptionsInfo () const
+void CFileTypeCommand::Execute (const po::variables_map& vm, std::string const& arg)
 {
-  COptionInfoList options = CCommand::GetOptionsInfo();
-  return options;
-}
-
-bool CFileTypeCommand::SetOption (const COption& option)
-{
-  return false;
-}
-
-bool CFileTypeCommand::SetArguments (CArguments& args)
-{
-  if (args.empty ())
-    throw SSException ("no argument");
-  
-  m_PhysFile = args.front ();
-  args.pop ();
-  return true;
-}
-
-void CFileTypeCommand::Execute ()
-{
-  SSHistoryFile file (m_PhysFile);
+  SSHistoryFile file (arg);
   std::auto_ptr<SSItemInfoObject> info (file.GetItemInfo ());
   if (info.get())
-    g_pFormatter->Format (*info);
+    GetFormatter()->Format (*info);
 }

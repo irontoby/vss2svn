@@ -32,6 +32,11 @@ SSObject::SSObject (SSRecordPtr pRecord, eType type)
     throw SSRecordException ("wrong record type");
 }
 
+SSObject::SSObject (SSRecordPtr pRecord)
+  : m_pRecord (pRecord)
+{
+}
+
 SSObject::SSObject ()
 {
 }
@@ -89,7 +94,7 @@ SSObject* SSObject::MakeObject (SSRecordPtr pRecord)
 //  return m_pRecord->GetBuffer ();
 //}
 
-std::string SSObject::GetName () const
+std::string SSObject::GetTypeName () const
 {
   assert (*this);
   switch (GetType ())
@@ -127,7 +132,6 @@ std::string SSObject::GetName () const
 
 void SSObject::ToXml (XMLNode* pParent) const
 {
-  std::cout << "<!-- " << typeid (this).name () << " (" << SSRecord::TypeToString (GetType ()) << ") not implemented -->" << std::endl;
 }
 
 void SSObject::Dump (std::ostream& os) const

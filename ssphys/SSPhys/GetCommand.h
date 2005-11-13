@@ -17,10 +17,11 @@ class CGetCommand : public CCommand
 public:
   CGetCommand ();
 
-  virtual COptionInfoList GetOptionsInfo () const;
-  virtual bool SetOption (const COption& option);
-  virtual bool SetArguments (CArguments& args);
-  void Execute ();
+  virtual po::options_description GetOptionsDescription () const;
+  virtual po::options_description GetHiddenDescription () const;
+  virtual po::positional_options_description GetPositionalOptionsDescription () const;
+
+  virtual void Execute (po::variables_map const & options, std::vector<po::option> const & args);
 
 protected:
   std::string m_PhysFile;

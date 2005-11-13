@@ -11,30 +11,16 @@
 //////////////////////////////////////////////////////////////////////
 extern void PrintUsage ();
 
-bool CHelpCommand::SetArguments (CArguments& args)
+CHelpCommand::CHelpCommand (CCommandFactory* pFactory /*= NULL*/)
+  : CMultiArgCommand ("help", "Displays help on using a specific command"), 
+    m_pFactory (pFactory)
 {
-  if (m_pFactory && !args.empty ())
-  {
-    m_pCommand = std::auto_ptr<CCommand> (m_pFactory->MakeCommand (args.front ()));
-    args.pop ();
-    return true;
-  }
-  return false;
+
 }
 
-void CHelpCommand::Execute ()
+void CHelpCommand::Execute (po::variables_map const& options, std::string const& arg)
 {
-  if (m_pCommand.get ())
-  {
-    m_pCommand->PrintUsage ();
-  }
-  else if (m_pFactory)
-  {
-    ::PrintUsage ();
-  }
+  std::auto_ptr<CCommand> pCommand(m_pFactory->MakeCommand (arg));
+  pCommand->PrintUsage ();
 }
 
-bool CHelpCommand::SetOption (const COption& option)
-{
-  return false;
-}

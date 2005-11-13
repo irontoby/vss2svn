@@ -12,18 +12,17 @@
 #include "Command.h"
 
 //---------------------------------------------------------------------------
-class CHistoryCommand : public CCommand
+class CHistoryCommand : public CMultiArgCommand
 {
 public:
   CHistoryCommand ();
 
-  virtual COptionInfoList GetOptionsInfo () const;
-  virtual bool SetOption (const COption& option);
-  virtual bool SetArguments (CArguments& args);
-  void Execute ();
+  virtual po::options_description GetOptionsDescription () const;
+  virtual po::options_description GetHiddenDescription () const;
+
+  virtual void Execute (po::variables_map const& options, std::string const& arg);
 
 protected:
-  std::string m_PhysFile;
   bool m_bIncludeDeadRecords;
   bool m_bOnlyDeadRecords;
   bool m_bIncludeLabels;

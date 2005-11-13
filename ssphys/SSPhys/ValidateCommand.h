@@ -12,18 +12,14 @@
 #include "Command.h"
 
 //---------------------------------------------------------------------------
-class CValidateCommand : public CCommand
+class CValidateCommand : public CMultiArgCommand
 {
 public:
   CValidateCommand ();
 
-  virtual COptionInfoList GetOptionsInfo () const;
-  virtual bool SetOption (const COption& option);
-  virtual bool SetArguments (CArguments& args);
-  void Execute ();
+  virtual void Execute (po::variables_map const& options, std::string const& arg);
 
 protected:
-  std::string m_PhysFile;
 };
 
 

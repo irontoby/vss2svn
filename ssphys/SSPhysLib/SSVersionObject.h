@@ -97,8 +97,8 @@ public:
   eAction  GetActionID  ()                  const { return static_cast <eAction> (GetAction ()->GetActionID ()); }
   short   GetVersionNumber ()               const { return GetData ()->VersionNumber; }
   time_t  GetDate ()                        const { return GetData ()->Date; }
-  std::string GetUsername ()                const { return std::string (GetData ()->Username, 32); }
-  std::string GetLabel ()                   const { return std::string (GetData ()->Label, 32); }
+  std::string GetUsername ()                const { return std::string (GetData ()->Username /*, 32*/); }
+  std::string GetLabel ()                   const { return std::string (GetData ()->Label    /*, 32*/); }
   ulong   GetOffsetToNextRecordOrComment () const { return GetData ()->OffsetToNextRecordOrComment; }
   ulong   GetOffsetToLabelComment ()        const { return GetData ()->OffsetToLabelComment; }
   short   GetLengthComment ()               const { return GetData ()->LengthComment; }

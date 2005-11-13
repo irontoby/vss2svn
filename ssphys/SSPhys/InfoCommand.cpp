@@ -7,93 +7,86 @@
 #include "Formatter.h"
 #include <SSPhysLib\SSFiles.h>
 #include <SSPhysLib\SSObject.h>
+#include <SSPhysLib\SSItemInfoObject.h>
 
 //////////////////////////////////////////////////////////////////////
 // Construction/Destruction
 //////////////////////////////////////////////////////////////////////
 
 CInfoCommand::CInfoCommand()
-  : CCommand ("info"),
-    m_bOnlyRecords (false),
-    m_bAllRecords (false),
-    m_bDisplayAtOffset (false),
-    m_Offset (0)
+  : CMultiArgCommand ("info", "Shows basic information about a VSS phyiscal file")
 {
-
 }
 
-COptionInfoList CInfoCommand::GetOptionsInfo () const
+po::options_description CInfoCommand::GetOptionsDescription () const
 {
-  COptionInfoList options = CCommand::GetOptionsInfo();
-  options.push_back (COptionInfo ('a', 'a', "all", "display information about all records", COptionInfo::noArgument));
-  options.push_back (COptionInfo ('r', 'r', "records", "display basic information about the records", COptionInfo::noArgument));
-  options.push_back (COptionInfo ('o', 'o', "offset", "display record at specific offset", COptionInfo::requiredArgument));
-  return options;
+//  po::options_description descr ("info options:\nshow information about a physical (record structured) file");
+  po::options_description descr (CMultiArgCommand::GetOptionsDescription());
+  descr.add_options ()
+    ("all,a", "show information about all records")
+    ("basic,b", "show only basic information about the records")
+    ("offset,o", po::value <int> (), "only display information of the record at a specific offset");
+  return descr;
 }
 
-bool CInfoCommand::SetOption (const COption& option)
+void CInfoCommand::Info (SSRecordPtr pRecord, bool bBasicInfo)
 {
-  switch (option.id)
+  if (bBasicInfo)
   {
-  case 'a':
-    m_bAllRecords = true;
-    break;
-  case 'r':
-    m_bOnlyRecords = true;
-    break;
-  case 'o':
-   m_bDisplayAtOffset = true;
-   m_Offset = atoi ((const char*) option.value);
-    break;
-  default:
-    return false;
+    std::auto_ptr<SSObject> pObject (new SSObject(pRecord));
+    GetFormatter()->Format (*pObject);
   }
-  return true;
+  else
+  {
+    std::auto_ptr<SSObject> pObject (SSObject::MakeObject(pRecord));
+    GetFormatter()->Format (*pObject);
+  }
 }
 
-bool CInfoCommand::SetArguments (CArguments& args)
+void CInfoCommand::Execute (po::variables_map const& options, std::string const& arg)
 {
-  if (args.empty ())
-    throw SSException ("no argument");
+  bool bAllRecords = false;
+  bool bBasicInfo = false;
+  bool bDisplayAtOffset = false;
+  int offset = 0;
+
+  if (options.count("all"))
+    bAllRecords = true;
+  if (options.count("basic"))
+    bBasicInfo = true;
+  if (options.count("offset"))
+  {
+    bDisplayAtOffset = true;
+    offset = options["offset"].as<int> ();
+  }
+
+  std::auto_ptr <SSRecordFile> pFile (SSRecordFile::MakeFile (arg));
   
-  m_PhysFile = args.front ();
-  args.pop ();
-  return true;
-}
-
-void CInfoCommand::Execute ()
-{
-  std::auto_ptr <SSRecordFile> pFile (SSRecordFile::MakeFile (m_PhysFile));
-  g_pFormatter->BeginFile (m_PhysFile);
-//  std::auto_ptr<ISSObjectVisitor> pFormatter (CPhysFormatterFactory::MakeFormatter ());
   if (pFile.get ())
   {
-    if (m_bAllRecords)
+    GetFormatter()->BeginFile (arg);
+    if (bAllRecords)
     {
       SSRecordPtr pRecord = pFile->GetFirstRecord();
       while (pRecord)
       {
-        if (m_bOnlyRecords)
-        {
-          pRecord->Dump (std::cout);
-        }
-        else
-        {
-          std::auto_ptr<SSObject> pObject (SSObject::MakeObject(pRecord));
-          g_pFormatter->Format (*pObject);
-          std::cout << std::endl;
-        }
+        Info (pRecord, bBasicInfo);
         pRecord = pFile->FindNextRecord(pRecord);
       }
     }
-    else if (m_bDisplayAtOffset)
+    else if (bDisplayAtOffset)
     {
-      SSRecordPtr pRecord = pFile->GetRecord(m_Offset);
-      std::auto_ptr<SSObject> pObject (SSObject::MakeObject(pRecord));
-      g_pFormatter->Format (*pObject);
+      SSRecordPtr pRecord = pFile->GetRecord(offset);
+      Info (pRecord, bBasicInfo);
     }
     else
-      pFile->Dump (std::cout);
+    {
+      SSRecordPtr pRecord = pFile->GetFirstRecord();
+      // try, wether the first record is an item info object?
+      std::auto_ptr<SSObject> pObject (SSItemInfoObject::MakeItemInfo(pRecord));
+      Info (pRecord, bBasicInfo);
+    }
+
+    GetFormatter()->EndFile ();
   }
-  g_pFormatter->EndFile ();
 }

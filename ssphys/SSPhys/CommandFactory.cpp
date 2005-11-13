@@ -28,6 +28,9 @@ CCommandFactory::~CCommandFactory()
 
 CCommand* CCommandFactory::MakeCommand (std::string command)
 {
+  for (size_t i = 0; i < command.size(); ++i)
+    command[i] = char(tolower(command[i]));
+
   CCommand* pCommand = NULL;
   if (command == "help")
     pCommand = new CHelpCommand (this);
@@ -44,26 +47,35 @@ CCommand* CCommandFactory::MakeCommand (std::string command)
   else if (command == "properties")
     pCommand = new CPropertiesCommand ();
   else
-    throw SSException ("unknown command");
+    throw unknown_command (command);
 
   return pCommand;
 }
 
 void CCommandFactory::PrintUsage () const
 {
-  // foreach command
-  CHelpCommand helpCommand;
-  helpCommand.PrintUsage ();
+  std::cout << "available commands: " << std::endl;
 
-  CHistoryCommand historyCommand;
-  historyCommand.PrintUsage ();
+  CHelpCommand help;
+  std::cout << help.GetCommandName () << ":\t\t" << help.GetCommandDescription () << std::endl;
 
-  CInfoCommand infoCommand;
-  infoCommand.PrintUsage ();
+  CInfoCommand info;
+  std::cout << info.GetCommandName () << ":\t\t" << info.GetCommandDescription () << std::endl;
+  
+  CHistoryCommand history;
+  std::cout << history.GetCommandName () << ":\t" << history.GetCommandDescription () << std::endl;
+  
+  CValidateCommand validate;
+  std::cout << validate.GetCommandName () << ":\t" << validate.GetCommandDescription () << std::endl;
+  
+  CGetCommand get;
+  std::cout << get.GetCommandName () << ":\t\t" << get.GetCommandDescription () << std::endl;
 
-  CValidateCommand validateCommand;
-  validateCommand.PrintUsage ();
+  CFileTypeCommand filetype;
+  std::cout << filetype.GetCommandName () << ":\t" << filetype.GetCommandDescription () << std::endl;
 
-  CGetCommand getCommand;
-  getCommand.PrintUsage ();
+  CPropertiesCommand properties;
+  std::cout << properties.GetCommandName () << ":\t" << properties.GetCommandDescription () << std::endl;
+
 }
+

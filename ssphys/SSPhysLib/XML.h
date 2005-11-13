@@ -10,6 +10,7 @@
 #endif // _MSC_VER > 1000
 
 typedef std::map<std::string, std::string> AttribMap;
+class XMLElement;
 
 // ---------------------------------------------------------------
 class XMLEntity
@@ -54,13 +55,14 @@ class XMLNode : protected XMLEntity
 {
 public:
   XMLNode (XMLNode* pParent, std::string name)
-    : m_pParent (pParent), m_Name (name)
+    : m_pParent (pParent), m_Name (name), bHasChilds (false)
   {
-    std::cout << "<" << name << ">" << std::endl;
+    // closing bracket will be written in destructor or when elements are added
+    std::cout << "<" << name << /*">" << */ std::endl;
   }
 
   XMLNode (XMLNode* pParent, std::string name, AttribMap attrib)
-    : m_pParent (pParent), m_Name (name)
+    : m_pParent (pParent), m_Name (name), bHasChilds (false)
   {
     std::cout << "<" << name;
     AttribMap::iterator itor = attrib.begin ();
@@ -68,16 +70,30 @@ public:
     {
       std::cout << " " << itor->first << "=\"" << itor->second << "\"";
     }
-    std::cout << ">" << std::endl;
+    // closing bracket will be written in destructor or when elements are added
+    // std::cout << ">" << std::endl;
   }
+
+  void AddChild (XMLElement* pChild)
+  {
+    if (!bHasChilds)
+      std::cout << ">" << std::endl;
+
+    bHasChilds = true;
+  }
+
   ~XMLNode ()
   {
-    std::cout << "</" << m_Name << ">" << std::endl;
+    if (!bHasChilds)
+      std::cout << "/>" << std::endl;
+    else
+      std::cout << "</" << m_Name << ">" << std::endl;
   }
 
 protected:
   XMLNode* m_pParent;
   std::string m_Name;
+  bool bHasChilds;
 };
 
 
@@ -87,6 +103,9 @@ public:
   template <class T>
   XMLElement (XMLNode* pParent, std::string name, const T& element)
   {
+    if (pParent)
+      pParent->AddChild (this);
+
     std::cout << "<" << name << ">";
     ToXml(element);
     std::cout << "</" << name << ">" << std::endl;

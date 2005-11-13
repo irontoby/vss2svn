@@ -28,7 +28,7 @@
 //---------------------------------------------------------------------------
 #define countof(x) (sizeof(x) / sizeof(x[0]))
 //#define RELEASE(x) if (x) (x)->Release ();
-#define DELETE(x)  { delete (x); x = NULL; }
+//#define DELETE(x)  { delete (x); x = NULL; }
 
 typedef std::vector<std::string> StringVector;
 
@@ -42,8 +42,9 @@ void Error (const char* message);
 #define warn_with_msg_if(x,y) (x) ? Warning (y), false : true;
 
 
-
 #include <SSPhysLib\SSexception.h>
+
+#include "Options.h"
 
 
 

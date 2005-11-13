@@ -15,34 +15,13 @@
 
 //---------------------------------------------------------------------------
 CPropertiesCommand::CPropertiesCommand ()
-  : CCommand ("properties")
+  : CMultiArgCommand ("properties", "Shows basic properties about a VSS physical file")
 {
 }
 
-COptionInfoList CPropertiesCommand::GetOptionsInfo () const
+void CPropertiesCommand::Execute (po::variables_map const& options, std::string const& arg)
 {
-  COptionInfoList options = CCommand::GetOptionsInfo();
-  return options;
-}
-
-bool CPropertiesCommand::SetOption (const COption& option)
-{
-  return false;
-}
-
-bool CPropertiesCommand::SetArguments (CArguments& args)
-{
-  if (args.empty ())
-    throw SSException ("no argument");
-  
-  m_PhysFile = args.front ();
-  args.pop ();
-  return true;
-}
-
-void CPropertiesCommand::Execute ()
-{
-  std::auto_ptr<SSRecordFile> file (SSRecordFile::MakeFile(m_PhysFile));
+  std::auto_ptr<SSRecordFile> file (SSRecordFile::MakeFile(arg));
   if (file.get ())
   {
     SSHistoryFile* pHistory = dynamic_cast<SSHistoryFile*> (file.get());
@@ -52,7 +31,7 @@ void CPropertiesCommand::Execute ()
     {
       std::auto_ptr<SSItemInfoObject> info (pHistory->GetItemInfo ());
       if (info.get())
-        g_pFormatter->Format (*info, this);
+        GetFormatter()->Format (*info, this);
     }
     else if (pProject)
     {
@@ -60,7 +39,7 @@ void CPropertiesCommand::Execute ()
       while (record)
       {
         SSProjectObject project (record);
-        g_pFormatter->Format (project, this);
+        GetFormatter()->Format (project, this);
         record = pProject->GetNextRecord(record);
       }
         
