@@ -29,13 +29,13 @@ public:
   
   // accessors
   // BOOST_PP_SEQ_FOR_EACH (DEFINE_ACCESSORS, GetData(), DH_SEQ);
-  short       GetType ()                const { return GetData()->Type; }
-  short       GetNumberOfActions ()     const { return GetData()->NumberOfActions; }
-  SSName      GetSSName ()              const { return GetData()->SSName; }
-  std::string GetLatestExt ()           const { return std::string (GetData()->LatestExt, 2); }
-  ulong       GetHistoryOffsetBegin ()  const { return GetData()->HistoryOffsetBegin; }
-  ulong       GetHistoryOffsetLast ()   const { return GetData()->HistoryOffsetLast; }
-  ulong       GetHistoryOffsetEnd ()    const { return GetData()->HistoryOffsetEnd; }
+  short       GetType ()                const { return GetData()->type; }
+  short       GetNumberOfActions ()     const { return GetData()->numberOfActions; }
+  SSName      GetSSName ()              const { return GetData()->name; }
+  std::string GetLatestExt ()           const { return std::string (GetData()->latestExt, 2); }
+  ulong       GetHistoryOffsetBegin ()  const { return GetData()->historyOffsetBegin; }
+  ulong       GetHistoryOffsetLast ()   const { return GetData()->historyOffsetLast; }
+  ulong       GetHistoryOffsetEnd ()    const { return GetData()->historyOffsetEnd; }
 
   // return the last known name of the item
   std::string GetName ()                const { SSName name (GetSSName ()); return name.GetFullName(); }
@@ -78,10 +78,10 @@ public:
   SSProjectItem (SSRecordPtr pRecord);
 
   // accessors
-  std::string GetParentSpec ()            const { return GetData()->ParentSpec; }
-  std::string GetParentPhys ()            const { return GetData()->ParentPhys; }
-  short       GetNumberOfItems ()         const { return GetData()->NumberOfItems; }
-  short       GetNumberOfProjects ()      const { return GetData()->NumberOfProjects; }
+  std::string GetParentSpec ()            const { return GetData()->parentSpec; }
+  std::string GetParentPhys ()            const { return GetData()->parentPhys; }
+  short       GetNumberOfItems ()         const { return GetData()->numberOfItems; }
+  short       GetNumberOfProjects ()      const { return GetData()->numberOfProjects; }
 
   virtual void Accept (ISSObjectVisitor& rVisitor, const ISSContext* pCtx = NULL) const { rVisitor.Apply (*this, pCtx); }
 
@@ -102,16 +102,16 @@ public:
   SSFileItem (SSRecordPtr pRecord);
 
   // accessors
-  short       GetFlag ()                  const { return GetData ()->Flag; }
-  std::string GetShareSrcPhys ()          const { return std::string (GetData ()->ShareSrcSpec, 8); }
-  ulong       GetOffsetBFRecord ()        const { return GetData ()->OffsetBFRecord; }
-  ulong       GetOffsetPFRecord ()        const { return GetData ()->OffsetPFRecord; }
-  short       GetNumberOfBranches ()      const { return GetData ()->NumberOfBranches; }
-  short       GetNumberOfReferences ()    const { return GetData ()->NumberOfReferences; }
-  ulong       GetOffsetCFRecord1()        const { return GetData ()->OffsetCFRecord1; }
-  ulong       GetOffsetCFRecord2()        const { return GetData ()->OffsetCFRecord2; }
-//  short       GetNumberOfItems()          const { return GetData ()->NumberOfItems; }
-//  short       GetNumberOfProjects()       const { return GetData ()->NumberOfProjects; }
+  short       GetFlag ()                  const { return GetData ()->flag; }
+  std::string GetShareSrcPhys ()          const { return std::string (GetData ()->shareSrcSpec, 8); }
+  ulong       GetOffsetBFRecord ()        const { return GetData ()->offsetBFRecord; }
+  ulong       GetOffsetPFRecord ()        const { return GetData ()->offsetPFRecord; }
+  short       GetNumberOfBranches ()      const { return GetData ()->numberOfBranches; }
+  short       GetNumberOfReferences ()    const { return GetData ()->numberOfReferences; }
+  ulong       GetOffsetCFRecord1()        const { return GetData ()->offsetCFRecord1; }
+  ulong       GetOffsetCFRecord2()        const { return GetData ()->offsetCFRecord2; }
+//  short       GetNumberOfItems()          const { return GetData ()->numberOfItems; }
+//  short       GetNumberOfProjects()       const { return GetData ()->numberOfProjects; }
 
   // specialized accessors
   eFileType   GetFileType ()              const;

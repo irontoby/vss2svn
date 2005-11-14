@@ -93,16 +93,16 @@ public:
   SSVersionObject& operator= (SSVersionObject const & object);
 
 //  BOOST_PP_SEQ_FOR_EACH(DEFINE_ACCESSORS, GetData(), VERSION_RECORD_SEQ);
-  ulong   GetPrevious ()                    const { return GetData ()->Previous; }
+  ulong   GetPrevious ()                    const { return GetData ()->previous; }
   eAction  GetActionID  ()                  const { return static_cast <eAction> (GetAction ()->GetActionID ()); }
-  short   GetVersionNumber ()               const { return GetData ()->VersionNumber; }
-  time_t  GetDate ()                        const { return GetData ()->Date; }
-  std::string GetUsername ()                const { return std::string (GetData ()->Username /*, 32*/); }
-  std::string GetLabel ()                   const { return std::string (GetData ()->Label    /*, 32*/); }
-  ulong   GetOffsetToNextRecordOrComment () const { return GetData ()->OffsetToNextRecordOrComment; }
-  ulong   GetOffsetToLabelComment ()        const { return GetData ()->OffsetToLabelComment; }
-  short   GetLengthComment ()               const { return GetData ()->LengthComment; }
-  short   GetLengthLabelComment ()          const { return GetData ()->LengthLabelComment; }
+  short   GetVersionNumber ()               const { return GetData ()->versionNumber; }
+  time_t  GetDate ()                        const { return GetData ()->date; }
+  std::string GetUsername ()                const { return std::string (GetData ()->username /*, 32*/); }
+  std::string GetLabel ()                   const { return std::string (GetData ()->label    /*, 32*/); }
+  ulong   GetOffsetToNextRecordOrComment () const { return GetData ()->offsetToNextRecordOrComment; }
+  ulong   GetOffsetToLabelComment ()        const { return GetData ()->offsetToLabelComment; }
+  short   GetLengthComment ()               const { return GetData ()->lengthComment; }
+  short   GetLengthLabelComment ()          const { return GetData ()->lengthLabelComment; }
 
 //  std::string GetUsername ()      const { return GetData ()->user; }
 //  int         GetVersionNumber () const { return GetData ()->version; }

@@ -17,8 +17,8 @@ public:
 	SSParentFolderObject(SSRecordPtr pRecord);
 	virtual ~SSParentFolderObject();
 
-  ulong       GetPreviousOffset ()  const { return GetData ()->PreviousOffset; }
-  std::string GetParentPhys ()      const { return GetData ()->ParentPhys; }
+  ulong       GetPreviousOffset ()  const { return GetData ()->previousOffset; }
+  std::string GetParentPhys ()      const { return GetData ()->parentPhys; }
 
   SSParentFolderObject* GetPrevious ();
 

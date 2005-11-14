@@ -41,9 +41,9 @@ SSItemInfoObject* SSItemInfoObject::MakeItemInfo (SSRecordPtr pRecord)
     throw SSException ("not enough bytes for DH Header in record");
 
   const DH* pDh = reinterpret_cast<const DH*> (pRecord->GetBuffer ());
-  if (pDh->Type == 1)
+  if (pDh->type == 1)
     return new SSProjectItem (pRecord);
-  else if (pDh->Type == 2)
+  else if (pDh->type == 2)
     return new SSFileItem (pRecord);
   else 
     throw SSException ("unsupported item type");
@@ -159,17 +159,17 @@ void SSItemInfoObject::Dump (std::ostream& os) const
   os << "Item Type:                      ";
  
   assert (m_pInfoItem);
-  switch (m_pInfoItem->Type)
+  switch (m_pInfoItem->type)
   {
   case 1: os << "Project" << std::endl; break;
   case 2: os << "File" << std::endl; break;
-  default: os << "Unknown (" << m_pInfoItem->Type << ")" << std::endl; break;
+  default: os << "Unknown (" << m_pInfoItem->type << ")" << std::endl; break;
   }
 
   SSName ssName (GetSSName ());
   os << "Last Name:                      " << ssName << std::endl;
 //  os << "Number Of Records:              " << GetNumberOfRecords () << std::endl;
-  os << "LatestExt of last version:        " << m_pInfoItem->LatestExt[0] << m_pInfoItem->LatestExt[1] << std::endl;
+  os << "LatestExt of last version:        " << m_pInfoItem->latestExt[0] << m_pInfoItem->latestExt[1] << std::endl;
   os << "Offset to first History record: 0x" << std::hex << GetHistoryOffsetBegin()<< std::dec << std::endl;
   os << "Offset to last History record:  0x" << std::hex << GetHistoryOffsetLast() << std::dec << std::endl;
   os << "Offset to the end of the file:  0x" << std::hex << GetHistoryOffsetEnd()  << std::dec << std::endl;
@@ -230,15 +230,15 @@ bool SSFileItem::Validate()
   const DH_FILE* pFileInfoItem = GetData();
 
   bool retval = true;
-  retval &= warn_if (pFileInfoItem->NumberOfItems > 0);
-  retval &= warn_if (pFileInfoItem->NumberOfProjects > 0);
+  retval &= warn_if (pFileInfoItem->numberOfItems > 0);
+  retval &= warn_if (pFileInfoItem->numberOfProjects > 0);
 
   byte knownFlags[] = 
   {
     0x00, 0x02, 0x04, 0x41, 0x42, 0x20, 0x22
   };
   for (int i = 0; i < countof (knownFlags); i++)
-    if (pFileInfoItem->Flag == knownFlags[i])  
+    if (pFileInfoItem->flag == knownFlags[i])  
       break;
   retval &= warn_if (i == countof (knownFlags));
   
@@ -308,33 +308,33 @@ void SSFileItem::Dump (std::ostream& os) const
 //  Hexdump (oss, dummy4, 20);
 
   const DH_FILE* pFileInfoItem = GetData ();
-  os << "Status:               0x" << std::hex << pFileInfoItem->Flag << std::dec << " ";
-  if (pFileInfoItem->Flag == 0x00)
+  os << "Status:               0x" << std::hex << pFileInfoItem->flag << std::dec << " ";
+  if (pFileInfoItem->flag == 0x00)
     os << "normal";
-  else if (pFileInfoItem->Flag == 0x02)
+  else if (pFileInfoItem->flag == 0x02)
     os << "binary";
-  else if (pFileInfoItem->Flag == 0x04)
+  else if (pFileInfoItem->flag == 0x04)
     os << "store only latest revision";
-  else if (pFileInfoItem->Flag == 0x41)
+  else if (pFileInfoItem->flag == 0x41)
     os << "checked out, locked";
-  else if (pFileInfoItem->Flag == 0x43)
+  else if (pFileInfoItem->flag == 0x43)
     os << "binary, checked out, locked";
-  else if (pFileInfoItem->Flag == 0x20)
+  else if (pFileInfoItem->flag == 0x20)
     os << "shared";
-  else if (pFileInfoItem->Flag == 0x22)
+  else if (pFileInfoItem->flag == 0x22)
     os << "binary, shared";
   else 
     os << "unknown";
   os << std::endl;
 
-  os << "Share source physical file:         " << pFileInfoItem->ShareSrcSpec << std::endl;
+  os << "Share source physical file:         " << pFileInfoItem->shareSrcSpec << std::endl;
 
-  os << "Offset to first parent record:      0x" << std::hex << pFileInfoItem->OffsetPFRecord << std::dec << std::endl;
-  os << "Reference count:                    " << pFileInfoItem->NumberOfReferences << std::endl;
-  os << "Offset to 1st checkout record:      0x" << std::hex << pFileInfoItem->OffsetCFRecord1 << std::dec << std::endl;
-  os << "Offset to 2nd checkout record:      0x" << std::hex << pFileInfoItem->OffsetCFRecord2 << std::dec << std::endl;
+  os << "Offset to first parent record:      0x" << std::hex << pFileInfoItem->offsetPFRecord << std::dec << std::endl;
+  os << "Reference count:                    " << pFileInfoItem->numberOfReferences << std::endl;
+  os << "Offset to 1st checkout record:      0x" << std::hex << pFileInfoItem->offsetCFRecord1 << std::dec << std::endl;
+  os << "Offset to 2nd checkout record:      0x" << std::hex << pFileInfoItem->offsetCFRecord2 << std::dec << std::endl;
 
-  os << "Number of Items:                    " << std::hex << pFileInfoItem->NumberOfItems << std::dec << std::endl;
-  os << "Number of Projects:                 " << std::hex << pFileInfoItem->NumberOfProjects << std::dec << std::endl;
+  os << "Number of Items:                    " << std::hex << pFileInfoItem->numberOfItems << std::dec << std::endl;
+  os << "Number of Projects:                 " << std::hex << pFileInfoItem->numberOfProjects << std::dec << std::endl;
 }
 

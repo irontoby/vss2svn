@@ -93,21 +93,21 @@ bool SSVersionObject::Validate ()
   SSRecordPtr pPrevious;
 
   const VERSION_RECORD* pVersion = GetData ();
-  if (pVersion->OffsetToLabelComment)
-    pLabelCommentRecord = GetFile ()->GetRecord (pVersion->OffsetToLabelComment);
-  if (pVersion->OffsetToNextRecordOrComment)
-    pNext = GetFile ()->GetRecord (pVersion->OffsetToNextRecordOrComment);
-  if (pVersion->Previous)
-    pPrevious = GetFile ()->GetRecord (pVersion->Previous);
+  if (pVersion->offsetToLabelComment)
+    pLabelCommentRecord = GetFile ()->GetRecord (pVersion->offsetToLabelComment);
+  if (pVersion->offsetToNextRecordOrComment)
+    pNext = GetFile ()->GetRecord (pVersion->offsetToNextRecordOrComment);
+  if (pVersion->previous)
+    pPrevious = GetFile ()->GetRecord (pVersion->previous);
 
-  if (   (pVersion->LengthLabelComment == 0 && pVersion->OffsetToLabelComment != 0)
-      || (pVersion->LengthLabelComment != 0 && pVersion->OffsetToLabelComment == 0) )
+  if (   (pVersion->lengthLabelComment == 0 && pVersion->offsetToLabelComment != 0)
+      || (pVersion->lengthLabelComment != 0 && pVersion->offsetToLabelComment == 0) )
   {
     Warning ("invalid length and offset combination");
     retval &= false;
   }
 
-  if (pVersion->LengthLabelComment)
+  if (pVersion->lengthLabelComment)
   {
     retval &= warn_with_msg_if (!pLabelCommentRecord, "the expected comment record is invalid")
 
@@ -116,7 +116,7 @@ bool SSVersionObject::Validate ()
     return false;
   }
 
-  if (pVersion->LengthComment)
+  if (pVersion->lengthComment)
   {
     retval &= warn_with_msg_if (!pNext, "the expected comment record is invalid");
     
@@ -124,7 +124,7 @@ bool SSVersionObject::Validate ()
                                 "the record pointed to by offsetToNextRecordOrComment is expected to be a comment record");
   }
 
-  if (pVersion->Previous && !pPrevious)
+  if (pVersion->previous && !pPrevious)
   {
     Warning ("a previous record is specified, but the record could not be read");
     retval &= false;
@@ -188,10 +188,10 @@ void SSVersionObject::Dump (std::ostream& os) const
   SSRecordPtr pNext;
   const VERSION_RECORD* pVersion = GetData ();
 
-  if (pVersion->OffsetToLabelComment)
-    pLabelCommentRecord = GetFile ()->GetRecord (pVersion->OffsetToLabelComment);
-  if (pVersion->OffsetToNextRecordOrComment)
-    pNext = GetFile ()->GetRecord (pVersion->OffsetToNextRecordOrComment);
+  if (pVersion->offsetToLabelComment)
+    pLabelCommentRecord = GetFile ()->GetRecord (pVersion->offsetToLabelComment);
+  if (pVersion->offsetToNextRecordOrComment)
+    pNext = GetFile ()->GetRecord (pVersion->offsetToNextRecordOrComment);
 
   // dump basic information
   SSObject::Dump (os);
@@ -214,12 +214,12 @@ void SSVersionObject::Dump (std::ostream& os) const
   os << "User:     " << GetUsername () << std::endl;
   os << "Comment:  " << GetComment () << std::endl;
 
-  os << "Comment Offset      0x" << std::hex << pVersion->OffsetToNextRecordOrComment << std::dec << ", Length " << pVersion->LengthComment;
+  os << "Comment Offset      0x" << std::hex << pVersion->offsetToNextRecordOrComment << std::dec << ", Length " << pVersion->lengthComment;
   if (pNext)
       os << ", Type " << pNext->GetRecordType ();
   os << std::endl;
 
-  os << "LabelComment Offset 0x" << std::hex << pVersion->OffsetToLabelComment << std::dec << ", Length " << pVersion->LengthLabelComment;
+  os << "LabelComment Offset 0x" << std::hex << pVersion->offsetToLabelComment << std::dec << ", Length " << pVersion->lengthLabelComment;
   if (pLabelCommentRecord)
       os << ", Type " << pLabelCommentRecord->GetRecordType ();
   os << std::endl;
@@ -234,7 +234,7 @@ SSAction::SSAction (SSRecordPtr pRecord)
 {
   const VERSION_RECORD* pVersion = GetHistoryRecordPtr (pRecord);
   
-  m_ActionId = static_cast <eAction> (pVersion->ActionID);
+  m_ActionId = static_cast <eAction> (pVersion->actionID);
 }
 
 SSAction::~SSAction ()
@@ -251,48 +251,48 @@ SSAction* SSAction::MakeAction (SSRecordPtr pRecord)
 
   const VERSION_RECORD* pVersion = reinterpret_cast<const VERSION_RECORD*> (pRecord->GetBuffer ());
   
-  if (pVersion->ActionID == Labeled)
+  if (pVersion->actionID == Labeled)
     return new SSLabeledAction (pRecord);
-  else if (pVersion->ActionID == Created_Project)
+  else if (pVersion->actionID == Created_Project)
     return new SSCreatedProjectAction (pRecord);
-  else if (pVersion->ActionID == Added_Project)
+  else if (pVersion->actionID == Added_Project)
     return new SSAddedProjectAction (pRecord);
-  else if (pVersion->ActionID == Added_File)
+  else if (pVersion->actionID == Added_File)
     return new SSAddedFileAction (pRecord);
-  else if (pVersion->ActionID == Destroyed_Project)
+  else if (pVersion->actionID == Destroyed_Project)
     return new SSDestroyedProjectAction(pRecord);
-  else if (pVersion->ActionID == Destroyed_File)
+  else if (pVersion->actionID == Destroyed_File)
     return new SSDestroyedFileAction (pRecord);
-  else if (pVersion->ActionID == Deleted_Project)
+  else if (pVersion->actionID == Deleted_Project)
     return new SSDeletedProjectAction (pRecord);
-  else if (pVersion->ActionID == Deleted_File)
+  else if (pVersion->actionID == Deleted_File)
     return new SSDeletedFileAction (pRecord);
-  else if (pVersion->ActionID == Recovered_Project)
+  else if (pVersion->actionID == Recovered_Project)
     return new SSRecoveredProjectAction (pRecord);
-  else if (pVersion->ActionID == Recovered_File)
+  else if (pVersion->actionID == Recovered_File)
     return new SSRecoveredFileAction (pRecord);
-  else if (pVersion->ActionID == Renamed_Project)
+  else if (pVersion->actionID == Renamed_Project)
     return new SSRenamedProjectAction (pRecord);
-  else if (pVersion->ActionID == Renamed_File)
+  else if (pVersion->actionID == Renamed_File)
     return new SSRenamedFileAction (pRecord);
-//  else if (pVersion->ActionID == missing action 12)
+//  else if (pVersion->actionID == missing action 12)
 //    return new SSVersionObject (pRecord);
-//  else if (pVersion->ActionID == missing action 13)
+//  else if (pVersion->actionID == missing action 13)
 //    return new SSVersionObject (pRecord);
-  else if (pVersion->ActionID == Shared_File)
+  else if (pVersion->actionID == Shared_File)
     return new SSSharedAction (pRecord);
-  else if (pVersion->ActionID == Branch_File)
+  else if (pVersion->actionID == Branch_File)
     return new SSBranchFileAction (pRecord);
-  else if (pVersion->ActionID == Created_File)
+  else if (pVersion->actionID == Created_File)
     return new SSCreatedFileAction (pRecord);
-  else if (pVersion->ActionID == Checked_in)
+  else if (pVersion->actionID == Checked_in)
     return new SSCheckedInAction (pRecord);
-//  else if (pVersion->ActionID == // missing action 18)
+//  else if (pVersion->actionID == // missing action 18)
 //    return new SSVersionObject (pRecord);
-  else if (pVersion->ActionID == RollBack)
+  else if (pVersion->actionID == RollBack)
     return new SSRollbackAction (pRecord);
   else 
-    throw SSUnknownActionException (pVersion->ActionID, pRecord);
+    throw SSUnknownActionException (pVersion->actionID, pRecord);
 
   return NULL;
 }
@@ -313,12 +313,12 @@ SSLabeledAction::SSLabeledAction (SSRecordPtr pRecord)
 {
   const VERSION_RECORD* pVersion = GetHistoryRecordPtr (pRecord);
   
-  m_Label = std::string (pVersion->Label);
+  m_Label = std::string (pVersion->label);
 
-  if (pVersion->OffsetToLabelComment && pVersion->LengthLabelComment > 0)
+  if (pVersion->offsetToLabelComment && pVersion->lengthLabelComment > 0)
   {
     try {
-      SSCommentObject commentObject (pRecord->GetFileImp ()->GetRecord (pVersion->OffsetToLabelComment));
+      SSCommentObject commentObject (pRecord->GetFileImp ()->GetRecord (pVersion->offsetToLabelComment));
       m_LabelComment = commentObject.GetComment();
     }
     catch (SSRecordException&)

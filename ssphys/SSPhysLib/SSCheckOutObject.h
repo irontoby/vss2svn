@@ -18,15 +18,15 @@ public:
 	virtual ~SSCheckOutObject();
   
   // accessors
-  std::string GetUser ()              const { return std::string (GetData()->User, 32); }
-  std::string GetCheckOutFolder ()    const { return std::string (GetData()->CheckOutFolder, 256); }
-  std::string GetComputer ()          const { return std::string (GetData()->Computer, 32); }
-  std::string GetParentSpec ()        const { return std::string (GetData()->ParentSpec, 260); }
-  std::string GetComment ()           const { return std::string (GetData()->Comment, 13); }
-  char        GetFlag1 ()             const { return GetData()->Flag1; }
-  char        GetFlag2 ()             const { return GetData()->Flag2; }
-  char        GetFlag3 ()             const { return GetData()->Flag3; }
-  int         GetNumberOfVersions ()  const { return GetData()->NumberOfVersions; }
+  std::string GetUser ()              const { return std::string (GetData()->user, 32); }
+  std::string GetCheckOutFolder ()    const { return std::string (GetData()->checkOutFolder, 256); }
+  std::string GetComputer ()          const { return std::string (GetData()->computer, 32); }
+  std::string GetParentSpec ()        const { return std::string (GetData()->parentSpec, 260); }
+  std::string GetComment ()           const { return std::string (GetData()->comment, 13); }
+  char        GetFlag1 ()             const { return GetData()->flag1; }
+  char        GetFlag2 ()             const { return GetData()->flag2; }
+  char        GetFlag3 ()             const { return GetData()->flag3; }
+  int         GetNumberOfVersions ()  const { return GetData()->numberOfVersions; }
 
   virtual void Accept (ISSObjectVisitor& rVisitor, const ISSContext* pCtx = NULL) const { rVisitor.Apply (*this, pCtx); }
   const CF* GetData () const { return reinterpret_cast <const CF*> (SSObject::GetData ()); }
