@@ -103,7 +103,7 @@ public:
 
   // accessors
   short       GetFlag ()                  const { return GetData ()->flag; }
-  std::string GetShareSrcPhys ()          const { return std::string (GetData ()->shareSrcSpec, 8); }
+  std::string GetShareSrcPhys ()          const { return GetData ()->shareSrcSpec; }
   ulong       GetOffsetBFRecord ()        const { return GetData ()->offsetBFRecord; }
   ulong       GetOffsetPFRecord ()        const { return GetData ()->offsetPFRecord; }
   short       GetNumberOfBranches ()      const { return GetData ()->numberOfBranches; }
