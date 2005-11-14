@@ -36,8 +36,7 @@ po::positional_options_description CCommand::GetPositionalOptionsDescription () 
 
 void CCommand::PrintUsage () const
 {
-  po::options_description descr (GetGlobalOptions ());
-  descr.add (GetOptionsDescription ());
+  po::options_description descr (GetOptionsDescription ());
   descr.add (CFormatterFactory::GetOptionsDescription());
   
   std::cout << descr << std::endl;
@@ -45,8 +44,7 @@ void CCommand::PrintUsage () const
 
 int CCommand::Execute (std::vector <std::string> const& args)
 {
-  po::options_description descr (GetGlobalOptions ());
-  descr.add (GetOptionsDescription ());
+  po::options_description descr (GetOptionsDescription ());
   descr.add (GetHiddenDescription ());
   descr.add (CFormatterFactory::GetOptionsDescription());
 
@@ -57,9 +55,6 @@ int CCommand::Execute (std::vector <std::string> const& args)
     .run();
   po::store (opts, m_VariablesMap);
   po::notify(m_VariablesMap);   
-
-  if (HandleGlobalOptions (m_VariablesMap))
-    return 0;
 
   // extract the arguments from the parsed command line
   std::vector<po::option> arguments;

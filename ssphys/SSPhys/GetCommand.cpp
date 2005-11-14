@@ -54,7 +54,8 @@ po::options_description CGetCommand::GetHiddenDescription () const
   descr.add_options ()
     ("input", po::value<std::string>(), "physical file name")
     ("output", po::value<std::string>(), "target file name");
-  return descr;
+
+return descr;
 }
 
 po::positional_options_description CGetCommand::GetPositionalOptionsDescription () const
@@ -97,14 +98,31 @@ protected:
   }
 };
 
+class errno_exception : public exception
+{
+public:
+  errno_exception( const std::string& cMessage, int nErrorCode ) : m_cMessage(cMessage) {
+    m_nErrorCode = nErrorCode;
+  }
+  errno_exception( const std::string& cMessage ) : m_cMessage(cMessage) {
+    m_nErrorCode = errno;
+  }
+  virtual const char* what () const { return( m_cMessage.c_str() ); }
+  char* error_str() const { return( strerror( m_nErrorCode ) ); }
+  int error() const { return( m_nErrorCode ); }
+private:
+  std::string m_cMessage;
+  int		m_nErrorCode;
+};
 
 std::string CreateTempFile ( const char* pzPrefix = NULL, const char* pzPath = NULL)
 {
-  return tempnam( pzPath, pzPrefix );
+  std::string cPath;
 //  while( true ) 
-  {
-//    std::string cPath = tempnam( pzPath, pzPrefix );
-//	  if (Open (cPath, O_RDWR | O_CREAT | O_EXCL ) < 0) 
+//  {
+    cPath = tempnam( pzPath, pzPrefix );
+//    int fd = _open (cPath.c_str(), O_RDWR | O_CREAT | O_EXCL );
+//	  if (fd < 0) 
 //    {
 //	    if ( errno == EEXIST ) 
 //      {
@@ -112,15 +130,17 @@ std::string CreateTempFile ( const char* pzPrefix = NULL, const char* pzPath = N
 //	    } 
 //      else 
 //      {
-////		    throw errno_exception( "Failed to create file" );
+//		    throw errno_exception( "Failed to create file");
 //	    }
-//	  } 
+//	  }
 //    else 
 //    {
-//	    Close ();
+//	    _close (fd);
 //      break;
 //	  }
-  }
+//  }
+  
+  return cPath;
 }
 
 class CAutoFile 
@@ -277,6 +297,15 @@ public:
   CReverseHistoryHandler (std::string src)
     : CHistoryHandler (src)
   {
+  }
+
+  virtual bool Apply (const SSCreatedFileAction& rAction)
+  {
+    // create an empty file
+    CAutoFile targetFile (CreateTempFile());
+    m_File = targetFile;
+    
+    return true;
   }
 
   virtual bool Apply (const SSCheckedInAction& rAction)
@@ -597,20 +626,22 @@ void CGetCommand::Execute (po::variables_map const & options, std::vector<po::op
   {
     if (version.GetAction())
     {
-      version.GetAction ()->Accept (*pVisitor.get());
       if (m_bBulkGet)
       {
-        char buffer[66];
-        CFileName fname (m_PhysFile.c_str ());
-        fname.SetExt (itoa (version.GetVersionNumber (), buffer, 10));
+        std::string bulkFile (m_DestFile + "." + boost::lexical_cast<std::string>(version.GetVersionNumber ()));
 
-        if (!pVisitor->SaveAs (fname.GetFileName ().c_str(), false))
-          throw SSException ("failed to create target file" + fname.GetFileName ());
+        if (!pVisitor->SaveAs (bulkFile, m_bForceOverwrite))
+          throw SSException ("failed to create target file " + bulkFile);
       }
+
+      version.GetAction ()->Accept (*pVisitor.get());
     }
 
     version = version.GetPreviousObject ();
   }
+
+  if (m_bBulkGet)
+    m_DestFile = m_DestFile + "." + boost::lexical_cast<std::string>(version ? version.GetVersionNumber () : 0);
 
   if (!pVisitor->SaveAs (m_DestFile.c_str(), m_bForceOverwrite))
     throw SSException (std::string ("failed to create target file ").append (m_DestFile));
