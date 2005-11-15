@@ -123,17 +123,6 @@ std::string TypeToString (short type)
   return ost.str();
 }
 
-//void SSProjectObject::Dump (std::ostream& os)
-//{
-//  oss << "Type:  " << TypeToString (m_pProjectEntry->type) << std::endl;
-//  oss << "Flags: 0x" << std::hex << m_pProjectEntry->flags << std::dec << " " << FlagsToString (m_pProjectEntry->flags) << std::endl;
-//  SSName ssName (m_pProjectEntry->name);
-//  oss << "SSName: " << ssName << std::endl;
-//  if (m_pProjectEntry->pinnedToVersion)
-//    oss << "Pinned to version: " << m_pProjectEntry->pinnedToVersion << std::endl;
-//  oss << "Phys file: " << m_pProjectEntry->phys << std::endl;
-//}
-
 void SSProjectObject::Delete ()
 {
   m_pProjectEntry->flags &= 0x01;
@@ -155,11 +144,28 @@ void SSProjectObject::Pin (int version)
   m_pProjectEntry->pinnedToVersion = version;
 }
 
-//void SSProjectObject::ToXml (XMLNode* pParent) const
-//{
-//}
+void SSProjectObject::ToXml (XMLNode* pParent) const
+{
+  SSObject::ToXml (pParent);
+  
+  GetSSName().ToXml (pParent);
+  XMLElement type (pParent, "Type", TypeToString (GetType ()));
+  XMLElement flags (pParent, "Flags", GetData()->flags);
+  XMLElement pinned (pParent, "PinnedToVersion", GetPinnedToVersion());
+  XMLElement phys (pParent, "Phys", GetPhysFile());
+}
+
 void SSProjectObject::Dump (std::ostream& os) const
 {
   SSObject::Dump (os);
+
+  const PROJECT_ENTRY* pProjectEntry = GetData();
   
+  os << "Type:  " << TypeToString (pProjectEntry->type) << std::endl;
+  os << "Flags: 0x" << std::hex << pProjectEntry->flags << std::dec << ": " << FlagsToString (pProjectEntry->flags) << std::endl;
+  SSName ssName (pProjectEntry->name);
+  os << "SSName: " << ssName << std::endl;
+  if (pProjectEntry->pinnedToVersion)
+    os << "Pinned to version: " << pProjectEntry->pinnedToVersion << std::endl;
+  os << "Phys file: " << pProjectEntry->phys << std::endl;
 }

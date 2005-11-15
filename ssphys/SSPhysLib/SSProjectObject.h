@@ -10,6 +10,7 @@
 #endif // _MSC_VER > 1000
 
 #include "SSObject.h"
+#include "SSName.h"
 
 class SSProjectObject : public SSObject  
 {
@@ -18,6 +19,7 @@ public:
 	SSProjectObject(SSRecordPtr pRecord);
 	virtual ~SSProjectObject();
 
+  SSName GetSSName ()         const { return GetData()->name; }
   std::string GetName ()      const;
   std::string GetPhysFile ()  const;
 
@@ -39,7 +41,7 @@ public:
 
   const PROJECT_ENTRY* GetData () const { return (const PROJECT_ENTRY*) SSObject::GetData (); }
 
-//  void ToXml (XMLNode* pParent) const;
+  void ToXml (XMLNode* pParent) const;
   void Dump (std::ostream& os) const;
 
 protected:
