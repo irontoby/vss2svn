@@ -1,6 +1,6 @@
 #define PRODUCTVER_MAJOR  0
 #define PRODUCTVER_MINOR  17
-#define PRODUCTVER_MICRO  2
+#define PRODUCTVER_MICRO  3
 #define PRODUCTVER_REV    $WCREV$
 #define PRODUCTVER_REVRANGE  $WCRANGE$
 
@@ -24,6 +24,7 @@
 // PRODUCTVER    will be e.g. "0,9,1,116"
 // STRFILEVER    will be e.g. "1.9.1, Build 116"
 // STRPRODUCTVER will be e.g. "0.9.1"
+
 
 
 #define MAKE_VERSION(x, y, z, b)  x,y,z,b

@@ -7,29 +7,22 @@
 #include <SSPhysLib\SSFiles.h>
 #include <SSPhysLib\SSItemInfoObject.h>
 #include <SSPhysLib\SSVersionObject.h>
-#include <SSPhysLib\FileName.h>
 #include <SSPhysLib\SSProjectObject.h>
+#include <boost\filesystem\operations.hpp>
+#include <boost\filesystem\convenience.hpp> // create_directories
+#include <boost\filesystem\exception.hpp>
 #include <io.h>
 #include <fcntl.h>
 #include <fstream>
 #include <strstream>
+#include <sys/stat.h>
+using namespace boost::filesystem;
+namespace fs = boost::filesystem;
 
-#include "windows.h"
 //////////////////////////////////////////////////////////////////////
 // Construction/Destruction
 //////////////////////////////////////////////////////////////////////
-bool fexists (const char* file)
-{
-  FILE* pFile = fopen (file, "r");
-  if (pFile)
-  {
-    fclose (pFile);
-    return true;
-  }
-  return false;
-}
 
-//---------------------------------------------------------------------------
 CGetCommand::CGetCommand ()
   : CCommand ("get", "Retrieve old versions from a VSS physical file"),
     m_Version (-1),
@@ -98,47 +91,35 @@ protected:
   }
 };
 
-class errno_exception : public exception
-{
-public:
-  errno_exception( const std::string& cMessage, int nErrorCode ) : m_cMessage(cMessage) {
-    m_nErrorCode = nErrorCode;
-  }
-  errno_exception( const std::string& cMessage ) : m_cMessage(cMessage) {
-    m_nErrorCode = errno;
-  }
-  virtual const char* what () const { return( m_cMessage.c_str() ); }
-  char* error_str() const { return( strerror( m_nErrorCode ) ); }
-  int error() const { return( m_nErrorCode ); }
-private:
-  std::string m_cMessage;
-  int		m_nErrorCode;
-};
-
 std::string CreateTempFile ( const char* pzPrefix = NULL, const char* pzPath = NULL)
 {
   std::string cPath;
-//  while( true ) 
-//  {
+  while( true ) 
+  {
     cPath = tempnam( pzPath, pzPrefix );
-//    int fd = _open (cPath.c_str(), O_RDWR | O_CREAT | O_EXCL );
-//	  if (fd < 0) 
-//    {
-//	    if ( errno == EEXIST ) 
-//      {
-//		    continue;
-//	    } 
-//      else 
-//      {
-//		    throw errno_exception( "Failed to create file");
-//	    }
-//	  }
-//    else 
-//    {
-//	    _close (fd);
-//      break;
-//	  }
-//  }
+    if (fs::exists(cPath))
+      continue;
+    
+    int fd = ::_open (cPath.c_str(), _O_RDWR | _O_CREAT | _O_EXCL, _S_IREAD | S_IWRITE );
+	  if (fd < 0) 
+    {
+	    if ( errno == EEXIST ) 
+      {
+		    continue;
+	    } 
+      else 
+      {
+        boost::throw_exception( fs::filesystem_error(
+          "filesystem::create_temp_file",
+          cPath, fs::detail::system_error_code() ) );
+	    }
+	  }
+    else 
+    {
+      ::_close (fd);
+      break;
+	  }
+  }
   
   return cPath;
 }
@@ -284,7 +265,7 @@ public:
     return m_File.GetPath();
   }
 
-  virtual bool SaveAs (std::string name, bool overwrite = false) = 0;
+  virtual void SaveAs (std::string name, bool overwrite = false) = 0;
 
 protected:
   CAutoFile m_File;
@@ -333,9 +314,15 @@ public:
     return ret;
   }
 
-  virtual bool SaveAs (std::string name, bool overwrite = false)
+  virtual void SaveAs (std::string name, bool overwrite = false)
   {
-    return ::CopyFile (GetPath ().c_str(), name.c_str(), !overwrite) != 0;
+    fs::path fpath (name);
+    if (overwrite && fs::exists (fpath))
+      fs::remove (fpath);
+    else if (!fs::exists (fpath.branch_path ()))
+      fs::create_directories(fpath.branch_path ());
+    
+    fs::copy_file (GetPath (), fpath);
   }
 
   virtual bool Apply (const SSAction& rAction) 
@@ -355,9 +342,9 @@ public:
     BuildList (projectFile);
   }
 
-  virtual bool SaveAs (std::string name, bool overwrite = false)
+  virtual void SaveAs (std::string name, bool overwrite = false)
   {
-    return false;
+    boost::throw_exception (std::exception ("get not yet implemented for project status files"));
   }
 
   virtual bool Apply (const SSLabeledAction& rAction)           { /* nothing to do */ return true; }
@@ -581,6 +568,8 @@ bool CProjectHistoryHandler::Apply (const SSRenamedFileAction& rAction)
 
 void CGetCommand::Execute (po::variables_map const & options, std::vector<po::option> const & args)
 {
+  fs::path::default_name_check (native);
+
   if (options.count("version"))
     m_Version = options["version"].as<int>();
   if (options.count("force-overwrite"))
@@ -601,7 +590,7 @@ void CGetCommand::Execute (po::variables_map const & options, std::vector<po::op
   if (m_DestFile.empty ())
     throw SSException ("please specify a destination file for the get operation");
 
-  if (fexists (m_DestFile.c_str ()) && !m_bForceOverwrite)
+  if (fs::exists (m_DestFile.c_str ()) && !m_bForceOverwrite)
     throw SSException ("destination file exists. Please use overwrite flag");
 
   SSHistoryFile file(m_PhysFile);
@@ -630,8 +619,8 @@ void CGetCommand::Execute (po::variables_map const & options, std::vector<po::op
       {
         std::string bulkFile (m_DestFile + "." + boost::lexical_cast<std::string>(version.GetVersionNumber ()));
 
-        if (!pVisitor->SaveAs (bulkFile, m_bForceOverwrite))
-          throw SSException ("failed to create target file " + bulkFile);
+        pVisitor->SaveAs (bulkFile, m_bForceOverwrite);
+//          throw SSException ("failed to create target file " + bulkFile);
       }
 
       version.GetAction ()->Accept (*pVisitor.get());
@@ -643,7 +632,7 @@ void CGetCommand::Execute (po::variables_map const & options, std::vector<po::op
   if (m_bBulkGet)
     m_DestFile = m_DestFile + "." + boost::lexical_cast<std::string>(version ? version.GetVersionNumber () : 0);
 
-  if (!pVisitor->SaveAs (m_DestFile.c_str(), m_bForceOverwrite))
-    throw SSException (std::string ("failed to create target file ").append (m_DestFile));
+  pVisitor->SaveAs (m_DestFile.c_str(), m_bForceOverwrite);
+//    throw SSException (std::string ("failed to create target file ").append (m_DestFile));
 }
 

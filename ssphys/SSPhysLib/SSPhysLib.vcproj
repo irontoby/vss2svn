@@ -118,9 +118,6 @@
 				RelativePath="crc.cpp">
 			</File>
 			<File
-				RelativePath="FileName.cpp">
-			</File>
-			<File
 				RelativePath="SSException.cpp">
 			</File>
 			<File
@@ -156,9 +153,6 @@
 			Filter="h;hpp;hxx;hm;inl">
 			<File
 				RelativePath="crc.h">
-			</File>
-			<File
-				RelativePath="FileName.h">
 			</File>
 			<File
 				RelativePath="SSException.h">
