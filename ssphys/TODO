@@ -2,20 +2,49 @@ TODO:
 
 +++ General +++
  * better exception handling and error reporting
- * better command line argument handling
+ + better command line argument handling (boost::program_options)
  * handle the missing actions
-   Recovered_Project
-   Recovered_File
-   action 12
-   action 13
-   Shared_File
-   Branch_File
-   action 18
-   RollBack
+   + Recovered_Project
+   + Recovered_File
+   * action 12
+   * action 13
+   + Shared_File
+   + Branch_File
+   * action 18
+   + RollBack
 
 +++ ssphys.exe +++
- * see what is needed for an integration with another scripting tool
-  
+ + see what is needed for an integration with another scripting tool
+ * global option to output the error messages to stdout instead of stderr
+ * global option to never exit with a negative result (for find command)
+ * a few sample batch files for usage pattern
+ * update the xsd to the current state.
+ 
+++++ info command ++++
+ * need a way to deal with non item history files, like names.dat, currently the info command displays
+   simple the first record, in the assumption it is an info record.
+ 
+++++ get command ++++
+ * implement RollBack action
+ * more explizit help message, with usage pattern
+   {{{ 
+      find data\ -name \?\?\?\?aaaa | xargs -n 1 ssphys get -b --force-overwrite -v 1 --output stage\   
+   }}}
+ * set date/time to timestamp of action
+ * make read only
+ * wildcard get with --output-dir command? 
+ * solve the command specific option "-v" and global option "--version" problem
+ * check wether there is some checksum to verify, wether get operation was succesfull
+ * in output directory mode, check wether the output file is identically to the input file
+ * implement the saving of reconstructed project status files
+ + write output file with same name as input file into another directory
+ 
+++++ validate command ++++
+ * check consecutivness of timestamps
+ * validate checksums
+ * linkage of records
+ 
+
 +++ ssrep.exe +++
  * start the work on the ss.exe replacment tool again
 
