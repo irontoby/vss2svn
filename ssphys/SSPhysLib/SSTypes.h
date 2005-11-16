@@ -64,10 +64,11 @@ struct DH_FILE : public DH {
   char    dummy4[20];
   
   // 0x00 == initial
+  // 0x01 == locked
   // 0x02 == binary
   // 0x04 == store only latest revision
-  // 0x41 == checked out
   // 0x20 == shared
+  // 0x40 == checked out
   short   flag; 
   char    shareSrcSpec[10];
 
@@ -321,6 +322,8 @@ struct PROJECT_ENTRY{
   // 0x02 store binary diffs
   // 0x04 store only latest revision
   // 0x08 shared
+  // 0x100 ??, or only one byte??
+  // 0x200 ??
   short   flags;
   SSNAME  name;
   short   pinnedToVersion;

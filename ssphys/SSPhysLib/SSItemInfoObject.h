@@ -116,6 +116,7 @@ public:
   // specialized accessors
   eFileType   GetFileType ()              const;
   bool        GetStoreOnlyLatestRev ()    const;
+  bool        GetLocked ()                const;
   bool        GetCheckedOut ()            const;
   bool        GetShared ()                const;
 

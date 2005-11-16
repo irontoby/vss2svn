@@ -235,47 +235,60 @@ bool SSFileItem::Validate()
 
   byte knownFlags[] = 
   {
-    0x00, 0x02, 0x04, 0x41, 0x42, 0x20, 0x22
+    0x00, // initial
+//    0x01, // ??? locked
+    0x02, // binary
+    0x04, // store only latest revision
+    0x20, // shared
+    0x22, // shared binary
+    0x41, // checked out, locked
+//    0x42, // ???
+    0x43,  // checked out binary, locked
+    0x61, // shared, checked out, locked
+    0x63, // shared, checked out, locked, binary
+//    0x101, // ??
+//    0x102 // ??
   };
   for (int i = 0; i < countof (knownFlags); i++)
     if (pFileInfoItem->flag == knownFlags[i])  
       break;
-  retval &= warn_if (i == countof (knownFlags));
+  
+  if (i == countof (knownFlags))
+  {
+    std::strstream strm;
+    strm << ("unknown combination of flags in the FileInfo record: 0x") << std::hex << pFileInfoItem->flag << std::ends;
+    Warning (strm.str());
+    retval = false;
+  }
   
   return retval;
 }
 
+bool SSFileItem::GetLocked () const
+{
+  return ((GetFlag () & 0x01) == 0x01) ? true : false;
+}
+
 eFileType SSFileItem::GetFileType () const
 {
-  if ((GetFlag () & 0x02) == 0x02)
-    return eFileTypeBinary;
-
-  return eFileTypeText;
+  return ((GetFlag () & 0x02) == 0x02) ? eFileTypeBinary : eFileTypeText;
 }
 
 bool SSFileItem::GetStoreOnlyLatestRev () const
 {
-  if ((GetFlag () & 0x04) == 0x04)
-    return true;
-
-  return false;
-}
-
-bool SSFileItem::GetCheckedOut () const
-{
-  if ((GetFlag () & 0x41) == 0x41)
-    return true;
-
-  return false;
+  return ((GetFlag () & 0x04) == 0x04) ? true : false;
 }
 
 bool SSFileItem::GetShared () const
 {
-  if ((GetFlag () & 0x20) == 0x20)
-    return true;
-
-  return false;
+  return ((GetFlag () & 0x20) == 0x20) ? true : false;
 }
+
+bool SSFileItem::GetCheckedOut () const
+{
+  return ((GetFlag () & 0x40) == 0x40) ? true : false;
+}
+
 
 SSParentFolderObject* SSFileItem::GetFirstParentFolder ()
 { 
@@ -292,6 +305,9 @@ SSBranchFileObject* SSFileItem::GetFirstBranchFile ()
 void SSFileItem::ToXml (XMLNode* pParent) const
 {
   SSItemInfoObject::ToXml (pParent);
+  std::stringstream strm; strm << std::hex << "0x" << GetFlag ();
+  XMLElement flags       (pParent, "Flags", strm.str());
+  XMLElement locked      (pParent, "Locked", GetLocked ());
   XMLElement binary      (pParent, "Binary", GetFileType () == eFileTypeBinary ? true : false);
   XMLElement store       (pParent, "StoreOnlyLatestRev", GetStoreOnlyLatestRev ());
   XMLElement checkedOut  (pParent, "CheckedOut", GetCheckedOut ());
@@ -308,24 +324,18 @@ void SSFileItem::Dump (std::ostream& os) const
 //  Hexdump (oss, dummy4, 20);
 
   const DH_FILE* pFileInfoItem = GetData ();
-  os << "Status:               0x" << std::hex << pFileInfoItem->flag << std::dec << " ";
+  os << "Status:               0x" << std::hex << pFileInfoItem->flag << std::dec << ": ";
   if (pFileInfoItem->flag == 0x00)
     os << "normal";
-  else if (pFileInfoItem->flag == 0x02)
-    os << "binary";
-  else if (pFileInfoItem->flag == 0x04)
-    os << "store only latest revision";
-  else if (pFileInfoItem->flag == 0x41)
-    os << "checked out, locked";
-  else if (pFileInfoItem->flag == 0x43)
-    os << "binary, checked out, locked";
-  else if (pFileInfoItem->flag == 0x20)
-    os << "shared";
-  else if (pFileInfoItem->flag == 0x22)
-    os << "binary, shared";
-  else 
-    os << "unknown";
+  os << ((GetFileType () == eFileTypeBinary) ? "binary" : "text");
+  os << (GetStoreOnlyLatestRev () ?  ", store only latest revision" : "");
+  os << (GetLocked () ? ", locked" : "");
+  os << (GetCheckedOut () ? ", checked out, " : "");
+  os << (GetShared () ? ", shared" : "");
   os << std::endl;
+
+  if (pFileInfoItem->flag & 0xff98)
+    os << "unknown flags encountered" << std::endl;
 
   os << "Share source physical file:         " << pFileInfoItem->shareSrcSpec << std::endl;
 
