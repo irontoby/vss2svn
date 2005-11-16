@@ -24,8 +24,6 @@ public:
   virtual void Execute (po::variables_map const & options, std::vector<po::option> const & args);
 
 protected:
-  std::string m_PhysFile;
-  std::string m_DestFile;
   bool m_bForceOverwrite;
   bool m_bBulkGet;
   int m_Version;

@@ -289,6 +289,13 @@ public:
     return true;
   }
 
+  virtual bool Apply (const SSLabeledAction& rAction)
+  {
+    // nothing to do for a labeling operation
+    return true;
+  }
+  
+  // ROLLBACK, z.B. ajgaaaaa
   virtual bool Apply (const SSCheckedInAction& rAction)
   {
     SSRecordPtr pRecord = rAction.GetFileDelta();
@@ -568,6 +575,11 @@ bool CProjectHistoryHandler::Apply (const SSRenamedFileAction& rAction)
 
 void CGetCommand::Execute (po::variables_map const & options, std::vector<po::option> const & args)
 {
+  std::string physFile;
+  std::string destFile;
+  fs::path physPath;
+  fs::path destPath;
+
   fs::path::default_name_check (native);
 
   if (options.count("version"))
@@ -578,22 +590,26 @@ void CGetCommand::Execute (po::variables_map const & options, std::vector<po::op
     m_bBulkGet = true;
 
   if (options.count("input"))
-    m_PhysFile = options["input"].as<std::string>();
+    physPath = physFile = options["input"].as<std::string>();
   if (options.count("output"))
-    m_DestFile = options["output"].as<std::string> ();
+    destPath = destFile = options["output"].as<std::string> ();
 
 
 
-  if (m_PhysFile.empty ())
+  if (physFile.empty ())
     throw SSException ("please specify a source file for the get operation");
 
-  if (m_DestFile.empty ())
+  if (destFile.empty ())
     throw SSException ("please specify a destination file for the get operation");
 
-  if (fs::exists (m_DestFile.c_str ()) && !m_bForceOverwrite)
+  if (fs::exists (destPath) && fs::is_directory(destPath) || *destFile.rbegin() == '\\' || *destFile.rbegin() == '/')
+    destPath = destFile / physFile;
+
+  if (fs::exists (destPath) && !m_bForceOverwrite)
     throw SSException ("destination file exists. Please use overwrite flag");
 
-  SSHistoryFile file(m_PhysFile);
+
+  SSHistoryFile file(physPath.string ());
   std::auto_ptr<SSItemInfoObject> pItem (file.GetItemInfo());
   if (!pItem.get ())
     throw SSException ("no information object found");
@@ -617,7 +633,7 @@ void CGetCommand::Execute (po::variables_map const & options, std::vector<po::op
     {
       if (m_bBulkGet)
       {
-        std::string bulkFile (m_DestFile + "." + boost::lexical_cast<std::string>(version.GetVersionNumber ()));
+        std::string bulkFile (destPath.string () + "." + boost::lexical_cast<std::string>(version.GetVersionNumber ()));
 
         pVisitor->SaveAs (bulkFile, m_bForceOverwrite);
 //          throw SSException ("failed to create target file " + bulkFile);
@@ -630,9 +646,9 @@ void CGetCommand::Execute (po::variables_map const & options, std::vector<po::op
   }
 
   if (m_bBulkGet)
-    m_DestFile = m_DestFile + "." + boost::lexical_cast<std::string>(version ? version.GetVersionNumber () : 0);
+    destPath = destPath.string () + "." + boost::lexical_cast<std::string>(version ? version.GetVersionNumber () : 0);
 
-  pVisitor->SaveAs (m_DestFile.c_str(), m_bForceOverwrite);
+  pVisitor->SaveAs (destPath.string (), m_bForceOverwrite);
 //    throw SSException (std::string ("failed to create target file ").append (m_DestFile));
 }
 
