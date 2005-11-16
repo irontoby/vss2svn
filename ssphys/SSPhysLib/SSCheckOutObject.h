@@ -18,11 +18,11 @@ public:
 	virtual ~SSCheckOutObject();
   
   // accessors
-  std::string GetUser ()              const { return std::string (GetData()->user, 32); }
-  std::string GetCheckOutFolder ()    const { return std::string (GetData()->checkOutFolder, 256); }
-  std::string GetComputer ()          const { return std::string (GetData()->computer, 32); }
-  std::string GetParentSpec ()        const { return std::string (GetData()->parentSpec, 260); }
-  std::string GetComment ()           const { return std::string (GetData()->comment, 13); }
+  std::string GetUser ()              const { return std::string (GetData()->user); }
+  std::string GetCheckOutFolder ()    const { return std::string (GetData()->checkOutFolder); }
+  std::string GetComputer ()          const { return std::string (GetData()->computer); }
+  std::string GetParentSpec ()        const { return std::string (GetData()->parentSpec); }
+  std::string GetComment ()           const { return std::string (GetData()->comment); }
   char        GetFlag1 ()             const { return GetData()->flag1; }
   char        GetFlag2 ()             const { return GetData()->flag2; }
   char        GetFlag3 ()             const { return GetData()->flag3; }
