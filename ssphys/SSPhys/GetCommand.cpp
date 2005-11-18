@@ -291,11 +291,17 @@ public:
 
   virtual bool Apply (const SSLabeledAction& rAction)
   {
-    // nothing to do for a labeling operation
+    // nothing to do for a file labeling operation
     return true;
   }
   
-  // ROLLBACK, z.B. ajgaaaaa
+  virtual bool Apply (const SSRollbackAction& rAction)
+  {
+    // nothing special to do for a rollback operation
+    // The rollback action just marks the begin of this file
+    return true;
+  }
+
   virtual bool Apply (const SSCheckedInAction& rAction)
   {
     SSRecordPtr pRecord = rAction.GetFileDelta();

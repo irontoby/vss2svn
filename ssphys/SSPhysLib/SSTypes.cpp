@@ -24,7 +24,7 @@ extern char* g_szActions[] = {
   "Shared File",        // = 14
   "Branch File",        // = 15 ???
   "Created File",       // = 16
-  "Checked in",         // = 17
+  "Checked In",         // = 17
   "Action 18",          // missing action 18
   "RollBack",           // = 19
   // missing known actions: branches, archives, restores

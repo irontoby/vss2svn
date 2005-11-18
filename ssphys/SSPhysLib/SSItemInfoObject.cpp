@@ -116,10 +116,11 @@ bool SSItemInfoObject::Validate()
   retval &= warn_if (GetHistoryOffsetEnd() != filePtr->Size());
   retval &= warn_if (filePtr->GetRecord (GetHistoryOffsetLast ())->GetType() != eHistoryRecord);
   retval &= warn_if (filePtr->GetRecord (GetHistoryOffsetBegin ())->GetType() != eHistoryRecord);
-  retval &= warn_if (filePtr->GetRecord (GetHistoryOffsetBegin ())->GetType() != eHistoryRecord);
 
   int nCount = 0;
   long offset = GetHistoryOffsetLast ();
+  eAction lastActionId = Labeled;
+
   do {
     SSRecordPtr pRecord = filePtr->GetRecord (offset);
     retval &= warn_if (pRecord->GetType() != eHistoryRecord);
@@ -130,6 +131,9 @@ bool SSItemInfoObject::Validate()
     {
       SSVersionObject previous (pVersion->GetPreviousObject ());
       offset = previous ? previous.GetOffset() : NULL; 
+      if (pVersion->GetActionID() == RollBack)
+        nCount += pVersion->GetVersionNumber() - 1;
+      lastActionId = pVersion->GetActionID();
     }
     else
       offset = NULL;
@@ -138,6 +142,7 @@ bool SSItemInfoObject::Validate()
   } while (offset != NULL /*GetHistoryOffsetBegin ()*/);
   
   retval &= warn_if (nCount != GetNumberOfActions ());
+  retval &= warn_if (lastActionId != Created_File && lastActionId != Created_Project && lastActionId != RollBack);
   return retval;
 }
 

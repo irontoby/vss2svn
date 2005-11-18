@@ -23,6 +23,9 @@ Global
 		{FCF4A98B-3FE2-452D-9816-A67927261F25}.Release.ActiveCfg = Release|Win32
 		{FCF4A98B-3FE2-452D-9816-A67927261F25}.Release.Build.0 = Release|Win32
 	EndGlobalSection
+	GlobalSection(SolutionItems) = postSolution
+		ReadMe.txt = ReadMe.txt
+	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 	EndGlobalSection
 	GlobalSection(ExtensibilityAddIns) = postSolution

@@ -184,4 +184,59 @@ The following changes are made:
    name of the item, the old physical and the new physical files names are 
    recorded. No information about the branch version is recorded.
    
-   
+  path:: the source safe name for the history of exactly one branch.
+
+example:
+
+A file Readme.txt (INEAAAAA) was branched at version 19 and the newly created "path"
+will live in the new physical file AJGAAAAA. The first version in this file is a 
+RollBack action, that points back to the branch parent. The branchpoint can be 
+calculated from the version number of the RollBack action, since the version number 
+after the branch continues counting from the branchpoint, namely version 20.
+
+Since the Rollback action is only for internal bookeeping, no file change is 
+associated with this action, that means, that the file INEAAAAA;19 is the same as the
+file AJGAAAAA;20. 
+
+  <Version offset="1116">
+    <VersionNumber>20</VersionNumber>
+    <UserName>Dirk</UserName>
+    <Date>1094815584</Date>
+    <Comment> </Comment>
+    <Action ActionId="RollBack">
+      <Physical>AJGAAAAA</Physical>
+      <SSName offset="89324" type="file">Readme.txt</SSName>
+      <Parent>INEAAAAA</Parent>
+    </Action>
+  </Version>
+
+The specifc RollBack version is reconstructable from the physical file AJGAAAAA. All
+further versions must be taken from the branch parent INEAAAAA. The version history
+for this branched file is therefor:
+
+...
+readme.txt;21 = AJGAAAAA;21
+readme.txt;20 = AJGAAAAA;20
+readme.txt;19 = INEAAAAA;19
+readme.txt;18 = INEAAAAA;18
+...
+
+
+=== Rollback ===
+
+There are actually two types of rollback activities. 
+
+The first one is available in the history dialog of the SSExplorer. This one will 
+let you "constantly" delete some content of your history by completly removing it
+out of the physical file. There are no remains left over and there is no entry in
+the history, that this action happend.
+
+The second one is implicitly triggered by the branch command. The branch will force
+the creation of a new physical file. In order to follow the history to the point
+before the branch, the first action in this new file is a RollBack Action, with
+the information about the parent physical file and the branchpoint. See under Branches
+for an example. It is like saying "from now on continue reporting from a different 
+file at a specific version number"
+
+If you see a "Roolback to version" action in the history of a file, this is always
+due to a branch action. 

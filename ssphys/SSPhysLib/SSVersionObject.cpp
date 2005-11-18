@@ -100,6 +100,7 @@ bool SSVersionObject::Validate ()
   if (pVersion->previous)
     pPrevious = GetFile ()->GetRecord (pVersion->previous);
 
+  retval &= warn_if (pVersion->actionID != Labeled && !GetLabelComment().empty ());
   if (   (pVersion->lengthLabelComment == 0 && pVersion->offsetToLabelComment != 0)
       || (pVersion->lengthLabelComment != 0 && pVersion->offsetToLabelComment == 0) )
   {
