@@ -11,6 +11,7 @@
 
 typedef std::map<std::string, std::string> AttribMap;
 class XMLElement;
+class XMLValue;
 
 // ---------------------------------------------------------------
 class XMLEntity
@@ -55,22 +56,20 @@ class XMLNode : protected XMLEntity
 {
 public:
   XMLNode (XMLNode* pParent, std::string name)
-    : m_pParent (pParent), m_Name (name), bHasChilds (false)
+    : m_pParent (pParent), m_Name (name), m_bClosed (false), m_Indent (0)
   {
-    if (pParent)
-      pParent->AddChild (this);
+    m_Indent = pParent ? pParent->AddChild (this) + 2 : 0;
 
     // closing bracket will be written in destructor or when elements are added
-    std::cout << "<" << name << /*">" << */ std::endl;
+    std::cout << std::string (m_Indent, ' ') << "<" << name << /*">" << */ std::endl;
   }
 
   XMLNode (XMLNode* pParent, std::string name, AttribMap attrib)
-    : m_pParent (pParent), m_Name (name), bHasChilds (false)
+    : m_pParent (pParent), m_Name (name), m_bClosed (false), m_Indent (0)
   {
-    if (pParent)
-      pParent->AddChild (this);
+    m_Indent = pParent ? pParent->AddChild (this) + 2 : 0;
 
-    std::cout << "<" << name;
+    std::cout << std::string (m_Indent, ' ') << "<" << name;
     AttribMap::iterator itor = attrib.begin ();
     for (; itor != attrib.end (); ++itor)
     {
@@ -80,34 +79,47 @@ public:
     // std::cout << ">" << std::endl;
   }
 
-  void AddChild (XMLNode* pChild)
+  int AddChild (XMLNode* pChild)
   {
-    if (!bHasChilds)
+    if (!m_bClosed)
       std::cout << ">" << std::endl;
 
-    bHasChilds = true;
+    m_bClosed = true;
+    return m_Indent;
   }
 
-  void AddChild (XMLElement* pChild)
+  int AddChild (XMLElement* pChild)
   {
-    if (!bHasChilds)
+    if (!m_bClosed)
       std::cout << ">" << std::endl;
 
-    bHasChilds = true;
+    m_bClosed = true;
+    return m_Indent;
+  }
+
+  void AddContent (XMLValue* pContent)
+  {
+    if (!m_bClosed)
+      std::cout << ">";
+
+    m_bClosed = true;
   }
 
   ~XMLNode ()
   {
-    if (!bHasChilds)
+    if (!m_bClosed)
       std::cout << "/>" << std::endl;
     else
-      std::cout << "</" << m_Name << ">" << std::endl;
+      std::cout << std::string (m_Indent, ' ') << "</" << m_Name << ">" << std::endl;
   }
+
+  int GetIndent () const { return m_Indent; }
 
 protected:
   XMLNode* m_pParent;
   std::string m_Name;
-  bool bHasChilds;
+  bool m_bClosed;
+  int m_Indent;
 };
 
 
@@ -117,10 +129,9 @@ public:
   template <class T>
   XMLElement (XMLNode* pParent, std::string name, const T& element)
   {
-    if (pParent)
-      pParent->AddChild (this);
+    int indent = pParent ? pParent->AddChild (this) + 2 : 0;
 
-    std::cout << "<" << name << ">";
+    std::cout << std::string (indent, ' ') << "<" << name << ">";
     ToXml(element);
     std::cout << "</" << name << ">" << std::endl;
   }
@@ -128,10 +139,9 @@ public:
   template <class T>
   XMLElement (XMLNode* pParent, std::string name, AttribMap attrib, const T& element)
   {
-    if (pParent)
-      pParent->AddChild (this);
+    int indent = pParent ? pParent->AddChild (this) + 2 : 0;
 
-    std::cout << "<" << name;
+    std::cout << std::string (indent, ' ')  << "<" << name;
     AttribMap::iterator itor = attrib.begin ();
     for (; itor != attrib.end (); ++itor)
     {
@@ -149,6 +159,9 @@ public:
   template <class T>
   XMLValue (XMLNode* pParent, const T& element)
   {
+    if (pParent)
+      pParent->AddContent(this);
+
     ToXml(element);
   }
 
