@@ -1,10 +1,11 @@
-// SSFiles.cpp: implementation of the SSFiles class.
+ // SSFiles.cpp: implementation of the SSFiles class.
 //
 //////////////////////////////////////////////////////////////////////
 
 #include "stdafx.h"
 #include "SSFiles.h"
 #include "SSItemInfoObject.h"
+#include <fstream>
 
 //---------------------------------------------------------------------------
 #include "LeakWatcher.h"
@@ -15,191 +16,36 @@
 static char THIS_FILE[] = __FILE__;
 #endif 
 
-//////////////////////////////////////////////////////////////////////
-// Construction/Destruction
-//////////////////////////////////////////////////////////////////////
-CBaseIO::~CBaseIO ()
-{
-}
-//////////////////////////////////////////////////////////////////////
-// Construction/Destruction
-//////////////////////////////////////////////////////////////////////
-CFileIO::CFileIO (const std::string& fileName)
-  : m_pFile (NULL), m_FileName (fileName)
-{
-}
-CFileIO::~CFileIO ()
-{
-  if (m_pFile)
-    fclose (m_pFile);
-}
-bool CFileIO::Open (const char* mode)
-{
-  if (!m_pFile)
-    m_pFile = fopen (m_FileName.c_str (), mode);
-  
-  return m_pFile != NULL;
-}
-void CFileIO::Close ()
-{
-  if (m_pFile)
-  {
-    fclose (m_pFile);
-    m_pFile = NULL;
-  }
-}
-size_t CFileIO::Read (void* ptr, size_t size, size_t count)
-{
-  bool bClose = !m_pFile;
-  if (bClose && !Open ("rb"))
-    throw ("could not open file for reading");
 
-  size_t retval = fread (ptr, size, count, m_pFile);
-
-  if (bClose)
-    Close ();
-
-  return retval;
-}
-size_t CFileIO::Write (const void* ptr, size_t size, size_t count)
+SSFileImp::SSFileImp (const std::string& fileName)
+  : m_pInput (NULL), m_FileName(fileName)
 {
-  bool bClose = !m_pFile;
-  if (bClose && !Open ("a+b"))
-    throw ("could not open file for writing");
+  std::ifstream* pfstr;
+  m_pInput = pfstr = new std::ifstream (fileName.c_str(), std::ios_base::in | std::ios_base::binary);
 
-  size_t retval = fwrite (ptr, size, count, m_pFile);
+  if (!m_pInput)
+    throw SSException  (std::string ("failed to create filestream: ").append (fileName));
 
-  if (bClose)
-    Close ();
-
-  return retval;
-}
-bool CFileIO::Seek (size_t offset, int whence)
-{
-  bool bClose = !m_pFile;
-  if (bClose && !Open ("rb"))
-    throw SSException ("could not open file for reading");
-
-  int retval = fseek (m_pFile, offset, whence);
-
-  if (bClose)
-    Close ();
-
-  return retval == 0;
-}
-long CFileIO::Size ()
-{
-  bool bClose = !m_pFile;
-  if (!Open ("rb"))
-    throw SSException ("could not open file for reading");
-
-  fseek (m_pFile, 0, SEEK_END);
-  long retval = ftell (m_pFile);
-
-  if (bClose)
-    Close ();
-
-  return retval;
-}
-std::string CFileIO::FileName ()
-{
-  return m_FileName;
-}
-
-//////////////////////////////////////////////////////////////////////
-// Construction/Destruction
-//////////////////////////////////////////////////////////////////////
-CMemoryIO::CMemoryIO (const void* ptr, long size)
-  : m_Ptr (ptr), m_Size (size), m_CurrentPos (0)
-{
-}
-CMemoryIO::~CMemoryIO ()
-{
-}
-bool CMemoryIO::Open (const char*)
-{
-  return true;
-}
-void CMemoryIO::Close ()
-{
-}
-size_t CMemoryIO::Read (void* ptr, size_t size, size_t count)
-{
-  for (size_t i = 0; i<count; i++)
-  {
-    if (m_Size - m_CurrentPos >= size)
-    {
-      memcpy (ptr, (byte*)m_Ptr + m_CurrentPos, size);
-      m_CurrentPos += size;
-      ptr = (byte*)ptr + size;
-    }
-  }
-
-  return i;
-}
-size_t CMemoryIO::Write (const void* ptr, size_t size, size_t count)
-{
-  for (size_t i = 0; i<count; i++)
-  {
-    if (m_Size - m_CurrentPos >= size)
-    {
-      memcpy ((byte*)m_Ptr + m_CurrentPos, ptr, size);
-      m_CurrentPos += size;
-      ptr = (byte*)ptr + size;
-    }
-  }
-
-  return i;
-}
-
-bool CMemoryIO::Seek (size_t offset, int whence)
-{
-  if (whence == SEEK_SET)
-    m_CurrentPos = offset;
-  else if (whence == SEEK_END)
-    m_CurrentPos = m_Size-offset-1;
-  else if (whence == SEEK_CUR)
-    m_CurrentPos += offset;
-
-  return m_CurrentPos < m_Size;
-}
-long CMemoryIO::Size ()
-{
-  return m_Size;
-}
-std::string CMemoryIO::FileName ()
-{
-  return ("");
+  if (pfstr->fail())
+    throw SSException  (std::string ("failed to open file: ").append (fileName));
 }
 
 
-
-
-
-
-SSFileImp::SSFileImp (const std::string& fileName, bool bOpen /* = false */)
-  : m_pIO (NULL)
+SSFileImp::SSFileImp (std::istream* pInput)
+  : m_pInput (pInput)
 {
-  m_pIO = new CFileIO (fileName);
-  if (bOpen && !Open ("rb"))
-    throw SSException  ("could not load file");
-}
-
-
-SSFileImp::SSFileImp (CBaseIO* pio, bool bOpen /* = false */)
-  : m_pIO (pio)
-{
-  if (!m_pIO)
-    throw SSException  ("no io specified");
-  
-  if (bOpen && !Open ("rb"))
-    throw SSException ("could not load file");
+  if (!m_pInput)
+    throw SSException  ("no input stream specified");
 }
 
 SSFileImp::~SSFileImp ()
 {
-  Close ();
-  delete m_pIO; m_pIO = NULL;
+  assert (m_pInput);
+  std::ifstream* pfstr = dynamic_cast <std::ifstream*> (m_pInput);
+  if (pfstr)
+    pfstr->close ();
+
+  delete m_pInput; m_pInput = NULL;
 
 //  std::map <long, SSRecordPtr>::iterator itor = m_Records.begin ();
 //  for (; itor != m_Records.end (); ++itor)
@@ -211,84 +57,68 @@ SSFileImp::~SSFileImp ()
 //  m_Records.empty ();
 }
 
-bool SSFileImp::Open (const char* mode) const
-{
-  assert (m_pIO);
-//  m_pFile = fopen (filename.c_str (), "rb");
-  if (m_pIO->Open (mode))
-  {
-    return true;
-  }
-
-  return false;
-}
-
-void SSFileImp::Close () const
-{
-  assert (m_pIO);
-  m_pIO->Close ();
-}
-
 long SSFileImp::Size ()
 {
-  assert (m_pIO);
-  return m_pIO->Size ();
+  assert (m_pInput);
+  m_pInput->seekg(0, std::ios_base::end);
+  return m_pInput->tellg();
 }
 
-std::string SSFileImp::GetFileName ()
+std::string SSFileImp::GetFileName () const
 {
-  assert (m_pIO);
-  return m_pIO->FileName ();
+  return m_FileName;
 }
 
-size_t SSFileImp::Read (void* ptr, size_t size, size_t count) const
+bool SSFileImp::Read (void* ptr, size_t size)
 {
-  return m_pIO->Read (ptr, size, count);
+  m_pInput->read (reinterpret_cast<char*>(ptr), size);
+  return m_pInput->gcount () == size;
 }
 
-bool SSFileImp::Read (long offset, void* ptr, int len) const
+bool SSFileImp::Read (long offset, void* ptr, size_t len)
 {
-  bool bClose = true; // !IsOpen ();
-  if (bClose && !Open ("rb"))
-    throw SSException ("could not open file for reading");
+//  bool bClose = true; // !IsOpen ();
+//  if (bClose && !Open ("rb"))
+//    throw SSException ("could not open file for reading");
     
-  if (!m_pIO->Seek (offset, SEEK_SET))
+  if (!Seek (offset, std::ios_base::beg))
   {
-    if (bClose) Close ();
+//    if (bClose) Close ();
     return false;
   }
-  if (1 != m_pIO->Read (ptr, len, 1))
+  if (!Read (ptr, len))
   {
-    if (bClose) Close ();
+//    if (bClose) Close ();
     return false;
   }
 
-  if (bClose) Close ();
+//  if (bClose) Close ();
   return true;
 }
 
-bool SSFileImp::Seek (size_t offset, int pos) const
+bool SSFileImp::Seek (size_t offset, std::ios_base::seekdir way)
 {
-  assert (m_pIO);
-  return m_pIO->Seek (offset, pos);
+  assert (m_pInput);
+  m_pInput->seekg (offset, way);
+  return !m_pInput->fail();
 }
 
-size_t SSFileImp::Write (const void* ptr, size_t size, size_t count) const
-{
-  assert (m_pIO);
-  return m_pIO->Write (ptr, size, count);
-}
+//size_t SSFileImp::Write (const void* ptr, size_t size, size_t count) const
+//{
+//  assert (m_pInput);
+//  return m_pInput->Write (ptr, size, count);
+//}
 
-SSRecordPtr SSFileImp::GetRecord (long offset) 
+SSRecordPtr SSFileImp::GetRecord (long offset)
 {
-  if (offset >= m_pIO->Size ())
-    return SSRecordPtr ();
+  if (offset >= Size ())
+    throw SSException ("could not read record at offset behind file size");
 
   SSRecordPtr recordPtr;
 //  std::map <long, SSRecordPtr >::iterator itor = m_Records.find (offset);
 //  if (itor == m_Records.end())
 //  {
-    recordPtr.reset (ReadRecord (shared_from_this(), offset));
+    recordPtr.reset (ReadRecord (offset));
 //    m_Records[offset] = recordPtr;
 //  }
 //  else
@@ -299,100 +129,49 @@ SSRecordPtr SSFileImp::GetRecord (long offset)
   return recordPtr;
 }
 
-SSRecord* SSFileImp::ReadRecord (SSFileImpPtr fileImp, long offset)
+SSRecord* SSFileImp::ReadRecord (long offset)
 {
-  SSRecord* pRecord = new SSRecord (fileImp, offset);
-  return pRecord;
+  return new SSRecord (shared_from_this(), offset);
 }
 
 
 //////////////////////////////////////////////////////////////////////
 // Construction/Destruction
 //////////////////////////////////////////////////////////////////////
-//SSRecordFile::SSRecordFile ()
-//  : m_pFile (NULL), m_FileName ("")
-//{
-//}
-//
-SSFile::SSFile (const std::string& fileName, bool bOpen /* = false */)
-  : m_FileImpPtr (new SSFileImp (fileName, bOpen))
+SSFile::SSFile (const std::string& fileName)
+  : m_FileImpPtr (new SSFileImp (fileName))
 {
 }
 
-SSFile::SSFile (SSFileImpPtr filePtr)
-  : m_FileImpPtr (filePtr)
-{
-}
-
-SSFile::SSFile (CBaseIO* pio, bool bOpen /* = false */)
-  : m_FileImpPtr (new SSFileImp (pio, bOpen))
+SSFile::SSFile (std::istream* pInput)
+  : m_FileImpPtr (new SSFileImp (pInput))
 {
 }
 
 
 SSFile::~SSFile ()
 {
-  Close ();
 }
-
-bool SSFile::Open ()
-{
-  assert (m_FileImpPtr);
-  if (m_FileImpPtr->Open ("rb"))
-  {
-    assert (Validate ());
-    return true;
-  }
-  return false;
-}
-
-void SSFile::Close ()
-{
-  if (m_FileImpPtr)
-    m_FileImpPtr->Close ();
-}
-
-//long SSRecordFile::Size ()
-//{
-//  assert (m_FileImpPtr);
-//  return m_FileImpPtr->Size ();
-//}
-
-std::string SSFile::GetFileName ()
-{
-  assert (m_FileImpPtr);
-  return m_FileImpPtr->GetFileName ();
-}
-
-//SSFileImpPtr SSFile::GetFileImp ()
-//{
-//  return m_FileImpPtr;
-//}
 
 //////////////////////////////////////////////////////////////////////
-SSBinaryFile::SSBinaryFile (const std::string& fileName, bool bOpen /* = false */)
-  : SSFile (fileName, bOpen)
+SSBinaryFile::SSBinaryFile (const std::string& fileName)
+  : SSFile (fileName)
 {
 }
 
-SSBinaryFile::SSBinaryFile (SSFileImpPtr filePtr)
-  : SSFile (filePtr)
-{
-}
-
-SSBinaryFile::SSBinaryFile (CBaseIO* pio)
-  : SSFile (pio)
+SSBinaryFile::SSBinaryFile (std::istream* pInput)
+  : SSFile (pInput)
 {
 }
 
 //////////////////////////////////////////////////////////////////////
-SSRecordFile::SSRecordFile(const std::string& fileName, bool bOpen /* = false */)
-  : SSBinaryFile (fileName, bOpen)
+SSRecordFile::SSRecordFile(const std::string& fileName)
+  : SSBinaryFile (fileName)
 {
 }
 
-SSRecordFile::SSRecordFile (CBaseIO* pio)
-  : SSBinaryFile (pio)
+SSRecordFile::SSRecordFile (std::istream* pInput)
+  : SSBinaryFile (pInput)
 {
 }
 
@@ -434,7 +213,7 @@ SSRecordFile* SSRecordFile::MakeFile (const std::string& fileName)
   }
   
   if (fileTypeMap.find (type) == fileTypeMap.end ())
-    return NULL;
+    throw SSException  ("unrecognized file");
 
   switch (fileTypeMap[type])
   {
@@ -443,8 +222,9 @@ SSRecordFile* SSRecordFile::MakeFile (const std::string& fileName)
   case 2: return new SSProjectFile (fileName);
   case 3: return new SSUserFile (fileName);
   default:
-    throw SSException  ("unknown file type");
+    throw SSException  (std::string ("unknown file type: ").append(SSRecord::TypeToString(type)));
   }
+
   return NULL;
 }
 
@@ -486,12 +266,6 @@ SSRecordPtr SSRecordFile::FindNextRecord (SSRecordPtr pRecord)
   return pNext;
 }
 
-//bool SSRecordFile::Read (long offset, void* ptr, int len)
-//{
-//  assert (m_FileImpPtr);
-//  return m_FileImpPtr->Read(offset, ptr, len);
-//}
-
 SSRecordPtr SSRecordFile::GetRecord (long offset)
 {
   assert (m_FileImpPtr);
@@ -502,21 +276,6 @@ void SSRecordFile::Dump (std::ostream& os)
 {
 //  oss << "SourceSafe physical file: " << m_FileName << std::endl;
 }
-
-//void SSRecordFile::DumpRecords (std::ostream& oss)
-//{
-//  SSRecordPtr pRecord;
-//  for (pRecord = GetFirstRecord (); pRecord; )
-//  {
-//    oss << ">>> offset: 0x" << std::hex << pRecord->GetOffset() << std::dec;
-//    oss << " Type: " << pRecord->GetRecordType () << std::endl;
-//    std::auto_ptr <SSObject> pObject (SSObject::MakeObject(GetFileImp (), pRecord));
-//    pObject->Dump (oss);
-//    oss << std::endl;
-//
-//    pRecord = GetNextRecord (pRecord);
-//  }
-//}
 
 bool SSRecordFile::Validate ()
 { 
@@ -534,13 +293,8 @@ bool SSRecordFile::Validate ()
 }
 
 //---------------------------------------------------------------------------
-//SSHeaderFile::SSHeaderFile ()
-//: SSRecordFile ()
-//{
-//}
-
-SSHeaderFile::SSHeaderFile (const std::string& fileName, bool bOpen /*= false*/)
-: SSRecordFile (fileName, bOpen)
+SSHeaderFile::SSHeaderFile (const std::string& fileName)
+: SSRecordFile (fileName)
 {
 }
 
@@ -555,18 +309,13 @@ void SSHeaderFile::Dump (std::ostream& os)
 }
 
 //---------------------------------------------------------------------------
-//SSPlainFile::SSPlainFile ()
-//: SSRecordFile ()
-//{
-//}
-
-SSPlainFile::SSPlainFile (const std::string& fileName, bool bOpen /*= false*/)
-: SSRecordFile (fileName, bOpen)
+SSPlainFile::SSPlainFile (const std::string& fileName)
+: SSRecordFile (fileName)
 {
 }
 
-SSPlainFile::SSPlainFile (CBaseIO* pio)
-: SSRecordFile (pio)
+SSPlainFile::SSPlainFile (std::istream* pInput)
+: SSRecordFile (pInput)
 {
 }
 
@@ -581,16 +330,9 @@ void SSPlainFile::Dump (std::ostream& os)
 }
 
 //---------------------------------------------------------------------------
-//SSHistoryFile::SSHistoryFile ()
-//  : SSHeaderFile ()
-//{
-//}
-
-SSHistoryFile::SSHistoryFile (const std::string& fileName, bool bOpen /*= false*/)
-  : SSHeaderFile (fileName, false), m_pItemInfo (NULL)
+SSHistoryFile::SSHistoryFile (const std::string& fileName)
+  : SSHeaderFile (fileName), m_pItemInfo (NULL)
 {
-  if (bOpen && !Open ())
-    throw std::runtime_error ("could not load file");
 }
 
 SSHistoryFile::~SSHistoryFile ()
@@ -602,8 +344,8 @@ bool SSHistoryFile::CheckHeader ()
 {
   // Read SourceSafeHeader
   assert (m_FileImpPtr);
-  int size = m_FileImpPtr->Read (m_Header, sizeof (m_Header), 1);
-  if (size != 1)
+  int size = m_FileImpPtr->Read (m_Header, sizeof (m_Header));
+  if (size != sizeof(m_Header))
     throw SSException ("Could not read the SourceSafe header");
 
   // Check SourceSafeHeader
@@ -630,13 +372,6 @@ bool SSHistoryFile::CheckHeader ()
 
 std::auto_ptr<SSItemInfoObject> SSHistoryFile::GetItemInfo ()
 {
-//    std::list<SSRecord*>::iterator itor;
-//    for (itor = m_Records.begin (); itor != m_Records.end (); ++itor)
-//    {
-//      if ((*itor)->GetType () == eItemRecord)
-//        return *itor;
-//    }
-//    return NULL;
   return std::auto_ptr<SSItemInfoObject> (SSItemInfoObject::MakeItemInfo (GetRecord (GetHeaderLength ())));
 }
 
@@ -654,10 +389,7 @@ SSVersionObject SSHistoryFile::GetPrevVersion (const SSVersionObject& version)
 
 void SSHistoryFile::Dump (std::ostream& os)
 {
-//  SSRecordFile::Dump (oss);
-//  SSItemInfoObject* pItem = GetItemInfo ();
-//  if (pItem)
-//    pItem->Dump (oss);
+  SSHeaderFile::Dump (os);
 }
 
 bool SSHistoryFile::IsProject ()
@@ -676,24 +408,17 @@ std::string SSHistoryFile::GetLatestExt()
 }
 
 //---------------------------------------------------------------------------
-//SSUserFile::SSUserFile ()
-//  : SSHeaderFile ()
-//{
-//}
-
-SSUserFile::SSUserFile (const std::string& fileName, bool bOpen /*= false*/)
-  : SSHeaderFile (fileName, false)
+SSUserFile::SSUserFile (const std::string& fileName)
+  : SSHeaderFile (fileName)
 {
-  if (bOpen && !Open ())
-    throw std::runtime_error ("could not load file");
 }
 
 bool SSUserFile::CheckHeader ()
 {
   // Read SourceSafeHeader
   assert (m_FileImpPtr);
-  int size = m_FileImpPtr->Read (m_Header, sizeof (m_Header), 1);
-  if (size != 1)
+  int size = m_FileImpPtr->Read (m_Header, sizeof (m_Header));
+  if (size != sizeof (m_Header))
     throw SSException ("Could not read the SourceSafe header");
 
   // Check SourceSafeHeader
@@ -720,16 +445,9 @@ void SSUserFile::Dump (std::ostream& os)
 
 
 //---------------------------------------------------------------------------
-//SSNamesCacheFile::SSNamesCacheFile()
-//  : SSPlainFile ()
-//{
-//}
-
-SSNamesCacheFile::SSNamesCacheFile (const std::string& fileName, bool bOpen /*= false*/)
-  : SSPlainFile (fileName, false)
+SSNamesCacheFile::SSNamesCacheFile (const std::string& fileName)
+  : SSPlainFile (fileName)
 {
-  if (bOpen && !Open ())
-    throw std::runtime_error ("could not load file");
 }
 
 
@@ -741,20 +459,13 @@ void SSNamesCacheFile::Dump (std::ostream& os)
 
 
 //---------------------------------------------------------------------------
-//SSProjectFile::SSProjectFile ()
-//  : SSPlainFile ()
-//{
-//}
-
-SSProjectFile::SSProjectFile (const std::string& fileName, bool bOpen /*= false*/)
-  : SSPlainFile (fileName, false)
+SSProjectFile::SSProjectFile (const std::string& fileName)
+  : SSPlainFile (fileName)
 {
-  if (bOpen && !Open ())
-    throw std::runtime_error ("could not load file");
 }
 
-SSProjectFile::SSProjectFile (CBaseIO* pio)
-: SSPlainFile (pio)
+SSProjectFile::SSProjectFile (std::istream* pInput)
+: SSPlainFile (pInput)
 {
 }
 

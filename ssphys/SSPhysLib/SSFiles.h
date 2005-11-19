@@ -14,91 +14,36 @@ class SSItemInfoObject;
 class SSVersionObject;
 class SSRecord;
 typedef boost::shared_ptr<SSRecord> SSRecordPtr;
-
-class CBaseIO
-{
-public:
-  virtual ~CBaseIO ();
-
-  virtual bool Open (const char* mode) = 0;
-  virtual void Close () = 0;
-  virtual bool Seek (size_t offset, int whence) = 0;
-  virtual size_t Read (void* ptr, size_t size, size_t count) = 0;
-  virtual size_t Write (const void* ptr, size_t size, size_t count) = 0;
-  virtual long Size () = 0;
-
-  virtual std::string FileName () = 0;
-};
-
-class CFileIO : public CBaseIO
-{
-public:
-  CFileIO (const std::string& fileName);
-  virtual ~CFileIO ();
-
-  virtual bool Open (const char* mode);
-  virtual void Close ();
-  virtual bool Seek (size_t offset, int whence);
-  virtual size_t Read (void* ptr, size_t size, size_t count);
-  virtual size_t Write (const void* ptr, size_t size, size_t count);
-  virtual long Size ();
-
-  virtual std::string FileName ();
-private:
-  FILE* m_pFile;
-  std::string m_FileName;
-};
-
-class CMemoryIO : public CBaseIO
-{
-public:
-  CMemoryIO (const void* ptr, long size);
-  virtual ~CMemoryIO ();
-
-  virtual bool Open (const char* mode);
-  virtual void Close ();
-  virtual bool Seek (size_t offset, int whence);
-  virtual size_t Read (void* ptr, size_t size, size_t count);
-  virtual size_t Write (const void* ptr, size_t size, size_t count);
-  virtual long Size ();
-
-  virtual std::string FileName ();
-private:
-  const void* m_Ptr;
-  long m_Size;
-  long m_CurrentPos;
-};
-
 class SSFileImp;
 typedef boost::shared_ptr<SSFileImp> SSFileImpPtr;
+
+
 
 class SSFileImp : public boost::enable_shared_from_this<SSFileImp>
 {
 public:
-  SSFileImp (const std::string& fileName, bool bOpen = false);
-  SSFileImp (CBaseIO* pio, bool bOpen = false);
+  SSFileImp (const std::string& fileName);
+  SSFileImp (std::istream* pInput);
   virtual ~SSFileImp ();
 
-  bool Open (const char*) const;
-  void Close () const;
-
-  bool Seek (size_t offset, int pos) const;
-  bool Read (long offset, void* ptr, int len) const;
-  size_t Read (void* ptr, size_t size, size_t count) const;
-  size_t Write (const void* ptr, size_t size, size_t count) const;
+  bool Seek (size_t offset, std::ios_base::seekdir way);
+  bool Read (long offset, void* ptr, size_t size);
+  bool Read (void* ptr, size_t size);
+//  size_t Write (const void* ptr, size_t size, size_t count);
   long Size ();
 
-  std::string GetFileName ();
+  std::string GetFileName () const;
 
   SSRecordPtr GetRecord (long offset);
 
 protected:
-  SSRecord* ReadRecord (SSFileImpPtr fileImp, long offset);
+  SSRecord* ReadRecord (long offset);
 //  friend SSRecord;
 //  void ReleaseRecord (SSRecord* record);
 
 //  std::map <long, SSRecordPtr > m_Records;
-  CBaseIO* m_pIO;
+  std::istream* m_pInput;
+  std::string m_FileName;
 };
 
 
@@ -106,18 +51,10 @@ protected:
 class SSFile
 {
 public:
-  SSFile ();
-  SSFile (const std::string& fileName, bool bOpen = false);
-  SSFile (SSFileImpPtr filePtr);
-  SSFile (CBaseIO* pio, bool bOpen = false);
+  SSFile (const std::string& fileName);
+  SSFile (std::istream* pInput);
   virtual ~SSFile ();
  
-  std::string GetFileName (); //  { return m_FileName; }
-
-//  bool IsOpen ();
-  bool Open ();
-  void Close ();
-
   virtual bool Validate () { return true; }
 
 protected:
@@ -127,25 +64,21 @@ protected:
 class SSTextFile : public SSFile
 {
 public:
-  SSTextFile (const std::string& fileName, bool bOpen = false);
-
+  SSTextFile (const std::string& fileName);
 };
 
 class SSBinaryFile : public SSFile
 {
 public:
-  SSBinaryFile (const std::string& fileName, bool bOpen = false);
-  SSBinaryFile (SSFileImpPtr filePtr);
-  SSBinaryFile (CBaseIO* pio);
+  SSBinaryFile (const std::string& fileName);
+  SSBinaryFile (std::istream* pInput);
 };
-
 
 class SSRecordFile : public SSBinaryFile
 {
 public:
-//  SSRecordFile ();
-  SSRecordFile (const std::string& fileName, bool bOpen = false);
-  SSRecordFile (CBaseIO* pio);
+  SSRecordFile (const std::string& fileName);
+  SSRecordFile (std::istream* pInput);
   virtual ~SSRecordFile ();
 
   static SSRecordFile* MakeFile (const std::string& fileName);
@@ -159,7 +92,6 @@ public:
   SSRecordPtr FindNextRecord (SSRecordPtr pRecord);
 
   virtual void Dump (std::ostream& os);
-//  virtual void DumpRecords (std::ostream& os);
   virtual bool Validate ();
 };
 
@@ -167,8 +99,7 @@ public:
 class SSHeaderFile : public SSRecordFile
 {
 public:
-//  SSHeaderFile ();
-  SSHeaderFile (const std::string& fileName, bool bOpen = false);
+  SSHeaderFile (const std::string& fileName);
 
   virtual long GetHeaderLength ();
 
@@ -181,9 +112,8 @@ protected:
 class SSPlainFile : public SSRecordFile
 {
 public:
-//  SSPlainFile ();
-  SSPlainFile (const std::string& fileName, bool bOpen = false);
-  SSPlainFile (CBaseIO* pio);
+  SSPlainFile (const std::string& fileName);
+  SSPlainFile (std::istream* pInput);
 
   virtual long GetHeaderLength ();
 
@@ -196,8 +126,7 @@ protected:
 class SSHistoryFile : public SSHeaderFile
 {
 public:
-//  SSHistoryFile ();
-  SSHistoryFile (const std::string& fileName, bool bOpen = false);
+  SSHistoryFile (const std::string& fileName);
   ~SSHistoryFile ();
 
   virtual bool CheckHeader ();
@@ -220,17 +149,15 @@ protected:
 class SSNamesCacheFile : public SSPlainFile
 {
 public:
-//  SSNamesCacheFile ();
-  SSNamesCacheFile (const std::string& fileName, bool bOpen = false);
+  SSNamesCacheFile (const std::string& fileName);
   virtual void Dump (std::ostream& os);
 };
 
 class SSProjectFile : public SSPlainFile
 {
 public:
-//  SSProjectFile ();
-  SSProjectFile (const std::string& fileName, bool bOpen = false);
-  SSProjectFile (CBaseIO* pio);
+  SSProjectFile (const std::string& fileName);
+  SSProjectFile (std::istream* pInput);
 
   virtual void Dump (std::ostream& os);
 };
@@ -238,8 +165,7 @@ public:
 class SSUserFile : public SSHeaderFile
 {
 public:
-//  SSUserFile ();
-  SSUserFile (const std::string& fileName, bool bOpen = false);
+  SSUserFile (const std::string& fileName);
 
   virtual bool CheckHeader ();
 
