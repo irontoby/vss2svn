@@ -18,16 +18,9 @@ CValidateCommand::CValidateCommand ()
 
 void CValidateCommand::Execute (po::variables_map const& options, std::string const& arg)
 {
-  try
+  std::auto_ptr<SSRecordFile> pFile (SSRecordFile::MakeFile (arg));
+  if (pFile.get())
   {
-    std::auto_ptr<SSRecordFile> pFile (SSRecordFile::MakeFile (arg));
-    if (pFile.get())
-    {
-      pFile->Validate ();
-    }
-  }
-  catch (SSException& ex)
-  {
-    std::cerr << "error: " << ex.what() << std::endl;
+    pFile->Validate ();
   }
 }
