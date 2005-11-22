@@ -1,3 +1,30 @@
+0.3.3
+    * Fixed issue #3 (Migration loses data when same file checked in twice
+      within same minute) -- thanks to Nathan Kidd for this patch
+    * Fixed issue #4 (Incorrect commit dates because Daylight Savings Time not
+      taken into account) -- thanks to Nathan Kidd for this patch
+    * --dstbias argument added (part of fix for issue #4)
+    * Fixed issue #5 (Check user's environment to ensure APR_ICONV_PATH is
+      properly set)
+    * --iconv argument added (part of fix for issue #5)
+    * Fixed issue #6 (vss2svn is confused by executables named ss that it
+      finds in the VSS repository) -- thanks to Sean M. Foy for identifying
+      issue
+    * Fixed issue #7 (--help gives wrong switch for exclude)
+
+  Known Issues:
+    * Unchanged from 0.3.1
+
+0.3.2
+    * Fixed issue #2 (am/pm conversion errors at noon and midnight)
+      -- thanks to Arthur Tateishi for this patch
+    * Add --utf8 switch to explicitly convert all comments to UTF-8;
+      requires Perl 5.8 or later.
+    * Fix issue with commiting files beginning with plus or dash
+
+  Known Issues:
+    * Unchanged from 0.3.1
+
 0.3.1
     * Fixed issue with compiled .exe not printing help info correctly
     * Updated INSTALL file to reflect Time::ParseDate requirement
@@ -27,7 +54,7 @@
         - Win32::TieRegistry
         - Pod::Usage
         - Text::Wrap
-        
+
   Known Issues:
     * Still doesn't handle label comments correctly
 
@@ -35,15 +62,15 @@
     * Use tempfiles for more ss.exe commands instead of piping
       directly to STDOUT; this prevents ss.exe from undesirably
       line-breaking and paginating output. (bugzilla issue #1)
-    
-    * Change license from "public domain" to Gnu GPL. 
+
+    * Change license from "public domain" to Gnu GPL.
 0.2.1
     * fix reading version numbers greater than 9.
     * handle "--vssproject $/" correctly
     * remove "use diagnostics", which only confuses regular users
     * print startup message so doesn't appear to hang on large projects
     * passing an invalid project is a fatal error
-    * prevent SQL quotes from appearing in users prompt 
+    * prevent SQL quotes from appearing in users prompt
 
 0.2.0
     * Use the DBD::SQLite driver instead of temporary text files;

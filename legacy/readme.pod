@@ -49,13 +49,23 @@ around to it yet.
 
 =over 4
 
+SS.EXE version: It seems that version 6.0d of the SS.EXE program, distributed
+with Visual Studio .NET, is much more prone to errors with the command line
+client as version 6.0c. You can check the version of Visual SourceSafe you
+have by typing "ss" at the Command Prompt, or by clicking Help -> About in
+the Visual SourceSafe Explorer program. If you encounter many errors during
+your migration, you may want to try installing a previous version of Visual
+SourceSafe in order to perform the migration. Specifically, the error message
+"Project Foo has been destroyed, and cannot be rebuilt" will repeatedly be given
+with version 6.0d on some projects.
+
 Labels: Label support is currently poor. This will hopefully be fixed
 soon. In particular, label comments as well as SS.EXE label info output is
 currently added to the respective revision's comment in Subversion. This script
 may or may not eventually correctly parse labels and create a corresponding
 /labels area in Subversion.
 
-English-Only SS.EXE supported: Currently, only the English-language
+Non-English SS.EXE unsupported: Currently, only the English-language
 version of the VSS command-line utility SS.EXE is supported. Non-English
 characters are allowed in filenames and comments, but the SS.EXE program itself
 must be English. A workaround for this issue is to find and rename the SSxx.DLL
@@ -63,9 +73,39 @@ in your VSS installation, where "xx" is your two-character language code. Then
 rename the DLL back after the migration. Support for other languages will be
 added soon.
 
-Cloaked Projects: If your VSS projects have cloaked projects, this
+Cloaked Projects: If your VSS repository has cloaked projects, this
 script will crash. Un-cloak any projects before running this script.
 
+Pinned Projects: If your VSS repository has pinned projects or files, then only
+revisions up to and including the "pinned" version will be migrated. You will
+lose all more recent versions.
+
+Shared Projects: If your VSS repository has shared projects or files, multiple
+copies of each shared object will be created in your migrated Subversion
+repository, with no indication that the files were shared originally. In
+effect, each shared copy from VSS will become its own object in Subversion.
+
 =back
+
+=head2 APR ICONV FILES
+
+Subversion relies on the "ICONV" package of the Apache Portable Runtime library
+to convert non-ascii characters in directories, filenames, and comments to its
+native internal UTF-8 format. In order to ensure the correct ICONV files are
+used, the APR_ICONV_PATH environment variable must be set to the "iconv"
+directory in your Subversion client's program directory.
+
+However, this environment variable is not automatically set by the Subversion
+client install utility on Windows. Furthermore, the popular TortoiseSVN plugin
+for Windows Explorer installs its own (incompatible) ICONV files and sets this
+variable to its own location. This means that non-ascii characters can cause
+the migration to fail with fatal errors.
+
+To fix this, you can do one of the following: set the APR_ICONV_PATH
+environment variable to the correct "iconv" directory in your Subversion
+client installation; use the --iconv argument to explicitly specify a path
+to set the APR_ICONV_PATH variable to during the script's run; or specify
+"--iconv !" to have the script set this variable to what it determines to be
+the correct value.
 
 =end

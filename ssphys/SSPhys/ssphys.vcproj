@@ -1,125 +1,188 @@
 <?xml version="1.0" encoding="Windows-1252"?>
 <VisualStudioProject
 	ProjectType="Visual C++"
-	Version="7.10"
+	Version="8.00"
 	Name="ssphys"
+	ProjectGUID="{FCF4A98B-3FE2-452D-9816-A67927261F25}"
 	RootNamespace="ssphys"
-	SccProjectName=""
-	SccLocalPath="">
+	>
 	<Platforms>
 		<Platform
-			Name="Win32"/>
+			Name="Win32"
+		/>
 	</Platforms>
+	<ToolFiles>
+	</ToolFiles>
 	<Configurations>
 		<Configuration
 			Name="Release|Win32"
 			OutputDirectory="..\bin\$(ConfigurationName)"
 			IntermediateDirectory="..\tmp\$(ConfigurationName)\$(ProjectName)"
 			ConfigurationType="1"
+			InheritedPropertySheets="$(VCInstallDir)VCProjectDefaults\UpgradeFromVC71.vsprops"
 			UseOfMFC="0"
-			ATLMinimizesCRunTimeLibraryUsage="FALSE"
-			CharacterSet="2">
+			ATLMinimizesCRunTimeLibraryUsage="false"
+			CharacterSet="2"
+			>
+			<Tool
+				Name="VCPreBuildEventTool"
+			/>
+			<Tool
+				Name="VCCustomBuildTool"
+			/>
+			<Tool
+				Name="VCXMLDataGeneratorTool"
+			/>
+			<Tool
+				Name="VCWebServiceProxyGeneratorTool"
+			/>
+			<Tool
+				Name="VCMIDLTool"
+				TypeLibraryName=".\Release/ssphys.tlb"
+				HeaderFileName=""
+			/>
 			<Tool
 				Name="VCCLCompilerTool"
 				Optimization="2"
 				InlineFunctionExpansion="1"
 				AdditionalIncludeDirectories="..\,..\Utils"
 				PreprocessorDefinitions="WIN32;NDEBUG;_CONSOLE"
-				StringPooling="TRUE"
-				RuntimeLibrary="4"
-				EnableFunctionLevelLinking="TRUE"
-				RuntimeTypeInfo="TRUE"
-				UsePrecompiledHeader="3"
+				StringPooling="true"
+				RuntimeLibrary="0"
+				EnableFunctionLevelLinking="true"
+				RuntimeTypeInfo="true"
+				UsePrecompiledHeader="2"
 				WarningLevel="3"
-				SuppressStartupBanner="TRUE"
-				DebugInformationFormat="3"/>
+				SuppressStartupBanner="true"
+				DebugInformationFormat="3"
+			/>
 			<Tool
-				Name="VCCustomBuildTool"/>
-			<Tool
-				Name="VCLinkerTool"
-				LinkIncremental="1"
-				SuppressStartupBanner="TRUE"
-				GenerateDebugInformation="TRUE"
-				SubSystem="1"
-				TargetMachine="1"/>
-			<Tool
-				Name="VCMIDLTool"
-				TypeLibraryName=".\Release/ssphys.tlb"
-				HeaderFileName=""/>
-			<Tool
-				Name="VCPostBuildEventTool"/>
-			<Tool
-				Name="VCPreBuildEventTool"/>
-			<Tool
-				Name="VCPreLinkEventTool"/>
+				Name="VCManagedResourceCompilerTool"
+			/>
 			<Tool
 				Name="VCResourceCompilerTool"
 				PreprocessorDefinitions="NDEBUG"
-				Culture="1031"/>
+				Culture="1031"
+			/>
 			<Tool
-				Name="VCWebServiceProxyGeneratorTool"/>
+				Name="VCPreLinkEventTool"
+			/>
 			<Tool
-				Name="VCXMLDataGeneratorTool"/>
+				Name="VCLinkerTool"
+				LinkIncremental="1"
+				SuppressStartupBanner="true"
+				GenerateDebugInformation="true"
+				SubSystem="1"
+				TargetMachine="1"
+			/>
 			<Tool
-				Name="VCWebDeploymentTool"/>
+				Name="VCALinkTool"
+			/>
 			<Tool
-				Name="VCManagedWrapperGeneratorTool"/>
+				Name="VCManifestTool"
+			/>
 			<Tool
-				Name="VCAuxiliaryManagedWrapperGeneratorTool"/>
+				Name="VCXDCMakeTool"
+			/>
+			<Tool
+				Name="VCBscMakeTool"
+			/>
+			<Tool
+				Name="VCFxCopTool"
+			/>
+			<Tool
+				Name="VCAppVerifierTool"
+			/>
+			<Tool
+				Name="VCWebDeploymentTool"
+			/>
+			<Tool
+				Name="VCPostBuildEventTool"
+			/>
 		</Configuration>
 		<Configuration
 			Name="Debug|Win32"
 			OutputDirectory="..\bin\$(ConfigurationName)"
 			IntermediateDirectory="..\tmp\$(ProjectName)\$(ConfigurationName)"
 			ConfigurationType="1"
+			InheritedPropertySheets="$(VCInstallDir)VCProjectDefaults\UpgradeFromVC71.vsprops"
 			UseOfMFC="0"
-			ATLMinimizesCRunTimeLibraryUsage="FALSE"
-			CharacterSet="2">
+			ATLMinimizesCRunTimeLibraryUsage="false"
+			CharacterSet="2"
+			>
+			<Tool
+				Name="VCPreBuildEventTool"
+			/>
+			<Tool
+				Name="VCCustomBuildTool"
+			/>
+			<Tool
+				Name="VCXMLDataGeneratorTool"
+			/>
+			<Tool
+				Name="VCWebServiceProxyGeneratorTool"
+			/>
+			<Tool
+				Name="VCMIDLTool"
+				TypeLibraryName=".\Debug/ssphys.tlb"
+				HeaderFileName=""
+			/>
 			<Tool
 				Name="VCCLCompilerTool"
 				Optimization="0"
 				AdditionalIncludeDirectories="..\,..\Utils"
 				PreprocessorDefinitions="WIN32;_DEBUG;_CONSOLE"
 				BasicRuntimeChecks="3"
-				RuntimeLibrary="5"
-				RuntimeTypeInfo="TRUE"
-				UsePrecompiledHeader="3"
+				RuntimeLibrary="1"
+				RuntimeTypeInfo="true"
+				UsePrecompiledHeader="2"
 				WarningLevel="3"
-				SuppressStartupBanner="TRUE"
-				DebugInformationFormat="4"/>
+				SuppressStartupBanner="true"
+				DebugInformationFormat="4"
+			/>
 			<Tool
-				Name="VCCustomBuildTool"/>
-			<Tool
-				Name="VCLinkerTool"
-				LinkIncremental="1"
-				SuppressStartupBanner="TRUE"
-				GenerateDebugInformation="TRUE"
-				SubSystem="1"
-				TargetMachine="1"/>
-			<Tool
-				Name="VCMIDLTool"
-				TypeLibraryName=".\Debug/ssphys.tlb"
-				HeaderFileName=""/>
-			<Tool
-				Name="VCPostBuildEventTool"/>
-			<Tool
-				Name="VCPreBuildEventTool"/>
-			<Tool
-				Name="VCPreLinkEventTool"/>
+				Name="VCManagedResourceCompilerTool"
+			/>
 			<Tool
 				Name="VCResourceCompilerTool"
 				PreprocessorDefinitions="_DEBUG"
-				Culture="1031"/>
+				Culture="1031"
+			/>
 			<Tool
-				Name="VCWebServiceProxyGeneratorTool"/>
+				Name="VCPreLinkEventTool"
+			/>
 			<Tool
-				Name="VCXMLDataGeneratorTool"/>
+				Name="VCLinkerTool"
+				LinkIncremental="1"
+				SuppressStartupBanner="true"
+				GenerateDebugInformation="true"
+				SubSystem="1"
+				TargetMachine="1"
+			/>
 			<Tool
-				Name="VCWebDeploymentTool"/>
+				Name="VCALinkTool"
+			/>
 			<Tool
-				Name="VCManagedWrapperGeneratorTool"/>
+				Name="VCManifestTool"
+			/>
 			<Tool
-				Name="VCAuxiliaryManagedWrapperGeneratorTool"/>
+				Name="VCXDCMakeTool"
+			/>
+			<Tool
+				Name="VCBscMakeTool"
+			/>
+			<Tool
+				Name="VCFxCopTool"
+			/>
+			<Tool
+				Name="VCAppVerifierTool"
+			/>
+			<Tool
+				Name="VCWebDeploymentTool"
+			/>
+			<Tool
+				Name="VCPostBuildEventTool"
+			/>
 		</Configuration>
 	</Configurations>
 	<References>
@@ -127,145 +190,191 @@
 	<Files>
 		<Filter
 			Name="Source Files"
-			Filter="cpp;c;cxx;rc;def;r;odl;idl;hpj;bat">
+			Filter="cpp;c;cxx;rc;def;r;odl;idl;hpj;bat"
+			>
 			<File
-				RelativePath="Arguments.cpp">
+				RelativePath="Arguments.cpp"
+				>
 			</File>
 			<File
-				RelativePath="Command.cpp">
+				RelativePath="Command.cpp"
+				>
 			</File>
 			<File
-				RelativePath="CommandFactory.cpp">
+				RelativePath="CommandFactory.cpp"
+				>
 			</File>
 			<File
-				RelativePath="CommandLine.cpp">
+				RelativePath="CommandLine.cpp"
+				>
 			</File>
 			<File
-				RelativePath="FileTypeCommand.cpp">
+				RelativePath="FileTypeCommand.cpp"
+				>
 			</File>
 			<File
-				RelativePath="Formatter.cpp">
+				RelativePath="Formatter.cpp"
+				>
 			</File>
 			<File
-				RelativePath="GetCommand.cpp">
+				RelativePath="GetCommand.cpp"
+				>
 			</File>
 			<File
-				RelativePath="GlobalOptions.cpp">
+				RelativePath="GlobalOptions.cpp"
+				>
 			</File>
 			<File
-				RelativePath="HelpCommand.cpp">
+				RelativePath="HelpCommand.cpp"
+				>
 			</File>
 			<File
-				RelativePath="HistoryCommand.cpp">
+				RelativePath="HistoryCommand.cpp"
+				>
 			</File>
 			<File
-				RelativePath="InfoCommand.cpp">
+				RelativePath="InfoCommand.cpp"
+				>
 			</File>
 			<File
-				RelativePath="Options.cpp">
+				RelativePath="Options.cpp"
+				>
 			</File>
 			<File
-				RelativePath="PropertiesCommand.cpp">
+				RelativePath="PropertiesCommand.cpp"
+				>
 			</File>
 			<File
-				RelativePath="ssphys.cpp">
+				RelativePath="ssphys.cpp"
+				>
 			</File>
 			<File
-				RelativePath="StdAfx.cpp">
+				RelativePath="StdAfx.cpp"
+				>
 				<FileConfiguration
-					Name="Release|Win32">
+					Name="Release|Win32"
+					>
 					<Tool
 						Name="VCCLCompilerTool"
-						UsePrecompiledHeader="1"/>
+						UsePrecompiledHeader="1"
+					/>
 				</FileConfiguration>
 				<FileConfiguration
-					Name="Debug|Win32">
+					Name="Debug|Win32"
+					>
 					<Tool
 						Name="VCCLCompilerTool"
-						UsePrecompiledHeader="1"/>
+						UsePrecompiledHeader="1"
+					/>
 				</FileConfiguration>
 			</File>
 			<File
-				RelativePath="ValidateCommand.cpp">
+				RelativePath="ValidateCommand.cpp"
+				>
 			</File>
 			<File
-				RelativePath="VersionFilter.cpp">
+				RelativePath="VersionFilter.cpp"
+				>
 			</File>
 		</Filter>
 		<Filter
 			Name="Header Files"
-			Filter="h;hpp;hxx;hm;inl">
+			Filter="h;hpp;hxx;hm;inl"
+			>
 			<File
-				RelativePath="Arguments.h">
+				RelativePath="Arguments.h"
+				>
 			</File>
 			<File
-				RelativePath="Command.h">
+				RelativePath="Command.h"
+				>
 			</File>
 			<File
-				RelativePath="CommandFactory.h">
+				RelativePath="CommandFactory.h"
+				>
 			</File>
 			<File
-				RelativePath="CommandLine.h">
+				RelativePath="CommandLine.h"
+				>
 			</File>
 			<File
-				RelativePath="FileTypeCommand.h">
+				RelativePath="FileTypeCommand.h"
+				>
 			</File>
 			<File
-				RelativePath="Formatter.h">
+				RelativePath="Formatter.h"
+				>
 			</File>
 			<File
-				RelativePath="GetCommand.h">
+				RelativePath="GetCommand.h"
+				>
 			</File>
 			<File
-				RelativePath="GlobalOptions.h">
+				RelativePath="GlobalOptions.h"
+				>
 			</File>
 			<File
-				RelativePath="HelpCommand.h">
+				RelativePath="HelpCommand.h"
+				>
 			</File>
 			<File
-				RelativePath="HistoryCommand.h">
+				RelativePath="HistoryCommand.h"
+				>
 			</File>
 			<File
-				RelativePath="InfoCommand.h">
+				RelativePath="InfoCommand.h"
+				>
 			</File>
 			<File
-				RelativePath="Options.h">
+				RelativePath="Options.h"
+				>
 			</File>
 			<File
-				RelativePath="PropertiesCommand.h">
+				RelativePath="PropertiesCommand.h"
+				>
 			</File>
 			<File
-				RelativePath="SSTests.h">
+				RelativePath="SSTests.h"
+				>
 			</File>
 			<File
-				RelativePath="StdAfx.h">
+				RelativePath="StdAfx.h"
+				>
 			</File>
 			<File
-				RelativePath="ValidateCommand.h">
+				RelativePath="ValidateCommand.h"
+				>
 			</File>
 			<File
-				RelativePath="VersionFilter.h">
+				RelativePath="VersionFilter.h"
+				>
 			</File>
 		</Filter>
 		<Filter
 			Name="Resource Files"
-			Filter="ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe">
+			Filter="ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe"
+			>
 		</Filter>
 		<File
-			RelativePath="..\version.in">
+			RelativePath="..\version.in"
+			>
 			<FileConfiguration
-				Name="Release|Win32">
+				Name="Release|Win32"
+				>
 				<Tool
 					Name="VCCustomBuildTool"
-					CommandLine="SubWCRev .. ..\$(InputFileName) ..\version.h"
-					Outputs="..\version.h"/>
+					CommandLine="SubWCRev .. ..\$(InputFileName) ..\version.h&#x0D;&#x0A;"
+					Outputs="..\version.h"
+				/>
 			</FileConfiguration>
 			<FileConfiguration
-				Name="Debug|Win32">
+				Name="Debug|Win32"
+				>
 				<Tool
 					Name="VCCustomBuildTool"
-					CommandLine="SubWCRev .. ..\$(InputFileName) ..\version.h"
-					Outputs="..\version.h"/>
+					CommandLine="SubWCRev .. ..\$(InputFileName) ..\version.h&#x0D;&#x0A;"
+					Outputs="..\version.h"
+				/>
 			</FileConfiguration>
 		</File>
 	</Files>

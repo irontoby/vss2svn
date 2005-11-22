@@ -42,11 +42,17 @@ This script depends on the following Perl modules. All but the first three are i
 
 =item * Win32::TieRegistry
 
+=item * SVN::Client
+
+=item * SVN::Core
+
+=item * SVN::WC
+
 =back
 
-=head3 Installing DBI and DBD::SQLite
+=head3 Installing DBI, DBD::SQLite, and Time-modules:
 
-The easiest way to install the C<DBI> and C<DBD::SQLite> modules is using ActiveState's C<ppm> (programmer's package manager) utility. ActivePerl must already be installed before running C<ppm>. From the Command Prompt, type C<ppm>, or, if using ActivePerl 5.6, C<ppm3>. (Older versions of ActivePerl probably use just C<ppm>, but the syntax may be a bit different).
+The easiest way to install these modules is using ActiveState's C<ppm> (programmer's package manager) utility. ActivePerl must already be installed before running C<ppm>. From the Command Prompt, type C<ppm>, or, if using ActivePerl 5.6, C<ppm3>. (Older versions of ActivePerl probably use just C<ppm>, but the syntax may be a bit different).
 
 You should be able to type just C<install DBI>, C<install DBD::SQLite>, and C<install Time-modules> from the C<ppm> prompt. Alternatively, you can perform each install as a separate C<ppm> command, such as C<ppm install DBI>.
 
@@ -72,12 +78,47 @@ You should be able to type just C<install DBI>, C<install DBD::SQLite>, and C<in
 
    ppm> quit
 
+=head3 Installing SVN::Client and friends:
+Get L<http://vss2svn.tigris.org/files/documents/1735/20299/svn-1.1.3-perl-5.8.zip> or
+L<http://subversion.tigris.org/files/documents/15/21737/svn-win32-1.1.4_pl.zip> 
+
+The 1.1.3 package is laid out closer to the ActivePerl layout than the 1.1.4 layout.
+
+For the 1.1.3 package:
+
+=over 4
+
+=item * Extract the package
+
+=item * copy C<bin> to C<C:\Perl\bin> (or wherever ActiveState is installed) 
+
+=item * copy C<site> to C<C:\Perl\site>
+
+=back
+
+For the 1.1.4 package:
+
+=over 4
+
+=item * Extract the package
+
+=item * copy C<svn-win32-1.1.4\perl\SVN\swigpl.dll> and  C<svn-win32-1.1.4\perl\SVN\libsvn_swig_perl-1.dll> to C<C:\Perl\bin> (or wherever ActiveState is installed) 
+
+=item * make a directory C<C:\Perl\site\lib\SVN>
+
+=item * make a directory C<C:\Perl\site\lib\auto\SVN>
+
+=item * copy C<svn-win32-1.1.4\perl\SVN\*.pm> to C<C:\Perl\site\lib\SVN>
+
+=item * copy C<svn-win32-1.1.4\perl\SVN\_*.dll> to C<C:\Perl\site\lib\auto\SVN>
+
+=back
+
 =head3 Setting up your PATH
 
-You should now be able to run C<vss2svn.pl>. The Visual SourceSafe C<ss.exe> command, the Subversion C<svn.exe> command, and C<perl> should all be in your PATH. To check for this, issue the following three commands from the Command Prompt in the directory where C<vss2svn.pl> is located. To open a Windows Command Prompt, choose C<Run> from the Start Menu (or press Windows Key + R) and type C<cmd>.
+You should now be able to run C<vss2svn.pl>. The Visual SourceSafe C<ss.exe> and C<perl> should all be in your PATH. To check for this, issue the following three commands from the Command Prompt in the directory where C<vss2svn.pl> is located. To open a Windows Command Prompt, choose C<Run> from the Start Menu (or press Windows Key + R) and type C<cmd>.
 
   C:\vss2svn> ss help
-  C:\vss2svn> svn help
   C:\vss2svn> perl -v
 
 All three should return with some status information about the version you have installed. If you get an error message instead, modify your PATH environment variable (from Control Panel, choose System, Advanced, Environment Variables or something similar; it doesn't matter whether you use the User or System PATH variable, as they will be merged). While you are there, ensure the C<SSDIR> environment variable points to the root of your VSS database (wherever the F<srcsafe.ini> file is located). After changing these settings, you must close and re-open your Command Prompt.
@@ -86,3 +127,6 @@ If you are using ActivePerl 5.6, you may receive a C<DBD::SQLite> fatal error wh
 
 L<http://vss2svn.tigris.org/servlets/ProjectDocumentList?folderID=2788>
 
+In addition, the --utf8 command-line argument (to explicitly convert all comments to UTF-8) requires Perl 5.8 or higher.
+
+After installation, be sure to read the README.TXT file, especially the "Known Problems" section.
