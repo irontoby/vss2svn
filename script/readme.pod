@@ -36,7 +36,7 @@ Setting commit timestamps:
 
 It is recommended that you only set SVN timestamps (i.e. the svn:date revision property) if you are converting to a brand-new Subversion repository. This is because SVN optimizes several of its operations based on the assumption that the timestamp of each revision is chronologically later than that of the previous revision.
 
-This means that if you convert a VSS repository "into" an SVN repository that already has commits, or if you convert your VSS repository(ies) in multiple stages, you could end up with out-of-order svn:date values. This could render such SVN features as blame, checkout by date, etc. unusable. 
+This means that if you convert a VSS repository "into" an SVN repository that already has commits, or if you convert your VSS repository(ies) in multiple stages, you could end up with out-of-order svn:date values. This could render such SVN features as blame, checkout by date, etc. unreliable or unusable. 
 
 Rearranging projects: 
 

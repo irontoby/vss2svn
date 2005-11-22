@@ -2,7 +2,24 @@
 
 =head1 Running The C<vss2svn.pl> Script
 
-(NOTE: THIS DOC IS STILL A WORK IN PROGRESS!)
+(NOTE: THIS DOCUMENTATION WILL NO LONGER BE MAINTAINED. IT DESCRIBES THE
+"LEGACY" VERSION OF THE VSS2SVN TOOL AND MUCH OF IT MAY NO LONGER BE CORRECT.)
+
+=head2 READ THIS FIRST
+
+Converting your VSS repository to Subversion is not a simple process. Believe
+me, I know how much you'd love to just push a button, convert your repo, and
+be done with VSS forever. :)
+
+However, there are quite a few decisions to be made and quite a few things that
+can go wrong. Take a moment to think about what you want out of your repository
+and plan your migration accordingly. Start off testing the migration on small
+portions of your repository with few files and few checkins.
+
+You will have the most success converting repositories which use as few VSS
+specific "features" as possible... things like cloaks, pins, shares, and "store
+only latest version" have no equivalent in Subversion and this script is poorly
+designed to handle them at this point.
 
 =head2 RUNNING THE SCRIPT
 
@@ -27,16 +44,6 @@ from in-house modules which had more functionality than just this conversion.
 I recommend converting only a small branch at first to see how things go.
 This process takes a very long time for large databases. I have made liberal
 
-Partway through the migration, you will be presented with a list of all
-usernames which performed any checkin operations in the given VSS project.
-If you want these user names to be preserved, you must add this list
-(including a user "vss_migration" for creating directories and such) to your
-Apache AuthUserFile with *blank passwords*. Apache must also *require* that
-usernames be passed, otherwise SVN will use anonymous access and you lose
-the usernames. So you need an "AuthType Basic" line or the like, as well as
-an AuthUserFile. See L<http://svnbook.red-bean.com/svnbook/ch06s04.html#svn-ch-6-sect-4.3>
-for more info.
-
 =head2 HOW IT WORKS
 
 TODO...
@@ -47,9 +54,9 @@ Following is a list of known problems with this script. Listing a known issue
 here implies that I have plans to correct it in the future but haven't gotten
 around to it yet.
 
-=over 4
+=head3 SS.EXE version:
 
-SS.EXE version: It seems that version 6.0d of the SS.EXE program, distributed
+It seems that version 6.0d of the SS.EXE program, distributed
 with Visual Studio .NET, is much more prone to errors with the command line
 client as version 6.0c. You can check the version of Visual SourceSafe you
 have by typing "ss" at the Command Prompt, or by clicking Help -> About in
@@ -59,13 +66,17 @@ SourceSafe in order to perform the migration. Specifically, the error message
 "Project Foo has been destroyed, and cannot be rebuilt" will repeatedly be given
 with version 6.0d on some projects.
 
-Labels: Label support is currently poor. This will hopefully be fixed
+=head3 Labels:
+
+Label support is currently poor. This will hopefully be fixed
 soon. In particular, label comments as well as SS.EXE label info output is
 currently added to the respective revision's comment in Subversion. This script
 may or may not eventually correctly parse labels and create a corresponding
 /labels area in Subversion.
 
-Non-English SS.EXE unsupported: Currently, only the English-language
+=head3 Non-English SS.EXE unsupported:
+
+Currently, only the English-language
 version of the VSS command-line utility SS.EXE is supported. Non-English
 characters are allowed in filenames and comments, but the SS.EXE program itself
 must be English. A workaround for this issue is to find and rename the SSxx.DLL
@@ -73,19 +84,30 @@ in your VSS installation, where "xx" is your two-character language code. Then
 rename the DLL back after the migration. Support for other languages will be
 added soon.
 
-Cloaked Projects: If your VSS repository has cloaked projects, this
+=head3 Cloaked Projects:
+
+If your VSS repository has cloaked projects, this
 script will crash. Un-cloak any projects before running this script.
 
-Pinned Projects: If your VSS repository has pinned projects or files, then only
+=head3 Pinned Projects:
+
+If your VSS repository has pinned projects or files, then only
 revisions up to and including the "pinned" version will be migrated. You will
 lose all more recent versions.
 
-Shared Projects: If your VSS repository has shared projects or files, multiple
+=head3 Shared Projects:
+
+If your VSS repository has shared projects or files, multiple
 copies of each shared object will be created in your migrated Subversion
 repository, with no indication that the files were shared originally. In
 effect, each shared copy from VSS will become its own object in Subversion.
 
-=back
+=head3 VSS Errors:
+
+If you encounter any other VSS error messages during your migration, the
+following Microsoft documentation may help explain what caused it:
+
+L<"http://msdn.microsoft.com/library/default.asp?url=/library/en-us/guides/html/vsorierrormessages.asp">
 
 =head2 APR ICONV FILES
 
@@ -108,4 +130,32 @@ to set the APR_ICONV_PATH variable to during the script's run; or specify
 "--iconv !" to have the script set this variable to what it determines to be
 the correct value.
 
-=end
+=head2 BEST PRACTICES
+
+=head3 In-Use VSS Databases:
+
+This script will not attempt to determine whether anyone is logged in to the
+database while you are performing the conversion. It is highly recommended that
+you either use VSS Admin to lock out all users, or else make a local copy of the
+VSS database for purposes of the conversion. See below for more on local copies. 
+
+=head3 Local vs. Network:
+
+Placing a VSS repository on a network share is very common. However, during the
+conversion to SVN, you will notice a significant speed increase if you copy the
+VSS repository to a local drive and run the conversion from there instead. This
+will also help ensure that no one else is using the VSS repository while it is
+being converted.
+
+=head3 Setting commit timestamps:
+
+It is recommended that you only set SVN timestamps (i.e. the svn:date revision
+property) if you are converting to a brand-new Subversion repository. This is
+because SVN optimizes several of its operations based on the assumption that the
+timestamp of each revision is chronologically later than that of the previous
+revision.
+
+This means that if you convert a VSS repository "into" an SVN repository that
+already has commits, or if you convert your VSS repository(ies) in multiple
+stages, you could end up with out-of-order svn:date values. This could render
+such SVN features as blame, checkout by date, etc. unreliable or unusable. 

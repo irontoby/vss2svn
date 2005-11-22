@@ -3066,6 +3066,8 @@ Using this flag turns off the default behavior.
 The default behavior requires the "pre-revprop-change" hook script to be set; see
 L<http://svnbook.red-bean.com/en/1.1/svn-book.html#svn-ch-5-sect-2.1>.
 
+See README.TXT for more information on setting "svn:date".
+
 =item --vsslogin "USER:PASSWD":
 
 Set VSS username and password, separated by a colon.
