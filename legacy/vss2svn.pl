@@ -1268,7 +1268,7 @@ sub ImportSvnHistory {
             # roll these skipped files back
             if ($shouldskip) {
                 --$fileCount;
-                undef $committedFiles->{$row->{file}};
+                delete $committedFiles->{$row->{file}};
                 undef $commitinfo;
             }
         }
