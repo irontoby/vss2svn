@@ -16,6 +16,7 @@
 #include <fstream>
 #include <strstream>
 #include <sys/stat.h>
+#include <errno.h>
 using namespace boost::filesystem;
 namespace fs = boost::filesystem;
 

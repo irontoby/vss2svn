@@ -96,7 +96,7 @@ public:
   ulong   GetPrevious ()                    const { return GetData ()->previous; }
   eAction  GetActionID  ()                  const { return static_cast <eAction> (GetAction ()->GetActionID ()); }
   short   GetVersionNumber ()               const { return GetData ()->versionNumber; }
-  time_t  GetDate ()                        const { return GetData ()->date; }
+  __time32_t  GetDate ()                    const { return GetData ()->date; }
   std::string GetUsername ()                const { return std::string (GetData ()->username /*, 32*/); }
   std::string GetLabel ()                   const { return std::string (GetData ()->label    /*, 32*/); }
   ulong   GetOffsetToNextRecordOrComment () const { return GetData ()->offsetToNextRecordOrComment; }
@@ -108,7 +108,7 @@ public:
 //  int         GetVersionNumber () const { return GetData ()->version; }
 //  eAction     GetActionId ()      const { return static_cast <eAction> (GetData ()->action); }
   std::string GetActionString ()  const { return m_pAction ? m_pAction->FormatActionString () : CAction::ActionToString (GetActionID()); }
-//  time_t      GetDate ()          const { return GetData ()->date; }
+//  __time32_t      GetDate ()      const { return GetData ()->date; }
   std::string GetComment ()       const;
 
   // special Label Action functions

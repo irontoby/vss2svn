@@ -254,7 +254,8 @@ bool SSFileItem::Validate()
 //    0x101, // ??
 //    0x102 // ??
   };
-  for (int i = 0; i < countof (knownFlags); i++)
+  int i = 0;
+  for (; i < countof (knownFlags); i++)
     if (pFileInfoItem->flag == knownFlags[i])  
       break;
   

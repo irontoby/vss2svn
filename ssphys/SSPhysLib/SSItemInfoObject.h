@@ -51,7 +51,7 @@ public:
   
 //  SSItems* GetItems ();
 //  SSItems* GetCheckouts ();
-//  SSItem* GetVersion (time_t date)    { return NULL; }
+//  SSItem* GetVersion (__time32_t date)    { return NULL; }
 //  SSItem* GetVersion (int v)    { return NULL; }
 //  SSItems* GetVersions ()    { return NULL; }
 

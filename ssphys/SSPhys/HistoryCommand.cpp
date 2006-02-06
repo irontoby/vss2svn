@@ -31,7 +31,6 @@ po::options_description CHistoryCommand::GetOptionsDescription () const
     ("labels,l", "display only label records\n"
                  "append [+|-] to include or exclude label records in the output\n"
                  "by default label records are not printed");
-  descr.add (CMultiArgCommand::GetOptionsDescription());
   return descr;
 }
 
@@ -41,7 +40,6 @@ po::options_description CHistoryCommand::GetHiddenDescription () const
   descr.add_options ()
     ("show-dead",   po::value<std::string> ()->default_value ("exclude"), "internal option for --dead")
     ("show-labels", po::value<std::string> ()->default_value ("include"), "internal option for --labels");
-  descr.add (CMultiArgCommand::GetHiddenDescription());
   return descr;
 }
 

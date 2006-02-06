@@ -189,8 +189,8 @@ void CVssFormatter::Apply (const SSVersionObject& rObject, const ISSContext* pCt
   char line1[60]; _snprintf (line1, 60, format1, rObject.GetVersionNumber ());
   char date[12];
   char time[12];
-  time_t versionDate = rObject.GetDate ();
-  const tm* ttm = gmtime (&versionDate);//localtime (&versionDate);
+  __time32_t versionDate = rObject.GetDate ();
+  const tm* ttm = _gmtime32 (&versionDate);//localtime (&versionDate);
   strftime (date, countof (date), "%x", ttm);
   strftime (time, countof (time), "%X", ttm);
   char line2[60]; _snprintf (line2, 60, format2, rObject.GetUsername ().c_str (), date, time);

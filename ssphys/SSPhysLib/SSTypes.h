@@ -154,7 +154,7 @@ struct VERSION_RECORD {
   ulong   previous;	    // previous VERSION_RECORD
   ushort  actionID;     // eAction action;
   short   versionNumber;
-  time_t  date;
+  __time32_t  date;
   char    username[32];
 
   char    label[32];
