@@ -135,8 +135,8 @@ enum eAction {
   Recovered_File = 9,
   Renamed_Project = 10,
   Renamed_File = 11,
-  // missing action 12,
-  // missing action 13
+  Moved_Project_From = 12,
+  Moved_Project_To = 13,
   Shared_File = 14, // Share, Pin, Unpin	
   Branch_File = 15, // reported as Rollback im Parent Project
   Created_File = 16,
@@ -243,6 +243,12 @@ struct SHARED_FILE_ACTION {
   short   subActionAndVersion; // -1: shared, 0: pinned; >0 unpinned, number denotes the Version which was unpinned
   short   pinnedToVersion;     // >0: pinned to version, ==0 unpinned
   short   padding2;            // reference ins project file? Nr des shares?
+  char    physical[10];
+} ;
+
+struct MOVED_PROJECT_ACTION {
+  char    pathSpec[260];
+  SSNAME  name;
   char    physical[10];
 } ;
 

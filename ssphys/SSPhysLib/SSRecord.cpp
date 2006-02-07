@@ -82,18 +82,19 @@ eType SSRecord::GetType () const
 SSRecord::SSRecord (SSFileImpPtr filePtr, long offset)
   : m_FileImpPtr (filePtr), m_Offset(offset), m_pBuffer(NULL), m_Len (0)
 {
+  int fileLength = m_FileImpPtr->Size ();
+
   if (!m_FileImpPtr->Read (offset, &m_Header, sizeof(m_Header)))
     throw SSException ("could not read record header");
 
   // OPTIMIZE: We do not nead to read all the record payload in advance (esp. for FD records)
   if (m_Header.size > 0)
   {
-    int fileLength = m_FileImpPtr->Size ();
     if (offset + sizeof(m_Header) + m_Header.size > fileLength)
       throw SSRecordException ("bad header: length variable exceeds file size");
 
     m_pBuffer = new byte[m_Header.size];
-    if (!m_FileImpPtr->Read (offset + sizeof(m_Header), m_pBuffer, m_Header.size))
+    if (!m_FileImpPtr->Read (/*offset + sizeof(m_Header), */ m_pBuffer, m_Header.size))
       throw SSException ("could not read record data");
 
     short crc = calc_crc16 (m_pBuffer, m_Header.size);

@@ -28,7 +28,7 @@ class SSRecoveredFileAction;      // Recovered_File = 9,
 class SSRenamedProjectAction;     // Renamed_Project = 10,
 class SSRenamedFileAction;        // Renamed_File = 11,
 //class SSAction12                // missing action 12,
-//class SSAction13                // missing action 13
+class SSMovedProjectAction;       // Moved_Project = 13,
 class SSSharedAction;             // Shared_File = 14, 	
 class SSBranchFileAction;         // Branch_File = 15,
 class SSCreatedFileAction;        // Created_File = 16,
@@ -57,6 +57,7 @@ public:
   virtual bool Apply (const SSRenamedFileAction& rAction) = 0;
   virtual bool Apply (const SSCheckedInAction& rAction) = 0;
   virtual bool Apply (const SSSharedAction& rAction) = 0;
+  virtual bool Apply (const SSMovedProjectAction& rAction) = 0;
 };
 
 //---------------------------------------------------------------------------
@@ -433,5 +434,29 @@ public:
 };
 
 
+//---------------------------------------------------------------------------
 
+class SSMovedProjectAction : public SSItemAction<SSMovedProjectAction, MOVED_PROJECT_ACTION>
+{
+public:
+  SSMovedProjectAction ( SSRecordPtr pRecord);
+  ~SSMovedProjectAction ();
+
+  std::string GetPathSpec () const   { return m_Action.pathSpec; }
+
+//   virtual eAction GetActionID () const
+//   { 
+//     if (m_Action.subActionAndVersion < 0)
+//       return Shared_File;
+//     else if (m_Action.subActionAndVersion == 0)
+//       return Pinned_File;
+//     /* else if (m_Action.subActionAndVersion > 0) */
+//     return Unpinned_File;
+//   }
+
+  virtual std::string FormatActionString ();
+
+  virtual void ToXml (XMLNode* pParent) const;
+  virtual void Dump (std::ostream& os) const;
+};
 #endif // !defined(AFX_SSHISTORYOBJECT_H__58F12C7C_FE74_43B1_9BF6_9E803182D8D7__INCLUDED_)

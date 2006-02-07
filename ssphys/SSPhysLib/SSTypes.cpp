@@ -19,8 +19,8 @@ extern char* g_szActions[] = {
   "Recovered File",     // = 9
   "Renamed Project",    // = 10
   "Renamed File",       // = 11
-  "Action 12",          // missing action 12
-  "Action 13",          // missing action 13
+  "Moved Project From", // = 12
+  "Moved Project To",   // = 13
   "Shared File",        // = 14
   "Branch File",        // = 15 ???
   "Created File",       // = 16

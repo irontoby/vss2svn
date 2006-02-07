@@ -151,7 +151,7 @@ bool SSVersionObject::Validate ()
     static AttribMap ToAttribMap (eAction actionid)
     {
       std::string actionString = CAction::ActionToString (actionid);
-      actionString.erase (std::remove (actionString.begin (), actionString.end (), ' '));
+      actionString.erase (std::remove (actionString.begin (), actionString.end (), ' '), actionString.end ());
 
       return ToAttribMap (actionString);
     }
@@ -276,10 +276,10 @@ SSAction* SSAction::MakeAction (SSRecordPtr pRecord)
     return new SSRenamedProjectAction (pRecord);
   else if (pVersion->actionID == Renamed_File)
     return new SSRenamedFileAction (pRecord);
-//  else if (pVersion->actionID == missing action 12)
-//    return new SSVersionObject (pRecord);
-//  else if (pVersion->actionID == missing action 13)
-//    return new SSVersionObject (pRecord);
+  else if (pVersion->actionID == Moved_Project_From)
+    return new SSMovedProjectAction (pRecord);
+  else if (pVersion->actionID == Moved_Project_To)
+    return new SSMovedProjectAction (pRecord);
   else if (pVersion->actionID == Shared_File)
     return new SSSharedAction (pRecord);
   else if (pVersion->actionID == Branch_File)
@@ -511,6 +511,52 @@ void SSSharedAction::ToXml (XMLNode* pParent) const
 void SSSharedAction::Dump (std::ostream& os) const
 {
   SSItemAction<SSSharedAction, SHARED_FILE_ACTION>::Dump(os);
+}
+
+//---------------------------------------------------------------------------
+SSMovedProjectAction::SSMovedProjectAction (SSRecordPtr pRecord)
+: SSItemAction<SSMovedProjectAction, MOVED_PROJECT_ACTION> (pRecord, "")
+{
+}
+
+SSMovedProjectAction::~SSMovedProjectAction ()
+{
+}
+
+std::string SSMovedProjectAction::FormatActionString ()   
+{ 
+  std::ostringstream str;
+  SSName name (m_Action.name);
+  if (GetActionID() == Moved_Project_From)
+  {
+    str << "Moved $" << name.GetFullName() << " from " << GetPathSpec ();
+  }
+  else
+  {
+    str << "Moved $" << name.GetFullName() << " to " << GetPathSpec ();
+  }
+
+  return str.str();
+}
+
+
+void SSMovedProjectAction::ToXml (XMLNode* pParent) const
+{
+  SSItemAction<SSMovedProjectAction, MOVED_PROJECT_ACTION>::ToXml(pParent);
+
+  if (GetActionID() == Moved_Project_From)
+  {
+    XMLElement srcPathNode (pParent, "SrcPath", GetPathSpec ());
+  }
+  else
+  {
+    XMLElement destPathNode (pParent, "DestPath", GetPathSpec ());
+  }
+}
+
+void SSMovedProjectAction::Dump (std::ostream& os) const
+{
+  SSItemAction<SSMovedProjectAction, MOVED_PROJECT_ACTION>::Dump(os);
 }
 
 //---------------------------------------------------------------------------
