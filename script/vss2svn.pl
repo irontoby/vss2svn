@@ -97,7 +97,7 @@ sub RunConversion {
 #  LoadVssNames
 ###############################################################################
 sub LoadVssNames {
-    &DoSsCmd("info -a \"$gCfg{vssdatadir}\\names.dat\" -s xml");
+    &DoSsCmd("info \"$gCfg{vssdatadir}\\names.dat\"");
 
     my $xs = XML::Simple->new(KeyAttr => [],
                               ForceArray => [qw(Entry)],);
@@ -192,15 +192,24 @@ sub GetPhysVssHistory {
 sub GetVssPhysInfo {
     my($physdir, $physname, $xs) = @_;
 
-    &DoSsCmd("info -a \"$physdir\\$physname\" -s xml");
+    &DoSsCmd("info \"$physdir\\$physname\"");
 
     my $xml = $xs->XMLin($gSysOut);
     my $parentphys;
 
-    if (defined($xml->{ProjectItem})) {
+    my $iteminfo = $xml->{ItemInfo};
+
+    if (!defined($iteminfo) || !defined($iteminfo->{Type}) ||
+        ref($iteminfo->{Type})) {
+
+        &ThrowWarning("Can't handle file '$physname'; not a project or file\n");
+        return;
+    }
+
+    if ($iteminfo->{Type} == 1) {
         $parentphys = ($physname eq 'AAAAAAAA')?
             '' : &GetProjectParent($xml);
-    } elsif (defined($xml->{FileItem})) {
+    } elsif ($iteminfo->{Type} == 2) {
         $parentphys = &GetFileParent($xml);
     } else {
         &ThrowWarning("Can't handle file '$physname'; not a project or file\n");
@@ -218,7 +227,7 @@ sub GetProjectParent {
     my($xml) = @_;
 
     no warnings 'uninitialized';
-    return $xml->{ProjectItem}->{ParentPhys} || undef;
+    return $xml->{ItemInfo}->{ParentPhys} || undef;
 
 }  #  End GetProjectParent
 
@@ -235,22 +244,22 @@ sub GetFileParent {
 
     return undef;
 
-    no warnings 'uninitialized';
-
-    my $parents = $xml->{ParentFolder};
-    my $parentphys;
-
-    if (ref $parents eq 'ARRAY') {
-        # If there is more than one parent folder, this is a shared or branched
-        # item. Since the child item has no way of knowing who its original
-        # parent is, we'll leave it blank and expect it to be filled in by the
-        # parent.
-        $parentphys = undef;
-    } else {
-        $parentphys = $parents->{ParentPhys} || undef;
-    }
-
-    return $parentphys;
+    #no warnings 'uninitialized';
+    #
+    #my $parents = $xml->{ParentFolder};
+    #my $parentphys;
+    #
+    #if (ref $parents eq 'ARRAY') {
+    #    # If there is more than one parent folder, this is a shared or branched
+    #    # item. Since the child item has no way of knowing who its original
+    #    # parent is, we'll leave it blank and expect it to be filled in by the
+    #    # parent.
+    #    $parentphys = undef;
+    #} else {
+    #    $parentphys = $parents->{ParentPhys} || undef;
+    #}
+    #
+    #return $parentphys;
 
 }  #  End GetFileParent
 
@@ -262,9 +271,9 @@ sub GetVssItemInfo {
 
     return 0 unless defined $xml->{Version};
 
-    my($parentdata, $version, $number, $action, $name, $actionid, $actiontype,
+    my($parentdata, $version, $vernum, $action, $name, $actionid, $actiontype,
        $tphysname, $itemname, $itemtype, $parent, $user, $timestamp, $comment,
-       $info, $priority, $cachename);
+       $info, $priority, $sortkey, $cachename);
 
 VERSION:
     foreach $version (@{ $xml->{Version} }) {
@@ -274,39 +283,22 @@ VERSION:
         $user = $version->{UserName};
         $timestamp = $version->{Date};
 
-        $itemname = $name->{content};
-
-        if (defined($name->{offset})) {
-            # Might have a "better" name in the name cache, but sometimes the
-            # original name is best.
-            if ($name->{offset} == 39080) {
-                1;
-            }
-
-            $cachename = $gNameLookup{ $name->{offset} };
-
-            if (!defined($itemname) || ($itemname =~ m/~/ &&
-                length($cachename) > length($itemname))) {
-
-                print "Changing name of '$itemname' to '$cachename' from "
-                    . "name cache\n" if $gCfg{debug};
-
-                $itemname = $cachename;
-            } else {
-                print "Found name '$cachename' in namecache, but kept original "
-                    . "'$itemname'\n" if $gCfg{debug};
-
-                1;
-            }
-        }
+        $itemname = &GetItemName($name);
 
         $actionid = $action->{ActionId};
-        $info = $gActionType{$actionid}; # || next VERSION;  # unknown action
+        $info = $gActionType{$actionid};
+
         if (!$info) {
+            warn "\nWARNING: Unknown action '$actionid'\n";
             next VERSION;
         }
+
         $itemtype = $info->{type};
         $actiontype = $info->{action};
+
+        if ($actiontype eq 'IGNORE') {
+            next VERSION;
+        }
 
         $comment = undef;
         $info = undef;
@@ -317,7 +309,9 @@ VERSION:
             $comment = $version->{Comment} || undef;
         }
 
-        if ($itemtype == 1 && $physname eq 'AAAAAAAA' && ref($tphysname)) {
+        if ($itemtype == 1 && $physname eq 'AAAAAAAA'
+            && ref($tphysname)) {
+
             $tphysname = $physname;
             $itemname = '';
         } elsif ($physname ne $tphysname) {
@@ -341,6 +335,8 @@ VERSION:
             # actually this (project) item
 
             $parentphys = $physname;
+        } else {
+            $parentphys = undef;
         }
 
         if ($itemtype == 1) {
@@ -349,32 +345,62 @@ VERSION:
 
         if ($actiontype eq 'RENAME') {
             # if a rename, we store the new name in the action's 'info' field
-            no warnings 'uninitialized';
 
-            $name = $action->{NewSSName};
-            if (defined($name->{offset})) {
-                $info = $gNameLookup{ $name->{offset} } || $name->{content};
-            } else {
-                $info = $name->{content} || undef;
-            }
+            $info = &GetItemName($action->{NewSSName});
 
             if ($itemtype == 1) {
                 $info .= '/';
             }
         }
 
-        $number = ($parentdata)? undef : $version->{VersionNumber};
+        $vernum = ($parentdata)? undef : $version->{VersionNumber};
 
         $priority -= 4 if $actiontype eq 'ADD'; # Adds are always first
-        $priority -= 3 if $actiontype eq 'COPY';
+        $priority -= 3 if $actiontype eq 'SHARE';
 
-        &AddDataCache($tphysname, $number, $parentphys, $actiontype, $itemname,
-                      $itemtype, $timestamp, $user, $info, $priority,
+        # store the reversed physname as a sortkey; a bit wasteful but makes
+        # debugging easier for the time being...
+        $sortkey = reverse($tphysname);
+
+        &AddDataCache($tphysname, $vernum, $parentphys, $actiontype, $itemname,
+                      $itemtype, $timestamp, $user, $info, $priority, $sortkey,
                       $parentdata, $comment);
 
     }
 
 }  #  End GetVssItemInfo
+
+###############################################################################
+#  GetItemName
+###############################################################################
+sub GetItemName {
+    my($nameelem) = @_;
+
+    my $itemname = $nameelem->{content};
+
+    if (defined($nameelem->{offset})) {
+        # Might have a "better" name in the name cache, but sometimes the
+        # original name is best.
+        my $cachename = $gNameLookup{ $nameelem->{offset} };
+
+        if (!defined($itemname) || ($itemname =~ m/~/ &&
+            length($cachename) > length($itemname))) {
+
+            print "Changing name of '$itemname' to '$cachename' from "
+                . "name cache\n" if $gCfg{debug};
+
+            $itemname = $cachename;
+        } else {
+            print "Found name '$cachename' in namecache, but kept original "
+                . "'$itemname'\n" if $gCfg{debug};
+
+            1;
+        }
+    }
+
+    return $itemname;
+
+}  #  End GetItemName
 
 ###############################################################################
 #  LoadNameLookup
@@ -506,14 +532,15 @@ sub BuildVssActionHistory {
     my($sth, $row, $action, $handler, $itempaths, $itempath);
 
     $sth = &PrepSql('SELECT * FROM PhysicalAction ORDER BY timestamp ASC, '
-                    . 'priority ASC');
+                    . 'priority ASC, physname ASC');
     $sth->execute();
 
     my %handlers =
         (
          ADD        => \&VssAddHandler,
          RENAME     => \&VssRenameHandler,
-         COPY       => \&VssCopyHandler,
+         SHARE      => \&VssShareHandler,
+         MOVE       => \&VssMoveHandler,
          DELETE     => \&VssDeleteHandler,
          RECOVER    => \&VssRecoverHandler,
         );
@@ -530,10 +557,6 @@ sub BuildVssActionHistory {
                         . "'$row->{itemtype}' unexpected");
         }
 
-        if ($row->{physname} eq 'YAAAAAAA') {
-            1;
-        }
-
         # The handler's job is to keep %gPhysInfo up to date with physical-to-
         # real item name mappings and return the full item paths of the physical
         # item. In case of a rename, it will return the old name, so we then do
@@ -545,13 +568,20 @@ sub BuildVssActionHistory {
 
         if (defined($handler)) {
             $itempaths = &$handler($row);
-        } else {
+        } elsif($action eq 'COMMIT') {
             $itempaths = &GetCurrentItemPaths($row->{physname});
+        } else {
+            next;
+        }
+
+        if (!defined $itempaths) {
+            next;
         }
 
         if ($row->{actiontype} eq 'RENAME') {
             $row->{info} = &GetCurrentItemName($row->{physname});
-        } elsif ($row->{actiontype} eq 'COPY') {
+        } elsif ($row->{actiontype} eq 'SHARE' ||
+                 $row->{actiontype} eq 'MOVE') {
             $row->{info} = &GetCurrentItemPaths($row->{physname}, 1)->[0];
         }
 
@@ -604,39 +634,68 @@ sub VssRenameHandler {
     my $physinfo = $gPhysInfo{$physname};
 
     if (!defined $physinfo) {
-        &ThrowError("Attempt to rename unknown item '$physname':\n"
+        &ThrowWarning("Attempt to rename unknown item '$physname':\n"
                     . $gCfg{nameResolveSeen});
+        return undef;
     }
 
-    # A rename of an item renames it in all its shares, so we can just change
-    # the name in one place
+    # A rename of an item renames it in all its shares
     $physinfo->{name} = $row->{info};
 
     return $itempaths;
 }  #  End VssRenameHandler
 
 ###############################################################################
-#  VssCopyHandler
+#  VssShareHandler
 ###############################################################################
-sub VssCopyHandler {
+sub VssShareHandler {
     my($row) = @_;
 
     my $physname = $row->{physname};
     my $physinfo = $gPhysInfo{$physname};
 
     if (!defined $physinfo) {
-        &ThrowError("Attempt to rename unknown item '$physname':\n"
+        &ThrowWarning("Attempt to rename unknown item '$physname':\n"
                     . $gCfg{nameResolveSeen});
+        return undef;
+
     }
 
     push @{ $physinfo->{sharedphys} }, $row->{parentphys};
 
-    # We only return only the path for this new location (the copy target);
+    # We return only the path for this new location (the share target);
     # the source path will be added to the "info" field by caller
     my $parentpaths = &GetCurrentItemPaths($row->{parentphys}, 1);
     return [$parentpaths->[0] . $physinfo->{name}];
 
-}  #  End VssCopyHandler
+}  #  End VssShareHandler
+
+###############################################################################
+#  VssMoveHandler
+###############################################################################
+sub VssMoveHandler {
+    my($row) = @_;
+
+    # Get the existing paths before the move; parent sub will get the new
+    # name
+    my $physname = $row->{physname};
+    my $itempaths = &GetCurrentItemPaths($physname);
+
+    my $physinfo = $gPhysInfo{$physname};
+
+    if (!defined $physinfo) {
+        &ThrowWarning("Attempt to rename unknown item '$physname':\n"
+                    . $gCfg{nameResolveSeen});
+        return undef;
+    }
+
+    # Only projects can have true "moves", and projects don't have shares, so
+    # we don't need to worry about any shared paths
+    $physinfo->{parentphys} = $row->{parentphys};
+
+    return $itempaths;
+
+}  #  End VssMoveHandler
 
 ###############################################################################
 #  VssDeleteHandler
@@ -652,8 +711,9 @@ sub VssDeleteHandler {
     my $physinfo = $gPhysInfo{$physname};
 
     if (!defined $physinfo) {
-        &ThrowError("Attempt to delete unknown item '$physname':\n"
+        &ThrowWarning("Attempt to delete unknown item '$physname':\n"
                     . $gCfg{nameResolveSeen});
+        return undef;
     }
 
     if ($physinfo->{parentphys} eq $row->{parentphys}) {
@@ -690,8 +750,9 @@ sub VssRecoverHandler {
     my $physinfo = $gPhysInfo{$physname};
 
     if (!defined $physinfo) {
-        &ThrowError("Attempt to recover unknown item '$physname':\n"
+        &ThrowWarning("Attempt to recover unknown item '$physname':\n"
                     . $gCfg{nameResolveSeen});
+        return undef;
     }
 
     if (defined $physinfo->{parentphys}) {
@@ -731,7 +792,7 @@ sub GetCurrentItemPaths {
         $gCfg{nameResolveRecurse} = 0;
         $gCfg{nameResolveSeen} = '';
     } elsif (++$gCfg{nameResolveRecurse} >= 1000) {
-        &ThrowError("Infinite recursion detected while looking up parent for "
+        &ThrowWarning("Infinite recursion detected while looking up parent for "
                     . "'$physname'");
     }
 
@@ -744,8 +805,9 @@ sub GetCurrentItemPaths {
     my $physinfo = $gPhysInfo{$physname};
 
     if (!defined $physinfo) {
-        &ThrowError("Could not determine real path for '$physname':\n"
+        &ThrowWarning("Could not determine real path for '$physname':\n"
                     . $gCfg{nameResolveSeen});
+        return undef;
     }
 
     $gCfg{nameResolveSeen} .= "$physname, ";
@@ -761,6 +823,10 @@ sub GetCurrentItemPaths {
             1;
         }
         $result = &GetCurrentItemPaths($parent, 1, 1);
+
+        if(!defined $result) {
+            return undef;
+        }
 
         push @$paths, $result->[0] . $physinfo->{name};
     }
@@ -895,15 +961,9 @@ sub DoSsCmd {
 
     my $ok = &DoSysCmd("\"$gCfg{ssphys}\" $cmd", 1);
 
+    $gSysOut =~ s/\x00//g; # remove null bytes
     $gSysOut =~ s/.\x08//g; # yes, I've seen VSS store backspaces in names!
     $gSysOut =~ s/[\x00-\x09\x11\x12\x14-\x1F\x7F-\xFF]/_/g; # just to be sure
-
-    if (!$ok) {
-        # ssphys.exe has bailed on us; hope we were between items and add
-        # a closing element!
-        $gSysOut =~ s/^ssphys v0\.16:.*name as the source name//ms;
-        $gSysOut .= "\n</File>\n";
-    }
 
 }  #  End DoSsCmd
 
@@ -1263,6 +1323,7 @@ CREATE TABLE
         author      VARCHAR,
         info        VARCHAR,
         priority    INTEGER,
+        sortkey     VARCHAR,
         parentdata  INTEGER,
         comment     TEXT
     )
@@ -1274,7 +1335,9 @@ EOSQL
     $sql = <<"EOSQL";
 CREATE INDEX
     PhysicalAction_IDX1 ON PhysicalAction (
-        timestamp   ASC
+        timestamp   ASC,
+        priority    ASC,
+        sortkey     ASC
     )
 EOSQL
 
@@ -1502,6 +1565,8 @@ __DATA__
 CreatedProject	1	ADD
 AddedProject	1	ADD
 RenamedProject	1	RENAME
+MovedProjectTo	1	IGNORE
+MovedProjectFrom	1	MOVE
 DeletedProject	1	DELETE
 RecoveredProject	1	RECOVER
 Checkedin	2	COMMIT
@@ -1511,5 +1576,5 @@ RenamedFile	2	RENAME
 DeletedFile	2	DELETE
 RecoveredFile	2	RECOVER
 SharedFile	2	COPY
-PinnedFile	2	XXX
-UnpinnedFile	2	XXX
+PinnedFile	2	IGNORE
+UnpinnedFile	2	IGNORE
