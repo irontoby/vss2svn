@@ -12,7 +12,8 @@
 SSCommentObject::SSCommentObject(SSRecordPtr pRecord)
   : SSObject (pRecord, eCommentRecord)
 {
-  m_Comment = std::string (reinterpret_cast <const char*> (pRecord->GetBuffer()), pRecord->GetLen ());
+  int len = std::min (strlen (reinterpret_cast <const char*> (pRecord->GetBuffer())), (size_t) pRecord->GetLen ());
+  m_Comment = std::string (reinterpret_cast <const char*> (pRecord->GetBuffer()), len);
 }
 
 SSCommentObject::~SSCommentObject()

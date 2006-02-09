@@ -194,7 +194,7 @@ class SSItemAction : public SSActionEx<ACTION>, public ISSItemAction
 public:
   SSItemAction (SSRecordPtr pRecord, std::string actionString);
 
-  std::string GetPhysical () const { return std::string (m_Action.physical, 8); }
+  std::string GetPhysical () const { return std::string (m_Action.physical, std::min (strlen (m_Action.physical), (size_t)8)); }
   SSName GetSSName ()        const { return m_Action.name; }
 
   std::string GetName ()     const { SSName name (GetSSName ()); return name.GetFullName (); }
