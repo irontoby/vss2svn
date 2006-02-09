@@ -224,19 +224,24 @@ readme.txt;18 = INEAAAAA;18
 
 === Rollback ===
 
-There are actually two types of rollback activities. 
+==== Rollback Action vs. Rollback Activities ====
 
-The first one is available in the history dialog of the SSExplorer. This one will 
-let you "constantly" delete some content of your history by completly removing it
-out of the physical file. There are no remains left over and there is no entry in
-the history, that this action happend.
+The term Rollback is a bit misleading in VSS. There is a properties command where 
+you can perform "Rollback" activities and, there is the "Rollback action" reported
+in the history. Both have nothing in common. 
+
+The first one is available from the command line ot the history dialog of the 
+SSExplorer. This one will let you "constantly" delete some content of your history 
+by completly removing it out of the physical file. There are no remains left over 
+and there is no entry in the item history, that you performed this action.
 
 The second one is implicitly triggered by the branch command. The branch will force
 the creation of a new physical file. In order to follow the history to the point
-before the branch, the first action in this new file is a RollBack Action, with
+before the branch, the first action in this new file is a "RollBack Action", with
 the information about the parent physical file and the branchpoint. See under Branches
-for an example. It is like saying "from now on continue reporting from a different 
+for an example. It is like saying "from now on continue with the history in a different 
 file at a specific version number"
 
 If you see a "Roolback to version" action in the history of a file, this is always
 due to a branch action. 
+
