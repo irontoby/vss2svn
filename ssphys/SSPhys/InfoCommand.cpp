@@ -14,16 +14,14 @@
 //////////////////////////////////////////////////////////////////////
 
 CInfoCommand::CInfoCommand()
-  : CMultiArgCommand ("info", "Shows basic information about a VSS phyiscal file")
+  : CMultiArgCommand ("info", "report on all or specific records of a VSS phyiscal file")
 {
 }
 
 po::options_description CInfoCommand::GetOptionsDescription () const
 {
-//  po::options_description descr ("info options:\nshow information about a physical (record structured) file");
   po::options_description descr (CMultiArgCommand::GetOptionsDescription());
   descr.add_options ()
-    ("all,a", "show information about all records")
     ("basic,b", "show only basic information about the records")
     ("offset,o", po::value <int> (), "only display information of the record at a specific offset");
   return descr;
@@ -45,13 +43,10 @@ void CInfoCommand::Info (SSRecordPtr pRecord, bool bBasicInfo)
 
 void CInfoCommand::Execute (po::variables_map const& options, std::string const& arg)
 {
-  bool bAllRecords = false;
   bool bBasicInfo = false;
   bool bDisplayAtOffset = false;
   int offset = 0;
 
-  if (options.count("all"))
-    bAllRecords = true;
   if (options.count("basic"))
     bBasicInfo = true;
   if (options.count("offset"))
@@ -65,16 +60,7 @@ void CInfoCommand::Execute (po::variables_map const& options, std::string const&
   if (pFile.get ())
   {
     GetFormatter()->BeginFile (arg);
-    if (bAllRecords)
-    {
-      SSRecordPtr pRecord = pFile->GetFirstRecord();
-      while (pRecord)
-      {
-        Info (pRecord, bBasicInfo);
-        pRecord = pFile->FindNextRecord(pRecord);
-      }
-    }
-    else if (bDisplayAtOffset)
+    if (bDisplayAtOffset)
     {
       SSRecordPtr pRecord = pFile->GetRecord(offset);
       Info (pRecord, bBasicInfo);
@@ -82,14 +68,11 @@ void CInfoCommand::Execute (po::variables_map const& options, std::string const&
     else
     {
       SSRecordPtr pRecord = pFile->GetFirstRecord();
-
-      // In a names.dat file, the first record "NamesCache" is also some kind of InfoObject
-      // so simply report on the first record
-
-      // try, wether the first record is an item info object?
-      // std::auto_ptr<SSObject> pObject (SSItemInfoObject::MakeItemInfo(pRecord));
-
-      Info (pRecord, bBasicInfo);
+      while (pRecord)
+      {
+        Info (pRecord, bBasicInfo);
+        pRecord = pFile->FindNextRecord(pRecord);
+      }
     }
 
     GetFormatter()->EndFile ();
