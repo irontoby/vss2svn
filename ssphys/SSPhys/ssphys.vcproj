@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="Windows-1252"?>
 <VisualStudioProject
 	ProjectType="Visual C++"
-	Version="8.00"
+	Version="8,00"
 	Name="ssphys"
 	ProjectGUID="{FCF4A98B-3FE2-452D-9816-A67927261F25}"
 	RootNamespace="ssphys"
@@ -363,7 +363,8 @@
 				>
 				<Tool
 					Name="VCCustomBuildTool"
-					CommandLine="SubWCRev .. ..\$(InputFileName) ..\version.h&#x0D;&#x0A;"
+					Description="Performing Custom Build Step on ..\$(InputFileName)"
+					CommandLine="SubWCRev .. ..\$(InputFileName) ..\version.h"
 					Outputs="..\version.h"
 				/>
 			</FileConfiguration>
@@ -372,7 +373,8 @@
 				>
 				<Tool
 					Name="VCCustomBuildTool"
-					CommandLine="SubWCRev .. ..\$(InputFileName) ..\version.h&#x0D;&#x0A;"
+					Description="Performing Custom Build Step on ..\$(InputFileName)"
+					CommandLine="SubWCRev .. ..\$(InputFileName) ..\version.h"
 					Outputs="..\version.h"
 				/>
 			</FileConfiguration>
