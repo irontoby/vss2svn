@@ -85,6 +85,8 @@ public:
   virtual bool Apply (const SSCheckedInAction& rAction)         { return Apply ((const SSAction&) rAction); }
   virtual bool Apply (const SSSharedAction& rAction)            { return Apply ((const SSAction&) rAction); }
 
+  virtual bool Apply (const SSMovedProjectAction& rAction)      { return Apply ((const SSAction&) rAction); }
+
 protected:
   virtual bool Apply (const SSAction& rAction) 
   { 
@@ -379,6 +381,7 @@ public:
 //  virtual bool Apply (const SSCheckedInAction& rAction)         { return Apply ((const SSAction&) rAction); }
 // TODO:
 //  virtual bool Apply (const SSSharedFileAction& rAction)        { return Apply ((const SSAction&) rAction); }
+//  virtual bool Apply (const SSMovedProjectAction& rAction);
 
 protected:
   virtual bool Apply (const SSAction& rAction) 
