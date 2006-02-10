@@ -26,11 +26,13 @@ sub new {
     my $self =
         {
          row => $row,
+         action => undef,
          info => undef,
-         errmsg => undef,
+         errmsg => '',
          itempaths => undef,
          recursed => 0,
          physname_seen => '',
+         verbose => 0,
         };
 
     return bless($self, $class);
@@ -42,14 +44,26 @@ sub new {
 sub handle {
     my($self, $action) = @_;
 
+    $self->{action} = $action;
     my $handler = $handlers{$action};
 
     if (!defined($handler)) {
-        $self->{errmsg} = "Unknown action '$action'";
+        $self->{errmsg} .= "Unknown action '$action'";
         return 0;
     }
 
-    return $self->$handler;
+    if ($self->{verbose}) {
+        my $physprint = (defined $self->{row}->{physname})?
+            $self->{row}->{physname} : '!UNDEF';
+        my $parentprint = (defined $self->{row}->{parentphys})?
+            $self->{row}->{parentphys} : '!UNDEF';
+        print "$action: $physprint, $parentprint \@ $self->{row}->{timestamp}\n";
+    }
+
+    my $rv = $self->$handler;
+
+    $self->{errmsg} =~ s/\n$//;
+    return $rv;
 
 }  #  End handle
 
@@ -72,6 +86,14 @@ sub _add_handler {
     # For each physical item, we store its "real" physical parent in the
     # 'parentphys' property, then keep a list of additional shared parents in
     # the 'sharedphys' array.
+
+    my $parentphys = $row->{parentphys};
+
+    if (!defined $parentphys) {
+        $self->{errmsg} .= "Attempt to add entry '$row->{physname}' with "
+            . "unknown parent\n";
+        return 0;
+    }
 
     $gPhysInfo{ $row->{physname} } =
         {
@@ -113,8 +135,8 @@ sub _rename_handler {
     my $physinfo = $gPhysInfo{$physname};
 
     if (!defined $physinfo) {
-        $self->{errmsg} = "Attempt to rename unknown item '$physname':\n"
-            . $self->{nameResolveSeen};
+        $self->{errmsg} .= "Attempt to rename unknown item '$physname':\n"
+            . "$self->{nameResolveSeen}\n";
 
         return 0;
     }
@@ -139,8 +161,8 @@ sub _share_handler {
     my $physinfo = $gPhysInfo{$physname};
 
     if (!defined $physinfo) {
-        $self->{errmsg} = "Attempt to share unknown item '$physname':\n"
-            . $self->{physname_seen};
+        $self->{errmsg} .= "Attempt to share unknown item '$physname':\n"
+            . "$self->{physname_seen}\n";
 
         return 0;
     }
@@ -152,8 +174,18 @@ sub _share_handler {
     my $parentpaths = $self->_get_item_paths($row->{parentphys}, 1);
 
     $self->{itempaths} = [$parentpaths->[0] . $physinfo->{name}];
-    $self->{info} = $self->_get_current_item_paths(1)->[0];
+    my $sourceinfo = $self->_get_current_item_paths(1);
 
+    if (!defined($sourceinfo) || scalar(@$sourceinfo) == 0) {
+        # We can't figure out the path for the parent that this share came from,
+        # so it was either destroyed or corrupted. That means that this isn't
+        # a share anymore; it's a new add.
+
+        $self->{action} = 'ADD';
+        return $self->_add_handler();
+    }
+
+    $self->{info} = $sourceinfo->[0];
     return 1;
 
 }  #  End _share_handler
@@ -221,8 +253,8 @@ sub _move_handler {
     my $physinfo = $gPhysInfo{$physname};
 
     if (!defined $physinfo) {
-        $self->{errmsg} = "Attempt to rename unknown item '$physname':\n"
-            . $self->{physname_seen};
+        $self->{errmsg} .= "Attempt to rename unknown item '$physname':\n"
+            . "$self->{physname_seen}\n";
 
         return 0;
     }
@@ -256,8 +288,8 @@ sub _delete_handler {
     my $physinfo = $gPhysInfo{$physname};
 
     if (!defined $physinfo) {
-        $self->{errmsg} =  "Attempt to delete unknown item '$physname':\n"
-            . $self->{physname_seen};
+        $self->{errmsg} .=  "Attempt to delete unknown item '$physname':\n"
+            . "$self->{physname_seen}\n";
         return 0;
     }
 
@@ -298,8 +330,8 @@ sub _recover_handler {
     my $physinfo = $gPhysInfo{$physname};
 
     if (!defined $physinfo) {
-        $self->{errmsg} = "Attempt to recover unknown item '$physname':\n"
-            . $self->{physname_seen};
+        $self->{errmsg} .= "Attempt to recover unknown item '$physname':\n"
+            . "$self->{physname_seen}\n";
 
         return 0;
     }
@@ -348,11 +380,21 @@ sub _get_item_paths {
     # is shared, unless $mainonly is true. Luckily, only files can be shared,
     # not projects, so once we start recursing we can set $mainonly to true.
 
-    if (++($self->{recursed}) >= 1000) {
-        $self->{errmsg} = "Infinite recursion detected while looking up "
-            . "parent for '$physname':\n$self->{physname_seen}";
+    if ($self->{verbose}) {
+        my $physprint = (defined $physname)? $physname : '!UNDEF';
+        my $space = ($self->{recursed})? '   ' : '';
+        print "${space}_get_item_paths($physprint)\n";
+    }
 
-        return 0;
+    if (++($self->{recursed}) >= 1000) {
+        $self->{errmsg} .= "Infinite recursion detected while looking up "
+            . "parent for '$physname':\n$self->{physname_seen}\n";
+
+        return undef;
+    }
+
+    if (!defined($physname)) {
+        return undef;
     }
 
     if ($physname eq 'AAAAAAAA') {
@@ -364,31 +406,39 @@ sub _get_item_paths {
     my $physinfo = $gPhysInfo{$physname};
 
     if (!defined $physinfo) {
-        $self->{errmsg} = "Could not determine real path for '$physname':\n"
-            . $self->{physname_seen};
+        $self->{errmsg} .= "Could not determine real path for '$physname':\n"
+            . "$self->{physname_seen}\n";
 
         return undef;
     }
 
     $self->{physname_seen} .= "$physname, ";
 
-    my @pathstoget = $mainonly? ($physinfo->{parentphys}) :
+    my @pathstoget =
         ($physinfo->{parentphys}, @{ $physinfo->{sharedphys} } );
 
     my $paths = [];
     my $result;
 
+PARENT:
     foreach my $parent (@pathstoget) {
         if (!defined $parent) {
-            1;
+            next PARENT;
         }
-        $result = $self->_get_item_paths($parent, 1, 1);
+        $result = $self->_get_item_paths($parent, 1);
 
-        if(!defined $result) {
-            return undef;
+        if(!defined($result) || scalar(@$result) == 0) {
+            next PARENT;
         }
 
         push @$paths, $result->[0] . $physinfo->{name};
+    }
+
+    # It may seem unnecessary to get all the paths if we knew we were going to
+    # return just one, but sometimes one of the paths becomes corrupted so we
+    # take the first one we can get.
+    if ($mainonly && @$paths) {
+        return [ $paths->[0] ];
     }
 
     return $paths;
@@ -405,8 +455,8 @@ sub _get_current_item_name {
     my $physinfo = $gPhysInfo{$physname};
 
     if (!defined $physinfo) {
-        $self->{errmsg} = "Could not determine real name for '$physname':\n"
-            . $self->{physname_seen};
+        $self->{errmsg} .= "Could not determine real name for '$physname':\n"
+            . "$self->{physname_seen}\n";
         return undef;
     }
 

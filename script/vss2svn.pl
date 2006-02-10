@@ -472,6 +472,13 @@ sub MergeParentData {
 sub GetChildRecs {
     my($parentrec) = @_;
 
+    # Here we need to find any child rows which give us additional info on the
+    # parent rows. There's no definitive way to find matching rows, but joining
+    # on physname, actiontype, timestamp, and author gets us close. The problem
+    # is that the "two" actions may not have happened in the exact same second,
+    # so we need to also look for any that are up to two seconds apart and hope
+    # we don't get the wrong row.
+
     my $sql = <<"EOSQL";
 SELECT
     *
@@ -481,8 +488,10 @@ WHERE
     parentdata = 0
     AND physname = ?
     AND actiontype = ?
-    AND timestamp = ?
+    AND (? - timestamp IN (0, 1, 2))
     AND author = ?
+ORDER BY
+    timestamp
 EOSQL
 
     my $sth = &PrepSql($sql);
@@ -536,7 +545,7 @@ sub BuildVssActionHistory {
     my($sth, $row, $action, $handler, $physinfo, $itempaths, $itempath);
 
     $sth = &PrepSql('SELECT * FROM PhysicalAction ORDER BY timestamp ASC, '
-                    . 'priority ASC, physname ASC');
+                    . 'priority ASC, sortkey ASC');
     $sth->execute();
 
 ROW:
@@ -544,6 +553,7 @@ ROW:
         $action = $row->{actiontype};
 
         $handler = Vss2Svn::ActionHandler->new($row);
+        $handler->{verbose} = $gCfg{verbose};
         $physinfo = $handler->physinfo();
 
         if (defined($physinfo) && $physinfo->{type} != $row->{itemtype} ) {
@@ -568,8 +578,13 @@ ROW:
         $itempaths = $handler->{itempaths};
 
         if (!defined $itempaths) {
+            &ThrowWarning($handler->{errmsg});
             next ROW;
         }
+
+        # In cases of a corrupted share source, the handler may change the
+        # action from 'SHARE' to 'ADD'
+        $row->{actiontype} = $handler->{action};
 
         # May contain add'l info for the action depending on type:
         # RENAME: the new name (without path)
@@ -963,7 +978,6 @@ sub CommitDataCache {
 sub PrepSql {
     my($sql) = @_;
 
-    print "\nSQL:\n$sql\n" if $gCfg{debug};
     return $gCfg{dbh}->prepare($sql);
 
 }  #  End PrepSql
@@ -1118,18 +1132,6 @@ EOSQL
 
     $sql = <<"EOSQL";
 CREATE TABLE
-    ItemNameHistory (
-        physname    VARCHAR,
-        timestamp   INTEGER,
-        itemname    VARCHAR
-    )
-EOSQL
-
-    $sth = &PrepSql($sql);
-    $sth->execute;
-
-    $sql = <<"EOSQL";
-CREATE TABLE
     Revision (
         revision_id INTEGER PRIMARY KEY,
         svndate     VARCHAR,
@@ -1154,7 +1156,7 @@ EOSQL
     $sth->execute;
 
     my @cfgitems = qw(task step vssdir svnurl svnuser svnpwd ssphys tempdir
-        setsvndate debug verbose starttime);
+        setsvndate starttime);
 
     my $fielddef = join(",\n        ",
                         map {sprintf('%-12.12s VARCHAR', $_)} @cfgitems);
@@ -1242,6 +1244,10 @@ sub Initialize {
         $gCfg{resume} = 0;
     }
 
+    if ($gCfg{debug}) {
+        $gCfg{verbose} = 1;
+    }
+
     ### Don't go past here if resuming a previous run ###
     if ($gCfg{resume}) {
         return 1;
@@ -1258,10 +1264,6 @@ sub Initialize {
     $gCfg{task} = 'INIT';
     $gCfg{step} = 0;
     $gCfg{starttime} = scalar localtime($^T);
-
-    if ($gCfg{debug}) {
-        $gCfg{verbose} = 1;
-    }
 
 }  #  End Initialize
 
@@ -1307,16 +1309,18 @@ RenamedProject	1	RENAME
 MovedProjectTo	1	IGNORE
 MovedProjectFrom	1	MOVE
 DeletedProject	1	DELETE
+DestroyedProject	1	IGNORE
 RecoveredProject	1	RECOVER
 CheckedIn	2	COMMIT
 CreatedFile	2	ADD
 AddedFile	2	ADD
 RenamedFile	2	RENAME
 DeletedFile	2	DELETE
+DestroyedFile	2	IGNORE
 RecoveredFile	2	RECOVER
 SharedFile	2	SHARE
 BranchFile	2	BRANCH
 PinnedFile	2	IGNORE
 RollBack	2	IGNORE
 UnpinnedFile	2	IGNORE
-DestroyedFile	2	IGNORE
+Labeled	2	IGNORE
