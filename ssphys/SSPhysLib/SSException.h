@@ -59,11 +59,13 @@ public:
 	virtual const char *what() const
   { 
     std::ostringstream stream;
-    stream << m_Str << " " << m_Action << " at offset 0x" << std::hex << m_record->GetOffset();
-    return (stream.str().c_str ()); 
+	stream << m_Str << " " << m_Action << " at offset 0x" << std::hex << m_record->GetOffset();
+	m_Message = stream.str();
+	return (m_Message.c_str ()); 
   }
 private:
   short m_Action;
+  mutable std::string m_Message;
   SSRecordPtr m_record;
 };
 
