@@ -13,8 +13,10 @@ use Data::Dumper;
 
 use lib '.';
 use Vss2Svn::ActionHandler;
+use Vss2Svn::DataCache;
+use Vss2Svn::SvnRevHandler;
 
-our(%gCfg, %gSth, @gErr, %gFh, $gSysOut, %gActionType, %gNameLookup, $gId);
+our(%gCfg, %gSth, @gErr, %gFh, $gSysOut, %gActionType, %gNameLookup, %gId);
 
 our $VERSION = '0.10';
 
@@ -109,7 +111,8 @@ sub LoadVssNames {
 
     my($entry, $count, $offset, $name);
 
-    &StartDataCache('NameLookup', 1);
+    my $cache = Vss2Svn::DataCache->new('NameLookup')
+        || &ThrowError("Could not create cache 'NameLookup'");
 
 ENTRY:
     foreach $entry (@$namesref) {
@@ -124,10 +127,10 @@ ENTRY:
             $name = $entry->{Entry}->[$count - 2]->{content};
         }
 
-        &AddDataCache($offset, $name);
+        $cache->add($offset, $name);
     }
 
-    &CommitDataCache();
+    $cache->commit();
 
 }  #  End LoadVssNames
 
@@ -136,11 +139,12 @@ ENTRY:
 ###############################################################################
 sub FindPhysDbFiles {
 
-    &StartDataCache('Physical', 1);
+    my $cache = Vss2Svn::DataCache->new('Physical')
+        || &ThrowError("Could not create cache 'Physical'");
 
-    find(\&FoundSsFile, $gCfg{vssdatadir});
+    find(sub{ &FoundSsFile($cache) }, $gCfg{vssdatadir});
 
-    &CommitDataCache();
+    $cache->commit();
 
 }  #  End FindPhysDbFiles
 
@@ -148,6 +152,7 @@ sub FindPhysDbFiles {
 #  FoundSsFile
 ###############################################################################
 sub FoundSsFile {
+    my($cache) = @_;
 
     my $path = $File::Find::name;
     return if (-d $path);
@@ -155,7 +160,7 @@ sub FoundSsFile {
     my $vssdatadir = quotemeta($gCfg{vssdatadir});
 
     if ($path =~ m:^$vssdatadir/./([a-z]{8})$:i) {
-        &AddDataCache(uc($1));
+        $cache->add(uc($1));
     }
 
 }  #  End FoundSsFile
@@ -167,10 +172,11 @@ sub GetPhysVssHistory {
     my($sql, $sth, $row, $physname, $physdir);
 
     &LoadNameLookup;
-    &StartDataCache('PhysicalAction', 1, 1);
+    my $cache = Vss2Svn::DataCache->new('PhysicalAction', 1)
+        || &ThrowError("Could not create cache 'PhysicalAction'");
 
     $sql = "SELECT * FROM Physical";
-    $sth = &PrepSql($sql);
+    $sth = $gCfg{dbh}->prepare($sql);
     $sth->execute();
 
     my $xs = XML::Simple->new(ForceArray => [qw(Version)]);
@@ -180,10 +186,10 @@ sub GetPhysVssHistory {
 
         $physdir = "$gCfg{vssdir}\\data\\" . substr($physname, 0, 1);
 
-        &GetVssPhysInfo($physdir, $physname, $xs);
+        &GetVssPhysInfo($cache, $physdir, $physname, $xs);
     }
 
-    &CommitDataCache();
+    $cache->commit();
 
 }  #  End GetPhysVssHistory
 
@@ -191,7 +197,7 @@ sub GetPhysVssHistory {
 #  GetVssPhysInfo
 ###############################################################################
 sub GetVssPhysInfo {
-    my($physdir, $physname, $xs) = @_;
+    my($cache, $physdir, $physname, $xs) = @_;
 
     &DoSsCmd("info \"$physdir\\$physname\"");
 
@@ -211,13 +217,13 @@ sub GetVssPhysInfo {
         $parentphys = ($physname eq 'AAAAAAAA')?
             '' : &GetProjectParent($xml);
     } elsif ($iteminfo->{Type} == 2) {
-        $parentphys = &GetFileParent($xml);
+        $parentphys = undef;
     } else {
         &ThrowWarning("Can't handle file '$physname'; not a project or file\n");
         return;
     }
 
-    &GetVssItemVersions($physname, $parentphys, $xml);
+    &GetVssItemVersions($cache, $physname, $parentphys, $xml);
 
 }  #  End GetVssPhysInfo
 
@@ -233,42 +239,10 @@ sub GetProjectParent {
 }  #  End GetProjectParent
 
 ###############################################################################
-#  GetFileParent
-###############################################################################
-sub GetFileParent {
-    my($xml) = @_;
-
-    # TODO: determine whether we ever really need to get the parent for a child
-    # item at this phase. For commits, we'll apply the change to all existing
-    # shares at that time, and for renames, deletes, shares, etc., we'll have
-    # that info from the parent already.
-
-    return undef;
-
-    #no warnings 'uninitialized';
-    #
-    #my $parents = $xml->{ParentFolder};
-    #my $parentphys;
-    #
-    #if (ref $parents eq 'ARRAY') {
-    #    # If there is more than one parent folder, this is a shared or branched
-    #    # item. Since the child item has no way of knowing who its original
-    #    # parent is, we'll leave it blank and expect it to be filled in by the
-    #    # parent.
-    #    $parentphys = undef;
-    #} else {
-    #    $parentphys = $parents->{ParentPhys} || undef;
-    #}
-    #
-    #return $parentphys;
-
-}  #  End GetFileParent
-
-###############################################################################
 #  GetVssItemVersions
 ###############################################################################
 sub GetVssItemVersions {
-    my($physname, $parentphys, $xml) = @_;
+    my($cache, $physname, $parentphys, $xml) = @_;
 
     return 0 unless defined $xml->{Version};
 
@@ -366,9 +340,9 @@ VERSION:
         # debugging easier for the time being...
         $sortkey = reverse($tphysname);
 
-        &AddDataCache($tphysname, $vernum, $parentphys, $actiontype, $itemname,
-                      $itemtype, $timestamp, $user, $info, $priority, $sortkey,
-                      $parentdata, $comment);
+        $cache->add($tphysname, $vernum, $parentphys, $actiontype, $itemname,
+                    $itemtype, $timestamp, $user, $info, $priority, $sortkey,
+                    $parentdata, $comment);
 
     }
 
@@ -412,7 +386,7 @@ sub GetItemName {
 sub LoadNameLookup {
     my($sth, $row);
 
-    $sth = &PrepSql('SELECT offset, name FROM NameLookup');
+    $sth = $gCfg{dbh}->prepare('SELECT offset, name FROM NameLookup');
     $sth->execute();
 
     while(defined($row = $sth->fetchrow_hashref() )) {
@@ -435,7 +409,8 @@ sub MergeParentData {
     # then delete the separate child objects to avoid duplication.
 
     my($sth, $rows, $row);
-    $sth = &PrepSql('SELECT * FROM PhysicalAction WHERE parentdata = 1');
+    $sth = $gCfg{dbh}->prepare('SELECT * FROM PhysicalAction '
+                               . 'WHERE parentdata = 1');
     $sth->execute();
 
     # need to pull in all recs at once, since we'll be updating/deleting data
@@ -494,7 +469,7 @@ ORDER BY
     timestamp
 EOSQL
 
-    my $sth = &PrepSql($sql);
+    my $sth = $gCfg{dbh}->prepare($sql);
     $sth->execute( @{ $parentrec }{qw(physname actiontype timestamp author)} );
 
     return $sth->fetchall_arrayref( {} );
@@ -519,7 +494,7 @@ WHERE
     action_id = ?
 EOSQL
 
-    my $sth = &PrepSql($sql);
+    my $sth = $gCfg{dbh}->prepare($sql);
     $sth->execute( $child->{version}, $child->{comment}, $row->{action_id} );
 
 }  #  End UpdateParentRec
@@ -532,7 +507,7 @@ sub DeleteChildRec {
 
     my $sql = "DELETE FROM PhysicalAction WHERE action_id = ?";
 
-    my $sth = &PrepSql($sql);
+    my $sth = $gCfg{dbh}->prepare($sql);
     $sth->execute($id);
 }  #  End DeleteChildRec
 
@@ -540,16 +515,31 @@ sub DeleteChildRec {
 #  BuildVssActionHistory
 ###############################################################################
 sub BuildVssActionHistory {
-    &StartDataCache('VssAction', 1, 1);
+    my $vsscache = Vss2Svn::DataCache->new('VssAction', 1)
+        || &ThrowError("Could not create cache 'VssAction'");
+
+    my $joincache = Vss2Svn::DataCache->new('SvnRevisionVssAction')
+        || &ThrowError("Could not create cache 'SvnRevisionVssAction'");
+
+    # This will keep track of the current SVN revision, and increment it when
+    # the author or comment changes, the timestamps span more than an hour
+    # (by default), or the same physical file is affected twice
+
+    my $svnrevs = Vss2Svn::SvnRevHandler->new()
+        || &ThrowError("Could not create SVN revision handler");
+    $svnrevs->{verbose} = $gCfg{verbose};
 
     my($sth, $row, $action, $handler, $physinfo, $itempaths, $itempath);
 
-    $sth = &PrepSql('SELECT * FROM PhysicalAction ORDER BY timestamp ASC, '
-                    . 'priority ASC, sortkey ASC');
+    my $sql = 'SELECT * FROM PhysicalAction ORDER BY timestamp ASC, '
+                    . 'priority ASC, sortkey ASC';
+
+    $sth = $gCfg{dbh}->prepare($sql);
     $sth->execute();
 
 ROW:
     while(defined($row = $sth->fetchrow_hashref() )) {
+        $svnrevs->check($row);
         $action = $row->{actiontype};
 
         $handler = Vss2Svn::ActionHandler->new($row);
@@ -595,15 +585,25 @@ ROW:
         foreach $itempath (@$itempaths) {
             $row->{itempath} = $itempath;
 
-            &AddDataCache(@$row{ qw(physname version actiontype itempath itemtype
-                timestamp author info comment) });
+            $vsscache->add(@$row{ qw(physname version actiontype itempath
+                                 itemtype info) });
+            $joincache->add( $svnrevs->{revnum}, $vsscache->{pkey} );
         }
 
     }
 
-    &CommitDataCache();
+    $vsscache->commit();
+    $svnrevs->commit();
+    $joincache->commit();
 
 }  #  End BuildVssActionHistory
+
+###############################################################################
+#  NewSvnRevision
+###############################################################################
+sub NewSvnRevision {
+    my($seen, $author, $comment, $timestamp) = @_;
+}  #  End NewSvnRevision
 
 ###############################################################################
 #  ImportToSvn
@@ -849,7 +849,7 @@ SET
     task = ?
 EOSQL
 
-        $sth = $gSth{'SYSTEMTASK'} = &PrepSql($sql);
+        $sth = $gSth{'SYSTEMTASK'} = $gCfg{dbh}->prepare($sql);
     }
 
     $sth->execute($task);
@@ -880,7 +880,7 @@ SET
     step = ?
 EOSQL
 
-        $sth = $gCfg{'SYSTEMSTEP'} = &PrepSql($sql);
+        $sth = $gCfg{'SYSTEMSTEP'} = $gCfg{dbh}->prepare($sql);
     }
 
     $sth->execute($step);
@@ -888,99 +888,6 @@ EOSQL
     $gCfg{step} = $step;
 
 }  #  End SetSystemStep
-
-###############################################################################
-#  DeleteTable
-###############################################################################
-sub DeleteTable {
-    my($table) = @_;
-
-    my $sth = &PrepSql("DELETE FROM $table");
-    return $sth->execute;
-}  #  End DeleteTable
-
-###############################################################################
-#  StartDataCache
-###############################################################################
-sub StartDataCache {
-    my($table, $delete, $autoinc) = @_;
-
-    if ($delete) {
-        &DeleteTable($table);
-    }
-
-    if ($autoinc) {
-        $gId = 0;
-    } else {
-        undef $gId;
-    }
-
-    $gCfg{cachetarget} = $table;
-    unlink $gCfg{datacache};
-
-    &OpenFile('DATACACHE', ">$gCfg{datacache}");
-
-}  #  End StartDataCache
-
-###############################################################################
-#  AddDataCache
-###############################################################################
-sub AddDataCache {
-    my(@data) = @_;
-
-    if (ref($data[0]) eq 'ARRAY') {
-        @data = @{ $data[0] };
-    }
-
-    if (defined $gId) {
-        unshift(@data, $gId++);
-    }
-
-    my $fh = $gFh{DATACACHE};
-    print $fh join("\t", map {&FormatCacheData($_)} @data), "\n";
-
-}  #  End AddDataCache
-
-###############################################################################
-#  FormatCacheData
-###############################################################################
-sub FormatCacheData {
-    my($data) = @_;
-    return '\\N' if !defined($data);
-
-    $data =~ s/([\t\n\\])/\\$1/g;
-
-    return $data;
-}  #  End FormatCacheData
-
-###############################################################################
-#  CommitDataCache
-###############################################################################
-sub CommitDataCache {
-    my($sql, $sth);
-
-    &CloseFile('DATACACHE');
-
-    print "\n\nCOMMITTING $gCfg{cachetarget} CACHE TO DATABASE\n"
-        if $gCfg{verbose};
-    $sql = "COPY $gCfg{cachetarget} FROM '$gCfg{datacache}'";
-
-    $sth = &PrepSql($sql);
-    $sth->execute();
-
-    unlink $gCfg{datacache};
-
-}  #  End CommitDataCache
-
-###############################################################################
-#  PrepSql
-###############################################################################
-sub PrepSql {
-    my($sql) = @_;
-
-    return $gCfg{dbh}->prepare($sql);
-
-}  #  End PrepSql
 
 ###############################################################################
 #  ConnectDatabase
@@ -1033,6 +940,12 @@ sub SetupGlobals {
         $gActionType{$id} = {type => $type, action => $action};
     }
 
+    Vss2Svn::DataCache->SetCacheDir($gCfg{tempdir});
+    Vss2Svn::DataCache->SetDbHandle($gCfg{dbh});
+    Vss2Svn::DataCache->SetVerbose($gCfg{verbose});
+
+    Vss2Svn::SvnRevHandler->SetRevTimeRange($gCfg{revtimerange});
+
 }  #  End SetupGlobals
 
 ###############################################################################
@@ -1048,7 +961,7 @@ CREATE TABLE
     )
 EOSQL
 
-    $sth = &PrepSql($sql);
+    $sth = $gCfg{dbh}->prepare($sql);
     $sth->execute;
 
     $sql = <<"EOSQL";
@@ -1059,7 +972,7 @@ CREATE TABLE
     )
 EOSQL
 
-    $sth = &PrepSql($sql);
+    $sth = $gCfg{dbh}->prepare($sql);
     $sth->execute;
 
     $sql = <<"EOSQL";
@@ -1082,7 +995,7 @@ CREATE TABLE
     )
 EOSQL
 
-    $sth = &PrepSql($sql);
+    $sth = $gCfg{dbh}->prepare($sql);
     $sth->execute;
 
     $sql = <<"EOSQL";
@@ -1094,7 +1007,7 @@ CREATE INDEX
     )
 EOSQL
 
-    $sth = &PrepSql($sql);
+    $sth = $gCfg{dbh}->prepare($sql);
     $sth->execute;
 
     $sql = <<"EOSQL";
@@ -1108,7 +1021,7 @@ CREATE INDEX
     )
 EOSQL
 
-    $sth = &PrepSql($sql);
+    $sth = $gCfg{dbh}->prepare($sql);
     $sth->execute;
 
     $sql = <<"EOSQL";
@@ -1120,39 +1033,35 @@ CREATE TABLE
         action      VARCHAR,
         itempath    VARCHAR,
         itemtype    INTEGER,
+        info        VARCHAR
+    )
+EOSQL
+
+    $sth = $gCfg{dbh}->prepare($sql);
+    $sth->execute;
+
+    $sql = <<"EOSQL";
+CREATE TABLE
+    SvnRevision (
+        revision_id INTEGER PRIMARY KEY,
         timestamp   INTEGER,
         author      VARCHAR,
-        info        VARCHAR,
         comment     TEXT
     )
 EOSQL
 
-    $sth = &PrepSql($sql);
+    $sth = $gCfg{dbh}->prepare($sql);
     $sth->execute;
 
     $sql = <<"EOSQL";
 CREATE TABLE
-    Revision (
-        revision_id INTEGER PRIMARY KEY,
-        svndate     VARCHAR,
-        author      VARCHAR,
-        comment     VARCHAR,
-        status      INTEGER
+    SvnRevisionVssAction (
+        revision_id INTEGER,
+        action_id   INTEGER
     )
 EOSQL
 
-    $sth = &PrepSql($sql);
-    $sth->execute;
-
-    $sql = <<"EOSQL";
-CREATE TABLE
-    AtomRevision (
-        atom_id     INTEGER,
-        rev_id      INTEGER
-    )
-EOSQL
-
-    $sth = &PrepSql($sql);
+    $sth = $gCfg{dbh}->prepare($sql);
     $sth->execute;
 
     my @cfgitems = qw(task step vssdir svnurl svnuser svnpwd ssphys tempdir
@@ -1168,7 +1077,7 @@ CREATE TABLE
     )
 EOSQL
 
-    $sth = &PrepSql($sql);
+    $sth = $gCfg{dbh}->prepare($sql);
     $sth->execute;
 
     my $fields = join(', ', @cfgitems);
@@ -1181,7 +1090,7 @@ VALUES
     ($args)
 EOSQL
 
-    $sth = &PrepSql($sql);
+    $sth = $gCfg{dbh}->prepare($sql);
     $sth->execute(map {$gCfg{$_}} @cfgitems);
     $sth->finish();
 
@@ -1195,7 +1104,7 @@ sub ReloadSysTables {
 
     $sql = "SELECT * FROM SystemInfo";
 
-    $sth = &PrepSql($sql);
+    $sth = $gCfg{dbh}->prepare($sql);
     $sth->execute();
 
     $row = $sth->fetchrow_hashref();
@@ -1204,7 +1113,7 @@ FIELD:
     while (($field, $val) = each %$row) {
         if (defined($gCfg{$field})) { # allow user to override saved vals
             $sql = "UPDATE SystemInfo SET $field = ?";
-            $sthup = &PrepSql($sql);
+            $sthup = $gCfg{dbh}->prepare($sql);
             $sthup->execute($gCfg{$field});
         } else {
             $gCfg{$field} = $val;
@@ -1212,7 +1121,7 @@ FIELD:
     }
 
     $sth->finish();
-    &SetSystemTask($gCfg{task}, 1);
+    &SetSystemTask($gCfg{task});
 
 }  #  End ReloadSysTables
 
@@ -1231,9 +1140,6 @@ sub Initialize {
     # XML output from ssphysout placed here.
     $gCfg{ssphysout} = "$gCfg{tempdir}\\ssphysout";
 
-    # SQLite data cache placed here.
-    $gCfg{datacache} = "$gCfg{tempdir}\\datacache.tmp.txt";
-
     # Commit messages for SVN placed here.
     $gCfg{svncomment} = "$gCfg{tempdir}\\svncomment.tmp.txt";
     mkdir $gCfg{tempdir} unless (-d $gCfg{tempdir});
@@ -1247,6 +1153,8 @@ sub Initialize {
     if ($gCfg{debug}) {
         $gCfg{verbose} = 1;
     }
+
+    $gCfg{starttime} = scalar localtime($^T);
 
     ### Don't go past here if resuming a previous run ###
     if ($gCfg{resume}) {
@@ -1263,7 +1171,10 @@ sub Initialize {
 
     $gCfg{task} = 'INIT';
     $gCfg{step} = 0;
-    $gCfg{starttime} = scalar localtime($^T);
+
+    # number of seconds that can elapse between first and last action in an
+    # SVN revision
+    $gCfg{revtimerange} = 3600;
 
 }  #  End Initialize
 
