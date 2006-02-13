@@ -5,6 +5,12 @@ use strict;
 
 our(%gCfg);
 
+# SQLite can get a bit slow when doing lots of sequential inserts, so we speed
+# that up by using the sqlite2 "COPY" command, which allows reading in a tab-
+# delimited file of data all at once. Each table that will be filled has a
+# DataCache object created; the 'add' method adds a row of data to the cache,
+# and the 'commit' method performs the COPY operation.
+
 ###############################################################################
 #  new
 ###############################################################################
@@ -15,7 +21,7 @@ sub new {
         {
          table => $table,
          autoinc => $autoinc,
-         pkey => 0,
+         pkey => -1,
          verbose => $gCfg{verbose},
          fh => undef,
          file => "$gCfg{cachedir}\\datachache.$table.tmp.txt",
@@ -29,7 +35,10 @@ sub new {
 
     $self->_delete_table();
 
-    unlink($self->{file});
+    if ((-e $self->{file}) && !(unlink($self->{file}))) {
+        print "\nERROR: Could not delete existing cache file '$self->{file}'\n";
+        return undef;
+    }
 
     if ( !open($self->{fh}, ">$self->{file}") ) {
         print "\nERROR: Could not open file '$self->{file}'\n";
@@ -87,8 +96,6 @@ sub commit {
 
     $sth = $gCfg{dbh}->prepare($sql);
     $sth->execute();
-
-    unlink $self->{file} unless $self->{verbose};
 
 }  #  End commit
 

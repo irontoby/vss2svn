@@ -52,15 +52,22 @@ sub _init {
 sub check {
     my($self, $data) = @_;
 
-    my($physname, $timestamp, $author, $comment) =
-        @{ $data }{qw( physname timestamp author comment )};
+    my($physname, $itemtype, $actiontype, $timestamp, $author, $comment) =
+        @{ $data }{qw( physname itemtype actiontype timestamp author comment )};
     my($prevtimestamp, $prevauthor, $prevcomment) =
         @{ $self }{qw( timestamp author comment )};
+
+    # Any of the following cause a new SVN revision:
+    #   * same file touched more than once
+    #   * different author or comment
+    #   * time range exceeds threshold num. of seconds (default 3600)
+    #   * any action on a directory other than add
 
     no warnings 'uninitialized';
     if(($author ne $prevauthor) || ($comment ne $prevcomment) ||
        $self->{seen}->{$physname}++ ||
-       ($timestamp - $prevtimestamp > $gCfg{revtimerange})) {
+       ($timestamp - $prevtimestamp > $gCfg{revtimerange}) ||
+       ($itemtype == 1 && $actiontype ne 'ADD')) {
 
         @{ $self }{qw( timestamp author comment)} =
             ($timestamp, $author, $comment);

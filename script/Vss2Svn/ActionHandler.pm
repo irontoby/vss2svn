@@ -3,7 +3,7 @@ package Vss2Svn::ActionHandler;
 use warnings;
 use strict;
 
-our %handlers =
+our %gHandlers =
     (
      ADD        => \&_add_handler,
      COMMIT     => \&_commit_handler,
@@ -45,7 +45,7 @@ sub handle {
     my($self, $action) = @_;
 
     $self->{action} = $action;
-    my $handler = $handlers{$action};
+    my $handler = $gHandlers{$action};
 
     if (!defined($handler)) {
         $self->{errmsg} .= "Unknown action '$action'";

@@ -8,6 +8,7 @@ use DBI;
 use DBD::SQLite2;
 use XML::Simple;
 use File::Find;
+use File::Path;
 use Time::CTime;
 use Data::Dumper;
 
@@ -15,6 +16,7 @@ use lib '.';
 use Vss2Svn::ActionHandler;
 use Vss2Svn::DataCache;
 use Vss2Svn::SvnRevHandler;
+use Vss2svn::Dumpfile;
 
 our(%gCfg, %gSth, @gErr, %gFh, $gSysOut, %gActionType, %gNameLookup, %gId);
 
@@ -65,10 +67,6 @@ sub RunConversion {
             # Take the history of physical actions and convert them to VSS
             # file actions
             BUILDACTIONHIST => {handler => \&BuildVssActionHistory,
-                                next    => 'BUILDREVS'},
-
-            # Combine these individual actions into atomic actions a' la SVN
-            BUILDREVS       => {handler => \&BuildRevs,
                                 next    => 'IMPORTSVN'},
 
             # Create a dumpfile or import to repository
@@ -248,7 +246,7 @@ sub GetVssItemVersions {
 
     my($parentdata, $version, $vernum, $action, $name, $actionid, $actiontype,
        $tphysname, $itemname, $itemtype, $parent, $user, $timestamp, $comment,
-       $info, $priority, $sortkey, $cachename);
+       $is_binary, $info, $priority, $sortkey, $cachename);
 
 VERSION:
     foreach $version (@{ $xml->{Version} }) {
@@ -276,6 +274,7 @@ VERSION:
         }
 
         $comment = undef;
+        $is_binary = 0;
         $info = undef;
         $parentdata = 0;
         $priority = 5;
@@ -290,7 +289,7 @@ VERSION:
             $tphysname = $physname;
             $itemname = '';
         } elsif ($physname ne $tphysname) {
-            # If version's physical name and file physical name are different,
+            # If version's physical name and file's physical name are different,
             # this is a project describing an action on a child item. Most of
             # the time, this very same data will be in the child's physical
             # file and with more detail (such as check-in comment).
@@ -316,6 +315,11 @@ VERSION:
 
         if ($itemtype == 1) {
             $itemname .= '/';
+        } elsif (defined($xml->{ItemInfo}) &&
+            defined($xml->{ItemInfo}->{Binary}) &&
+            $xml->{ItemInfo}->{Binary}) {
+
+            $is_binary = 1;
         }
 
         if ($actiontype eq 'RENAME') {
@@ -341,8 +345,8 @@ VERSION:
         $sortkey = reverse($tphysname);
 
         $cache->add($tphysname, $vernum, $parentphys, $actiontype, $itemname,
-                    $itemtype, $timestamp, $user, $info, $priority, $sortkey,
-                    $parentdata, $comment);
+                    $itemtype, $timestamp, $user, $is_binary, $info, $priority,
+                    $sortkey, $parentdata, $comment);
 
     }
 
@@ -371,8 +375,6 @@ sub GetItemName {
         } else {
             print "Found name '$cachename' in namecache, but kept original "
                 . "'$itemname'\n" if $gCfg{debug};
-
-            1;
         }
     }
 
@@ -482,20 +484,31 @@ sub UpdateParentRec {
     my($row, $child) = @_;
 
     # The child record has the "correct" version number (relative to the child
-    # and not the parent), as well as the comment info
+    # and not the parent), as well as the comment info and whether the file is
+    # binary
+
+    my $comment;
+
+    {
+        no warnings 'uninitialized';
+        $comment = "$row->{comment}\n$child->{comment}";
+        $comment =~ s/\n$//;
+    }
 
     my $sql = <<"EOSQL";
 UPDATE
     PhysicalAction
 SET
     version = ?,
+    is_binary = ?,
     comment = ?
 WHERE
     action_id = ?
 EOSQL
 
     my $sth = $gCfg{dbh}->prepare($sql);
-    $sth->execute( $child->{version}, $child->{comment}, $row->{action_id} );
+    $sth->execute( $child->{version}, $child->{is_binary}, $comment,
+                  $row->{action_id} );
 
 }  #  End UpdateParentRec
 
@@ -529,7 +542,7 @@ sub BuildVssActionHistory {
         || &ThrowError("Could not create SVN revision handler");
     $svnrevs->{verbose} = $gCfg{verbose};
 
-    my($sth, $row, $action, $handler, $physinfo, $itempaths, $itempath);
+    my($sth, $row, $action, $handler, $physinfo, $itempaths, $allitempaths);
 
     my $sql = 'SELECT * FROM PhysicalAction ORDER BY timestamp ASC, '
                     . 'priority ASC, sortkey ASC';
@@ -582,13 +595,12 @@ ROW:
         # MOVE: the new path
         $row->{info} = $handler->{info};
 
-        foreach $itempath (@$itempaths) {
-            $row->{itempath} = $itempath;
+        $allitempaths = join("\t", @$itempaths);
+        $row->{itempaths} = $allitempaths;
 
-            $vsscache->add(@$row{ qw(physname version actiontype itempath
-                                 itemtype info) });
-            $joincache->add( $svnrevs->{revnum}, $vsscache->{pkey} );
-        }
+        $vsscache->add(@$row{ qw(physname version actiontype itempaths
+                             itemtype is_binary info) });
+        $joincache->add( $svnrevs->{revnum}, $vsscache->{pkey} );
 
     }
 
@@ -599,49 +611,120 @@ ROW:
 }  #  End BuildVssActionHistory
 
 ###############################################################################
-#  NewSvnRevision
-###############################################################################
-sub NewSvnRevision {
-    my($seen, $author, $comment, $timestamp) = @_;
-}  #  End NewSvnRevision
-
-###############################################################################
 #  ImportToSvn
 ###############################################################################
 sub ImportToSvn {
-    defined($gCfg{svnurl})? &CheckinToSvn : &CreateSvnDumpfile;
+    # For the time being, we support only creating a dumpfile and not directly
+    # importing to SVN. We could perhaps add this functionality by making the
+    # CreateSvnDumpfile logic more generic and using polymorphism to switch out
+    # the Vss2Svn::Dumpfile object with one that handles imports.
+
+    &CreateSvnDumpfile;
 }  #  End ImportToSvn
-
-###############################################################################
-#  CheckinToSvn
-###############################################################################
-sub CheckinToSvn {
-
-}  #  End CheckinToSvn
 
 ###############################################################################
 #  CreateSvnDumpfile
 ###############################################################################
 sub CreateSvnDumpfile {
+    my $fh;
+
+    my $file = 'vss2svn-dumpfile.txt';
+    open $fh, ">$file"
+        or &ThrowError("Could not create dumpfile '$file'");
+
+    my($sql, $sth, $row, $revision, $actions, $action, $physname, $itemtype);
+
+    my %exported = ();
+
+    $sql = 'SELECT * FROM SvnRevision ORDER BY revision_id ASC';
+
+    $sth = $gCfg{dbh}->prepare($sql);
+    $sth->execute();
+
+    my $dumpfile = Vss2Svn::Dumpfile->new($fh);
+
+REVISION:
+    while(defined($row = $sth->fetchrow_hashref() )) {
+        $revision = $row->{revision_id};
+        $dumpfile->begin_revision($row);
+
+        next REVISION if $revision == 0;
+
+        $actions = &GetRevVssActions($revision);
+
+ACTION:
+        foreach $action(@$actions) {
+            $physname = $action->{physname};
+            $itemtype = $action->{itemtype};
+
+            if (!defined $exported{$physname}) {
+                if ($itemtype == 2) {
+                    $exported{$physname} = &ExportVssPhysFile($physname);
+                } else {
+                    $exported{$physname} = undef;
+                }
+            }
+
+            $dumpfile->do_action($action, $exported{$physname});
+        }
+    }
+
+    my @err = @{ $dumpfile->{errors} };
+
+    if (scalar @err > 0) {
+        print "\nERRORS during dumpfile creation:\n   ";
+        print join("\n   ", @err);
+    }
+
+    $dumpfile->finish();
+    close $fh;
 
 }  #  End CreateSvnDumpfile
+
+###############################################################################
+#  GetRevVssActions
+###############################################################################
+sub GetRevVssActions {
+    my($revision) = @_;
+
+    my($sql, $sth);
+    $sql = <<"EOSQL";
+SELECT * FROM
+    VssAction v
+INNER JOIN
+    SvnRevisionVssAction sv ON sv.action_id = v.action_id
+WHERE
+    sv.revision_id = ?
+EOSQL
+
+    $sth = $gCfg{dbh}->prepare($sql);
+    $sth->execute($revision);
+
+    return $sth->fetchall_arrayref( {} );
+}  #  End GetRevVssActions
+
+###############################################################################
+#  ExportVssPhysFile
+###############################################################################
+sub ExportVssPhysFile {
+    my($physname) = @_;
+
+    $physname =~ m/^((.).)/;
+
+    my $exportdir = "$gCfg{vssdata}\\$1";
+    my $physdir = "$gCfg{vssdir}\\data\\$2";
+
+    mkpath($exportdir);
+
+    &DoSsCmd("get -b -v1 --force-overwrite $physdir\\$physname $exportdir\\$physname");
+
+    return $exportdir;
+}  #  End ExportVssPhysFile
 
 ###############################################################################
 #  ShowHeader
 ###############################################################################
 sub ShowHeader {
-    if ($gCfg{log}) {
-        my $prefix = $gCfg{pvcsproj} || $gCfg{svnurl} || "log-$$";
-        $prefix =~ s:.*[\\/]::;
-        $gCfg{logfile} = "./logs/$prefix.txt";
-        print "All output will be logged to $gCfg{logfile}...\n";
-        open LOG, ">>$gCfg{logfile}"
-            or die "Couldn't append to logfile $gCfg{logfile}";
-        open STDERR, ">&LOG";
-        select STDERR; $| = 1;
-        select LOG; $| = 1;
-    }
-
     my $info = $gCfg{task} eq 'INIT'? 'BEGINNING CONVERSION...' :
         "RESUMING CONVERSION FROM TASK '$gCfg{task}' AT STEP $gCfg{step}...";
     my $starttime = ctime($^T);
@@ -667,14 +750,6 @@ EOTXT
 #  ShowSummary
 ###############################################################################
 sub ShowSummary {
-    if (@gErr) {
-        print "\n\n\n====ERROR SUMMARY====\n\n";
-        foreach (@gErr) {
-            print "$_\n";
-        }
-    } else {
-        print "\n\n\n====NO ERRORS ENCOUNTERED THIS RUN====\n\n";
-    }
 
     my $starttime = ctime($^T);
     chomp $starttime;
@@ -696,14 +771,11 @@ sub ShowSummary {
     }
 
     print <<"EOTXT";
-SVN rev range : $gCfg{firstrev} - $gCfg{lastrev}
 Started at    : $starttime
 Ended at      : $endtime
 Elapsed time  : $elapsed (H:M:S)
 
 EOTXT
-
-    &CloseFile('LOG');
 
 }  #  End ShowSummary
 
@@ -771,7 +843,6 @@ sub ThrowWarning {
     $msg .= "\nat $callinfo->[1] line $callinfo->[2]";
 
     warn "ERROR -- $msg\n";
-    print "ERROR -- $msg\n" if $gCfg{log};
 
     push @gErr, $msg;
 
@@ -796,37 +867,10 @@ sub StopConversion {
 }  #  End StopConversion
 
 ###############################################################################
-#  OpenFile
-###############################################################################
-sub OpenFile {
-    my($fhname, $target) = @_;
-
-    (my $name = $target) =~ s/^>//;
-
-    print "\nOPENING FILE $name\n" if $gCfg{verbose};
-
-    open $gFh{$fhname}, $target
-        or &ThrowError("Could not open file $name");
-
-}  #  End OpenFile
-
-###############################################################################
-#  CloseFile
-###############################################################################
-sub CloseFile {
-    my($fhname) = @_;
-
-    close $gFh{$fhname};
-    delete $gFh{$fhname};
-
-}  #  End CloseFile
-
-###############################################################################
 #  CloseAllFiles
 ###############################################################################
 sub CloseAllFiles {
-    map { &CloseFile($_) } values %gFh;
-    close LOG;
+
 }  #  End CloseAllFiles
 
 ###############################################################################
@@ -987,6 +1031,7 @@ CREATE TABLE
         itemtype    INTEGER,
         timestamp   INTEGER,
         author      VARCHAR,
+        is_binary   INTEGER,
         info        VARCHAR,
         priority    INTEGER,
         sortkey     VARCHAR,
@@ -1031,8 +1076,9 @@ CREATE TABLE
         physname    VARCHAR,
         version     INTEGER,
         action      VARCHAR,
-        itempath    VARCHAR,
+        itempaths   VARCHAR,
         itemtype    INTEGER,
+        is_binary   INTEGER,
         info        VARCHAR
     )
 EOSQL
@@ -1144,6 +1190,10 @@ sub Initialize {
     $gCfg{svncomment} = "$gCfg{tempdir}\\svncomment.tmp.txt";
     mkdir $gCfg{tempdir} unless (-d $gCfg{tempdir});
 
+    # Directories for holding VSS revisions
+    $gCfg{vssdata} = "$gCfg{tempdir}\\vssdata";
+    mkdir $gCfg{vssdata} unless (-d $gCfg{vssdata});
+
     if ($gCfg{resume} && !-e $gCfg{sqlitedb}) {
         warn "WARNING: --resume set but no database exists; starting new "
             . "conversion...";
@@ -1200,9 +1250,6 @@ OPTIONAL PARAMETERS:
     --ssphys <path> : Full path to ssphys.exe program; uses PATH otherwise
     --tempdir <dir> : Temp directory to use during conversion;
                       default is .\\_vss2svn
-    --setsvndate    : Set svn:date property to original VSS checkin date
-                      (see SVN:DATE WARNING in readme.txt)
-    --log           : Log all output to <tempdir>\\vss2svn.log.txt
     --debug         : Print lots of debugging info.
 EOTXT
 
