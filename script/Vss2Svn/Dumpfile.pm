@@ -17,8 +17,9 @@ our %gHandlers =
      RECOVER    => \&_recover_handler,
     );
 
-# keep track of when paths were modified or deleted, for subsequent copies
-# or recovers
+# Keep track of when paths were modified or deleted, for subsequent copies
+# or recovers.
+
 our %gModified = ();
 our %gDeleted = ();
 
@@ -33,6 +34,8 @@ sub new {
          fh => $fh,
          revision => 0,
          errors => [],
+         modified_cache => {},
+         deleted_cache => {},
         };
 
     # prevent perl from doing line-ending conversions, but this means we'll
@@ -96,26 +99,39 @@ sub begin_revision {
 ###############################################################################
 sub do_action {
     my($self, $data, $expdir) = @_;
-    #physname    VARCHAR,
-    #version     INTEGER,
-    #action      VARCHAR,
-    #itempaths   VARCHAR,
-    #itemtype    INTEGER,
-    #is_binary   INTEGER,
-    #info        VARCHAR
 
     my $action = $data->{action};
     my $handler = $gHandlers{$action};
 
     my $nodes = [];
 
+    # Temporary hack to prevent shared files from stepping on the "modified"
+    # flag for other than the first commit. Ideally, we should keep all paths
+    # for a given physical file's last modified flags, and use the best match
+    # if we need to copy or recover one.
+
+    $self->{is_primary} = 1;
+    $self->{modified_cache} = {};
+    $self->{deleted_cache} = {};
+
     foreach my $itempath (split "\t", $data->{itempaths}) {
         $self->$handler($itempath, $nodes, $data, $expdir);
+        $self->{is_primary} = 0;
     }
 
     foreach my $node (@$nodes) {
         $self->output_node($node);
     }
+
+    my($physname, $cache);
+    while(($physname, $cache) = each %{ $self->{modified_cache} }) {
+        $gModified{$physname} = $cache;
+    }
+
+    while(($physname, $cache) = each %{ $self->{deleted_cache} }) {
+        $gDeleted{$physname} = $cache;
+    }
+
 }  #  End do_action
 
 ###############################################################################
@@ -132,7 +148,7 @@ sub _add_handler {
         $self->get_export_contents($node, $data, $expdir);
     }
 
-    $gModified{$itempath} = $data->{revision_id};
+    $self->track_modified($data->{physname}, $data->{revision_id}, $itempath);
 
     push @$nodes, $node;
 
@@ -152,7 +168,7 @@ sub _commit_handler {
         $self->get_export_contents($node, $data, $expdir);
     }
 
-    $gModified{$itempath} = $data->{revision_id};
+    $self->track_modified($data->{physname}, $data->{revision_id}, $itempath);
 
     push @$nodes, $node;
 
@@ -180,17 +196,19 @@ sub _rename_handler {
     $node->set_initial_props($newpath, $data);
     $node->{action} = 'add';
 
-    $node->{copypath} = $itempath;
+    my($copyrev, $copypath);
 
-    my $copyrev = ($data->{itemtype} == 1)?
-        $data->{revision_id} - 1 :
-        $gModified{ $itempath };
+    # ideally, we should be finding the last time the file was modified and
+    # copy it from there, but that becomes difficult to track...
+    $copyrev = $data->{revision_id} - 1;
+    $copypath = $itempath;
 
     $node->{copyrev} = $copyrev;
-
-    $gModified{$newpath} = $data->{revision_id};
+    $node->{copypath} = $copypath;
 
     push @$nodes, $node;
+
+    $self->track_modified($data->{physname}, $data->{revision_id}, $newpath);
 
     $node = Vss2Svn::Dumpfile::Node->new();
     $node->{path} = $itempath;
@@ -199,8 +217,8 @@ sub _rename_handler {
 
     push @$nodes, $node;
 
-    # we don't add this to %gDeleted since VSS doesn't treat a rename as an
-    # add/delete
+    # We don't add this to %gDeleted since VSS doesn't treat a rename as an
+    # add/delete and therefore we wouldn't recover from this point
 
 }  #  End _rename_handler
 
@@ -214,10 +232,10 @@ sub _share_handler {
     $node->set_initial_props($itempath, $data);
     $node->{action} = 'add';
 
-    $node->{copypath} = $data->{info};
-    $node->{copyrev} = $gModified{ $data->{info} };
+    @{ $node }{ qw(copyrev copypath) }
+        = $self->last_modified_rev_path($data->{physname});
 
-    $gModified{$itempath} = $data->{revision_id};
+    return unless defined($node->{copyrev});
 
     push @$nodes, $node;
 
@@ -239,7 +257,32 @@ sub _branch_handler {
 sub _move_handler {
     my($self, $itempath, $nodes, $data, $expdir) = @_;
 
-    push @{ $self->{errors} }, "Not yet implemented: $data->{action}"
+    # moving in SVN is the same as renaming; add the new and delete the old
+
+    my $newpath = $data->{info};
+
+    my $node = Vss2Svn::Dumpfile::Node->new();
+    $node->set_initial_props($newpath, $data);
+    $node->{action} = 'add';
+
+    my($copyrev, $copypath);
+
+    $copyrev = $data->{revision_id} - 1;
+    $copypath = $itempath;
+
+    $node->{copyrev} = $copyrev;
+    $node->{copypath} = $copypath;
+
+    push @$nodes, $node;
+
+    $self->track_modified($data->{physname}, $data->{revision_id}, $newpath);
+
+    $node = Vss2Svn::Dumpfile::Node->new();
+    $node->{path} = $itempath;
+    $node->{action} = 'delete';
+    $node->{hideprops} = 1;
+
+    push @$nodes, $node;
 
 }  #  End _move_handler
 
@@ -256,7 +299,8 @@ sub _delete_handler {
 
     push @$nodes, $node;
 
-    $gDeleted{$itempath} = $data->{revision_id};
+    $self->track_deleted($data->{physname}, $data->{revision_id},
+                         $itempath);
 
 }  #  End _delete_handler
 
@@ -270,27 +314,91 @@ sub _recover_handler {
     $node->set_initial_props($itempath, $data);
     $node->{action} = 'add';
 
-    if (!defined $gDeleted{$itempath}) {
+    my($copyrev, $copypath) = $self->last_deleted_rev_path($data->{physname});
+
+    if (!defined $copyrev) {
         push @{ $self->{errors} },
             "Could not recover path $itempath at revision $data->{revision_id};"
             . " unable to determine deleted revision";
         return 0;
     }
 
-    $node->{copypath} = $itempath;
-    $node->{copyrev} = $gDeleted{$itempath} - 1;
-
-    $gModified{$itempath} = $data->{revision_id};
+    $node->{copyrev} = $copyrev - 1;
+    $node->{copypath} = $copypath;
 
     push @$nodes, $node;
 
 }  #  End _recover_handler
 
 ###############################################################################
+#  track_modified
+###############################################################################
+sub track_modified {
+    my($self, $physname, $revision, $path) = @_;
+
+    return unless $self->{is_primary};
+
+    $self->{modified_cache}->{$physname} =
+        {
+         revision => $revision,
+         path => $path,
+        };
+
+}  #  End track_modified
+
+###############################################################################
+#  track_deleted
+###############################################################################
+sub track_deleted {
+    my($self, $physname, $revision, $path) = @_;
+
+    $self->{deleted_cache}->{$physname} =
+        {
+         revision => $revision,
+         path => $path,
+        };
+
+}  #  End track_deleted
+
+###############################################################################
+#  last_modified_rev_path
+###############################################################################
+sub last_modified_rev_path {
+    my($self, $physname) = @_;
+
+    if (!defined($gModified{$physname})) {
+        return (undef, undef);
+    }
+
+    return @{ $gModified{$physname} }{ qw(revision path) };
+}  #  End last_modified_rev_path
+
+###############################################################################
+#  last_deleted_rev_path
+###############################################################################
+sub last_deleted_rev_path {
+    my($self, $physname) = @_;
+
+    if (!defined($gDeleted{$physname})) {
+        return (undef, undef);
+    }
+
+    return @{ $gDeleted{$physname} }{ qw(revision path) };
+}  #  End last_deleted_rev_path
+
+###############################################################################
 #  get_export_contents
 ###############################################################################
 sub get_export_contents {
     my($self, $node, $data, $expdir) = @_;
+
+    if (!defined($expdir)) {
+        return 0;
+    } elsif (!defined($data->{version})) {
+        push @{ $self->{errors} },
+            "Attempt to retrieve file contents with unknown version number";
+        return 0;
+    }
 
     my $file = "$expdir\\$data->{physname}.$data->{version}";
 

@@ -63,9 +63,10 @@ sub check {
     #   * time range exceeds threshold num. of seconds (default 3600)
     #   * any action on a directory other than add
 
+    my $wasseen = $self->{seen}->{$physname}++;
+
     no warnings 'uninitialized';
-    if(($author ne $prevauthor) || ($comment ne $prevcomment) ||
-       $self->{seen}->{$physname}++ ||
+    if(($author ne $prevauthor) || ($comment ne $prevcomment) || $wasseen ||
        ($timestamp - $prevtimestamp > $gCfg{revtimerange}) ||
        ($itemtype == 1 && $actiontype ne 'ADD')) {
 

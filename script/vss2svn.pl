@@ -364,9 +364,11 @@ sub GetItemName {
         # Might have a "better" name in the name cache, but sometimes the
         # original name is best.
         my $cachename = $gNameLookup{ $nameelem->{offset} };
+        return $itemname unless defined($cachename);
 
-        if (!defined($itemname) || ($itemname =~ m/~/ &&
-            length($cachename) > length($itemname))) {
+        if (!defined($itemname) ||
+            (length($cachename) >= length($itemname) &&
+            !($itemname !~ m/~/ && $cachename =~ m/~/))) {
 
             print "Changing name of '$itemname' to '$cachename' from "
                 . "name cache\n" if $gCfg{debug};
@@ -574,14 +576,16 @@ ROW:
         # those ourself and replicate the functionality using multiple actions.
 
         if (!$handler->handle($action)) {
-            &ThrowWarning($handler->{errmsg});
+            &ThrowWarning($handler->{errmsg})
+                if $handler->{errmsg};
             next ROW;
         }
 
         $itempaths = $handler->{itempaths};
 
         if (!defined $itempaths) {
-            &ThrowWarning($handler->{errmsg});
+            &ThrowWarning($handler->{errmsg})
+                if $handler->{errmsg};
             next ROW;
         }
 
@@ -657,7 +661,7 @@ ACTION:
             $physname = $action->{physname};
             $itemtype = $action->{itemtype};
 
-            if (!defined $exported{$physname}) {
+            if (!exists $exported{$physname}) {
                 if ($itemtype == 2) {
                     $exported{$physname} = &ExportVssPhysFile($physname);
                 } else {
@@ -712,11 +716,18 @@ sub ExportVssPhysFile {
     $physname =~ m/^((.).)/;
 
     my $exportdir = "$gCfg{vssdata}\\$1";
-    my $physdir = "$gCfg{vssdir}\\data\\$2";
+    my $physpath = "$gCfg{vssdir}\\data\\$2\\$physname";
+
+    if (! -e $physpath) {
+        # physical file doesn't exist; it must have been destroyed later
+        &ThrowWarning("Can't retrieve revisions from physical file "
+                      . "'$physname'; it was either destroyed or corrupted");
+        return undef;
+    }
 
     mkpath($exportdir);
 
-    &DoSsCmd("get -b -v1 --force-overwrite $physdir\\$physname $exportdir\\$physname");
+    &DoSsCmd("get -b -v1 --force-overwrite $physpath $exportdir\\$physname");
 
     return $exportdir;
 }  #  End ExportVssPhysFile

@@ -141,11 +141,18 @@ sub _rename_handler {
         return 0;
     }
 
+    # Renames on shares may show up once for each share, which we don't want
+    # since one rename takes care of all locations. If the "new" name is
+    # already the same as the old, just ignore it.
+    if ($physinfo->{name} eq $row->{info}) {
+        return 0;
+    }
+
     # A rename of an item renames it in all its shares
     $physinfo->{name} = $row->{info};
 
     $self->{itempaths} = $itempaths;
-    $self->{info} = $self->_get_current_item_name();
+    $self->{info} = $row->{info};
 
     return 1;
 }  #  End _rename_handler
