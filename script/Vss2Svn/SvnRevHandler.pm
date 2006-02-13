@@ -70,9 +70,7 @@ sub check {
        ($timestamp - $prevtimestamp > $gCfg{revtimerange}) ||
        ($itemtype == 1 && $actiontype ne 'ADD')) {
 
-        @{ $self }{qw( timestamp author comment)} =
-            ($timestamp, $author, $comment);
-        $self->new_revision();
+        $self->new_revision($data);
 
         if ($self->{verbose}) {
             print "\n**** NEW SVN REVISION ($self->{revnum}): ",
@@ -81,16 +79,20 @@ sub check {
 
     }
 
+    @{ $self }{qw( timestamp author comment)} =
+        ($timestamp, $author, $comment);
+
 }  #  End check
 
 ###############################################################################
 #  new_revision
 ###############################################################################
 sub new_revision {
-    my($self) = @_;
+    my($self, $data) = @_;
 
-    $self->{svncache}->add( @{ $self }{qw(timestamp author comment)} );
+    $self->{svncache}->add( @{ $data }{qw(timestamp author comment)} );
     $self->{revnum} = $self->{svncache}->{pkey};
+    $self->{seen} = {};
 
 }  #  End new_revision
 

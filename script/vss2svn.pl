@@ -283,6 +283,11 @@ VERSION:
             $comment = $version->{Comment} || undef;
         }
 
+        if (defined($comment)) {
+            $comment =~ s/^\s+//s;
+            $comment =~ s/\s+$//s;
+        }
+
         if ($itemtype == 1 && $physname eq 'AAAAAAAA'
             && ref($tphysname)) {
 
@@ -1098,6 +1103,16 @@ EOSQL
     $sth->execute;
 
     $sql = <<"EOSQL";
+CREATE INDEX
+    VssAction_IDX1 ON VssAction (
+        action_id   ASC
+    )
+EOSQL
+
+    $sth = $gCfg{dbh}->prepare($sql);
+    $sth->execute;
+
+    $sql = <<"EOSQL";
 CREATE TABLE
     SvnRevision (
         revision_id INTEGER PRIMARY KEY,
@@ -1115,6 +1130,17 @@ CREATE TABLE
     SvnRevisionVssAction (
         revision_id INTEGER,
         action_id   INTEGER
+    )
+EOSQL
+
+    $sth = $gCfg{dbh}->prepare($sql);
+    $sth->execute;
+
+    $sql = <<"EOSQL";
+CREATE INDEX
+    SvnRevisionVssAction_IDX1 ON SvnRevisionVssAction (
+        revision_id ASC,
+        action_id   ASC
     )
 EOSQL
 

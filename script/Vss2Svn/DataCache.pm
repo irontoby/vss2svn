@@ -89,7 +89,7 @@ sub commit {
     close($self->{fh});
 
     if ($self->{verbose}) {
-        print "\n\nCOMMITTING $self->{table} CACHE TO DATABASE\n"
+        print "\n\nCOMMITTING CACHE '$self->{table}' TO DATABASE\n"
     }
 
     $sql = "COPY $self->{table} FROM '$self->{file}'";
