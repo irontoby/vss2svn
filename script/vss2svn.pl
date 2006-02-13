@@ -1203,7 +1203,6 @@ sub Initialize {
 
     # Directories for holding VSS revisions
     $gCfg{vssdata} = "$gCfg{tempdir}\\vssdata";
-    mkdir $gCfg{vssdata} unless (-d $gCfg{vssdata});
 
     if ($gCfg{resume} && !-e $gCfg{sqlitedb}) {
         warn "WARNING: --resume set but no database exists; starting new "
@@ -1221,6 +1220,9 @@ sub Initialize {
     if ($gCfg{resume}) {
         return 1;
     }
+
+    rmtree($gCfg{vssdata}) if (-e $gCfg{vssdata});
+    mkdir $gCfg{vssdata};
 
     #foreach my $check (qw(svnurl)) {
     #    &GiveHelp("ERROR: missing required parameter $check")
@@ -1261,6 +1263,8 @@ OPTIONAL PARAMETERS:
     --ssphys <path> : Full path to ssphys.exe program; uses PATH otherwise
     --tempdir <dir> : Temp directory to use during conversion;
                       default is .\\_vss2svn
+    --resume        : Resume a failed or aborted previous run
+    --verbose       : Print more info about the items being processed
     --debug         : Print lots of debugging info.
 EOTXT
 
