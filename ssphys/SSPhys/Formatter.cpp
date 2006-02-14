@@ -51,47 +51,42 @@ class CXMLFormatter : public CFormatter
 {
 public:
   CXMLFormatter ()
-    : m_pXMLNode (NULL)
+    : m_pCurrentFileNode (NULL)
   {
-    std::cout << "<?xml version=\"1.0\" encoding=\"windows-1252\"?>" << std::endl;
+    TiXmlDeclaration decl ("1.0", "windows-1252", "");
+    m_Document.InsertEndChild (decl);
   }
   ~CXMLFormatter ()
   {
-    EndFile ();
+    m_Document.Print ();
   }
   void BeginFile (std::string fileName)
   {
-    // finish a previous file
-    if (m_pXMLNode)
-      EndFile ();
-
-    AttribMap map;
-    map ["Name"]=fileName;
-    m_pXMLNode = new XMLNode (NULL, "File", map);
+    TiXmlElement fileNode ("File");
+    fileNode.SetAttribute("Name", fileName);
+    m_pCurrentFileNode = m_Document.InsertEndChild (fileNode)->ToElement();
   }
   void EndFile ()
   {
-    if (m_pXMLNode)
-    {
-      m_Document.InsertEndChild (m_pXMLNode->m_Node);
-      m_Document.Print ();
-    }
-    
-    delete m_pXMLNode; 
-    m_pXMLNode = NULL;
+    m_pCurrentFileNode = NULL;
   }
 
   void Format (const SSObject& object, const ISSContext* pCtx)
   {
     AttribMap map;
     map ["offset"] = boost::lexical_cast<std::string>(object.GetOffset ());
-    XMLNode node (m_pXMLNode, object.GetTypeName (), map);
+    XMLNode node (NULL, object.GetTypeName (), map);
     object.ToXml (&node);
+    
+    if (m_pCurrentFileNode)
+    {
+      m_pCurrentFileNode->InsertEndChild(node.m_Node);
+    }
   }
 
 protected:
-  XMLNode* m_pXMLNode;
   TiXmlDocument m_Document;
+  TiXmlElement* m_pCurrentFileNode;
 };
 
 //////////////////////////////////////////////////////////////////////

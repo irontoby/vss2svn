@@ -36,7 +36,6 @@ public:
     {
       m_Node.SetAttribute(itor->first, itor->second);
     }
-
   }
 
   template <class T>
