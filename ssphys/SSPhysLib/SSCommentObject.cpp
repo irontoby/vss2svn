@@ -28,7 +28,7 @@ std::string SSCommentObject::GetComment () const
 
 void SSCommentObject::ToXml (XMLNode* pParent) const
 {
-  XMLValue commentValue (pParent, GetComment ());
+  XMLText commentValue (pParent, GetComment ());
 }
 
 void SSCommentObject::Dump (std::ostream& os) const

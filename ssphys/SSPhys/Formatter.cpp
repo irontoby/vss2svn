@@ -71,6 +71,12 @@ public:
   }
   void EndFile ()
   {
+    if (m_pXMLNode)
+    {
+      m_Document.InsertEndChild (m_pXMLNode->m_Node);
+      m_Document.Print ();
+    }
+    
     delete m_pXMLNode; 
     m_pXMLNode = NULL;
   }
@@ -85,6 +91,7 @@ public:
 
 protected:
   XMLNode* m_pXMLNode;
+  TiXmlDocument m_Document;
 };
 
 //////////////////////////////////////////////////////////////////////
