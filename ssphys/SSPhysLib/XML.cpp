@@ -10,10 +10,11 @@ class CValidXMLChar
 public:
   bool operator () (char c)
   {
+    unsigned char uc = static_cast <unsigned char> (c);
     bool b = true;
-    if ( (c < 0x20 && c != 0x09 && c != 0x0A && c != 0x0D)
-      || (c >= 0x7f && c <= 0x84)
-      || (c >= 0x86 && c <= 0x9f) )
+    if ( (uc < 0x20 && uc != 0x09 && uc != 0x0A && uc != 0x0D)
+      || (uc >= 0x7f && uc <= 0x84)
+      || (uc >= 0x86 && uc <= 0x9f) )
     {
       m_bInvalidOccured = true;
       return true;
