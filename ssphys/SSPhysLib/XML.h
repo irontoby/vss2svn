@@ -20,50 +20,30 @@ class XMLText;
 class XMLNode // : protected XMLEntity
 {
 public:
+  XMLNode (XMLNode* pParent, std::string name, AttribMap attrib);
+
   template <class T>
   XMLNode (XMLNode* pParent, std::string name, const T& element)
     : m_Node (name), m_pParent (pParent)
   {
-    TiXmlText text (boost::lexical_cast<std::string>(element));
-    m_Node.InsertEndChild(text);
-  }
-
-  XMLNode (XMLNode* pParent, std::string name, AttribMap attrib)
-    : m_Node (name), m_pParent (pParent)
-  {
-    AttribMap::iterator itor = attrib.begin ();
-    for (; itor != attrib.end (); ++itor)
-    {
-      m_Node.SetAttribute(itor->first, itor->second);
-    }
+    SetText (boost::lexical_cast<std::string>(element));
   }
 
   template <class T>
   XMLNode (XMLNode* pParent, std::string name, AttribMap attrib, const T& element)
     : m_Node (name), m_pParent (pParent)
   {
-    AttribMap::iterator itor = attrib.begin ();
-    for (; itor != attrib.end (); ++itor)
-    {
-      m_Node.SetAttribute(itor->first, itor->second);
-    }
-    TiXmlText text (boost::lexical_cast<std::string>(element));
-    m_Node.InsertEndChild(text);
+    SetAttributes (attrib);
+    SetText (boost::lexical_cast<std::string>(element));
   }
 
-  int AddChild (XMLNode* pChild)
-  {
-    m_Node.InsertEndChild(pChild->m_Node);
-    return 0;
-  }
+  ~XMLNode ();
 
+  void AddChild (XMLNode* pChild);
   void AddText (XMLText* pContent);
 
-  ~XMLNode ()
-  {
-    if (m_pParent) 
-      m_pParent->AddChild (this);
-  }
+  void SetAttributes (AttribMap attrib);
+  void SetText (std::string text);
 
 public:
   TiXmlElement m_Node;
@@ -94,22 +74,16 @@ public:
   XMLText (XMLNode* pParent, const T& element)
     : m_Text (""), m_pParent (pParent)
   {
-    m_Text.SetValue (boost::lexical_cast<std::string>(element));
+    SetValue (boost::lexical_cast<std::string>(element));
   }
-  ~XMLText ()
-  {
-    if (m_pParent)
-      m_pParent->AddText(this);
-  }
+
+  ~XMLText ();
+
+  void SetValue (std::string value);
+
 public:
   XMLNode* m_pParent;
   TiXmlText m_Text;
 };
-
-
-inline void XMLNode::AddText (XMLText* pContent)
-{
-    m_Node.InsertEndChild(pContent->m_Text);
-}
 
 #endif // !defined(AFX_XML_H__6602C07F_65ED_4FD7_A730_6D416805378A__INCLUDED_)

@@ -208,6 +208,10 @@
 					/>
 				</FileConfiguration>
 			</File>
+			<File
+				RelativePath=".\XML.cpp"
+				>
+			</File>
 		</Filter>
 		<Filter
 			Name="Header Files"

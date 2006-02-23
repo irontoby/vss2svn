@@ -364,7 +364,7 @@
 				<Tool
 					Name="VCCustomBuildTool"
 					Description="Performing Custom Build Step on ..\$(InputFileName)"
-					CommandLine="SubWCRev .. ..\$(InputFileName) ..\version.h"
+					CommandLine="SubWCRev .. ..\$(InputFileName) ..\version.h&#x0D;&#x0A;"
 					Outputs="..\version.h"
 				/>
 			</FileConfiguration>
@@ -374,7 +374,7 @@
 				<Tool
 					Name="VCCustomBuildTool"
 					Description="Performing Custom Build Step on ..\$(InputFileName)"
-					CommandLine="SubWCRev .. ..\$(InputFileName) ..\version.h"
+					CommandLine="SubWCRev .. ..\$(InputFileName) ..\version.h&#x0D;&#x0A;"
 					Outputs="..\version.h"
 				/>
 			</FileConfiguration>

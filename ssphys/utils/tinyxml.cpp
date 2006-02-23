@@ -95,8 +95,22 @@ void TiXmlBase::PutString( const TIXML_STRING& str, TIXML_STRING* outString )
 		{
 			outString->append( entity[4].str, entity[4].strLength );
 			++i;
-		}
-		else if ( c < 32 )
+    }
+    else if ( c == 0x0d && ( (int)str.length() - 1 )
+			 && str[i+1] == 0x0a)
+    {
+      // insert \n
+			*outString += '\n';
+			++i;
+      ++i;
+    }
+    else if (isspace (c))
+    {
+      // pass through unchagend
+			*outString += (char) c;	// somewhat more efficient function call.
+			++i;
+    }
+		else if (iscntrl (c)) // ( c < 32)
 		{
 			// Easy pass at non-alpha/numeric/symbol
 			// Below 32 is symbolic.
@@ -113,7 +127,7 @@ void TiXmlBase::PutString( const TIXML_STRING& str, TIXML_STRING* outString )
 			outString->append( buf, (int)strlen( buf ) );
 			++i;
 		}
-		else
+		else if (isprint (c))
 		{
 			//char realc = (char) c;
 			//outString->append( &realc, 1 );

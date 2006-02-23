@@ -54,6 +54,7 @@ public:
     : m_pCurrentFileNode (NULL)
   {
     TiXmlDeclaration decl ("1.0", "windows-1252", "");
+    setlocale (LC_ALL, ".1252");
     m_Document.InsertEndChild (decl);
   }
   ~CXMLFormatter ()
