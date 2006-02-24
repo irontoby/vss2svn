@@ -38,18 +38,47 @@ po::options_description CGetCommand::GetOptionsDescription () const
   descr.add_options ()
     ("version,v", po::value<int>(), "Get a specific old version")
     ("force-overwrite", "overwrite target file")
-    ("bulk,b", "bulk operation: get all intermediate files with the same name as the source name");
+    ("bulk,b", "bulk operation: get all intermediate files with the same name as the source name")
+    ("projects,p", "Experimental: also try to rebuild project files")
+    ("input", po::value<std::string>(), "input physical file name")
+    ("output", po::value<std::string>(), "target file name.\n"
+                                         "\n"
+                                         "You can also specify an oputput directory for the output target."
+                                         "In that case the name of the input file will be used "
+                                         "as the output file name. With this option, you can easily "
+                                         "build a shadow directory of your data, e.g. with the following command\n"
+                                         "\n"
+                                         "  find data -name ???????? | xargs -n 1 ssphys get -b -v 1 -s 1 --output shadowdir/ \n"
+                                         "\n"
+                                         "If you specify a relative or absolute path to the phyiscal file, all non "
+                                         "directory elements will be appended to the output directory, e.g.\n"
+                                         "\n"
+                                         "  ssphys get data/b/baaaaaaa shadow/ \n"
+                                         "\n"
+                                         "will output all files to \"shadow/data/b/baaaaaaa\". You can control the number "
+                                         "of directories appended with the --strip option" )
+    ("strip", po::value<int> (), "Strip the smallest prefix containing num leading slashes from the input path "
+                                   "A sequence of one or more adjacent slashes is counted as a single slash, e.g\n"
+                                   "\n"
+                                   "/path/to/soursafe/archive/data/a/abaaaaaa\n"
+                                   "\n"
+                                   "setting --strip 0 gives the entire file name unmodified, --strip 1 gives\n"
+                                   "\n"
+                                   "path/to/soursafe/archive/data/a/abaaaaaa\n"
+                                   "\n"
+                                   "without the leading slash, --strip 6 gives\n"
+                                   "\n"
+                                   "a/abaaaaaa\n"
+                                   "\n"
+                                   "and  not specifying --strip at all just gives you abaaaaaa.")
+     ;
   return descr;
 }
 
 po::options_description CGetCommand::GetHiddenDescription () const
 {
   po::options_description descr (CCommand::GetHiddenDescription());
-  descr.add_options ()
-    ("input", po::value<std::string>(), "physical file name")
-    ("output", po::value<std::string>(), "target file name");
-
-return descr;
+  return descr;
 }
 
 po::positional_options_description CGetCommand::GetPositionalOptionsDescription () const
@@ -613,7 +642,30 @@ void CGetCommand::Execute (po::variables_map const & options, std::vector<po::op
     throw SSException ("please specify a destination file for the get operation");
 
   if (fs::exists (destPath) && fs::is_directory(destPath) || *destFile.rbegin() == '\\' || *destFile.rbegin() == '/')
-    destPath = destFile / physFile;
+  {
+    fs::path::iterator itor = physPath.begin ();
+    int strip = options.count ("strip") ? options["strip"].as<int> () : 0;
+
+    while (strip > 0 && itor != physPath.end ())
+    {
+      ++itor; 
+      --strip;
+    }
+
+    fs::path relPath;
+    if (itor == physPath.end ())
+      relPath = physPath.leaf ();
+    else
+    {
+      while (itor != physPath.end ())
+      {
+        relPath /= *itor;
+        ++itor;
+      }
+    }
+
+    destPath = destFile / relPath;
+  }
 
   if (fs::exists (destPath) && !m_bForceOverwrite)
     throw SSException ("destination file exists. Please use overwrite flag");
@@ -629,9 +681,10 @@ void CGetCommand::Execute (po::variables_map const & options, std::vector<po::op
   
   if (pItem->GetType() == SSITEM_FILE)
     pVisitor = std::auto_ptr<CHistoryHandler> (new CReverseHistoryHandler (lastDataFileName));
-  else
+  else if (options.count("projects"))
     pVisitor = std::auto_ptr<CHistoryHandler> (new CProjectHistoryHandler (lastDataFileName));
-
+  else
+    return;
 
   if (m_Version < 0)
     m_Version = pItem->GetNumberOfActions () - m_Version + 1;
