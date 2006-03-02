@@ -410,7 +410,8 @@ sub get_export_contents {
 
     binmode(EXP);
 
-    $node->{text} = join('', <EXP>);
+#   $node->{text} = join('', <EXP>);
+    $node->{text} = do { local( $/ ) ; <EXP> } ;
 
     close EXP;
 
