@@ -63,7 +63,7 @@ sub check {
     #   * time range exceeds threshold num. of seconds (default 3600)
     #   * any action on a directory other than add
 
-    my $wasseen = $self->{seen}->{$physname}++;
+    my $wasseen = $self->{seen}->{$physname};
 
     no warnings 'uninitialized';
     if(($author ne $prevauthor) || ($comment ne $prevcomment) || $wasseen ||
@@ -78,6 +78,8 @@ sub check {
         }
 
     }
+    
+    $self->{seen}->{$physname}++;
 
     @{ $self }{qw( timestamp author comment)} =
         ($timestamp, $author, $comment);
