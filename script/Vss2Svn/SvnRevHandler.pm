@@ -68,7 +68,8 @@ sub check {
     no warnings 'uninitialized';
     if(($author ne $prevauthor) || ($comment ne $prevcomment) || $wasseen ||
        ($timestamp - $prevtimestamp > $gCfg{revtimerange}) ||
-       ($itemtype == 1 && $actiontype ne 'ADD')) {
+       ($itemtype == 1 && $actiontype ne 'ADD') ||
+       ($actiontype eq 'RENAME')) {
 
         $self->new_revision($data);
 
