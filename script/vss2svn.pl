@@ -11,6 +11,7 @@ use File::Find;
 use File::Path;
 use Time::CTime;
 use Data::Dumper;
+use Benchmark ':hireswallclock';
 
 use lib '.';
 use Vss2Svn::ActionHandler;
@@ -637,7 +638,7 @@ sub ImportToSvn {
 sub CreateSvnDumpfile {
     my $fh;
 
-    my $file = 'vss2svn-dumpfile.txt';
+    my $file = $gCfg{dumpfile};
     open $fh, ">$file"
         or &ThrowError("Could not create dumpfile '$file'");
 
@@ -654,6 +655,8 @@ sub CreateSvnDumpfile {
 
 REVISION:
     while(defined($row = $sth->fetchrow_hashref() )) {
+        my $t0 = new Benchmark;
+        
         $revision = $row->{revision_id};
         $dumpfile->begin_revision($row);
 
@@ -668,7 +671,7 @@ ACTION:
 
             if (!exists $exported{$physname}) {
                 if ($itemtype == 2) {
-                    $exported{$physname} = &ExportVssPhysFile($physname);
+                    $exported{$physname} = &ExportVssPhysFile($physname, $action->{version});
                 } else {
                     $exported{$physname} = undef;
                 }
@@ -676,6 +679,10 @@ ACTION:
 
             $dumpfile->do_action($action, $exported{$physname});
         }
+
+        my $t1 = new Benchmark;
+        print "revision $revision: ",timestr(timediff($t1, $t0)),"\n"
+            if $gCfg{progress};
     }
 
     my @err = @{ $dumpfile->{errors} };
@@ -716,7 +723,7 @@ EOSQL
 #  ExportVssPhysFile
 ###############################################################################
 sub ExportVssPhysFile {
-    my($physname) = @_;
+    my($physname, $version) = @_;
 
     $physname =~ m/^((.).)/;
 
@@ -732,7 +739,9 @@ sub ExportVssPhysFile {
 
     mkpath($exportdir);
 
-    &DoSsCmd("get -b -v1 --force-overwrite $physpath $exportdir\\$physname");
+    if (! -e "$exportdir\\$physname.$version" ) {
+        &DoSsCmd("get -b -v$version --force-overwrite $physpath $exportdir\\$physname");
+    }
 
     return $exportdir;
 }  #  End ExportVssPhysFile
@@ -754,6 +763,7 @@ Start Time   : $starttime
 
 VSS Dir      : $gCfg{vssdir}
 Temp Dir     : $gCfg{tempdir}
+Dumpfile     : $gCfg{dumpfile}
 
 SSPHYS exe   : $gCfg{ssphys}
 SSPHYS ver   : $ssversion
@@ -805,7 +815,8 @@ sub DoSsCmd {
 
     $gSysOut =~ s/\x00//g; # remove null bytes
     $gSysOut =~ s/.\x08//g; # yes, I've seen VSS store backspaces in names!
-    $gSysOut =~ s/[\x00-\x09\x11\x12\x14-\x1F\x7F-\xFF]/_/g; # just to be sure
+    # allow all characters in the windows-1252 codepage: see http://de.wikipedia.org/wiki/Windows-1252
+    $gSysOut =~ s/[\x00-\x09\x11\x12\x14-\x1F\x81\x8D\x8F\x90\x9D]/_/g; # just to be sure
 
 }  #  End DoSsCmd
 
@@ -1004,7 +1015,8 @@ sub SetupGlobals {
     Vss2Svn::DataCache->SetDbHandle($gCfg{dbh});
     Vss2Svn::DataCache->SetVerbose($gCfg{verbose});
 
-    Vss2Svn::SvnRevHandler->SetRevTimeRange($gCfg{revtimerange});
+    Vss2Svn::SvnRevHandler->SetRevTimeRange($gCfg{revtimerange})
+        if defined $gCfg{revtimerange};
 
 }  #  End SetupGlobals
 
@@ -1212,11 +1224,12 @@ FIELD:
 #  Initialize
 ###############################################################################
 sub Initialize {
-    GetOptions(\%gCfg,'vssdir=s','tempdir=s','resume','verbose',
-               'debug','task=s');
+    GetOptions(\%gCfg,'vssdir=s','tempdir=s','dumpfile=s','resume','verbose',
+               'debug','progress','task=s','revtimerange=i');
 
     &GiveHelp("Must specify --vssdir") if !defined($gCfg{vssdir});
     $gCfg{tempdir} = '.\\_vss2svn' if !defined($gCfg{tempdir});
+    $gCfg{dumpfile} = 'vss2svn-dumpfile.txt' if !defined($gCfg{dumpfile});
 
     $gCfg{sqlitedb} = "$gCfg{tempdir}\\vss_data.db";
 
@@ -1260,11 +1273,6 @@ sub Initialize {
 
     $gCfg{task} = 'INIT';
     $gCfg{step} = 0;
-
-    # number of seconds that can elapse between first and last action in an
-    # SVN revision
-    $gCfg{revtimerange} = 3600;
-
 }  #  End Initialize
 
 ###############################################################################
@@ -1286,12 +1294,23 @@ REQUIRED PARAMETERS:
                       the directory in which the "srcsafe.ini" file is located.
 
 OPTIONAL PARAMETERS:
-    --ssphys <path> : Full path to ssphys.exe program; uses PATH otherwise
-    --tempdir <dir> : Temp directory to use during conversion;
-                      default is .\\_vss2svn
-    --resume        : Resume a failed or aborted previous run
-    --verbose       : Print more info about the items being processed
-    --debug         : Print lots of debugging info.
+    --ssphys <path>   : Full path to ssphys.exe program; uses PATH otherwise
+    --tempdir <dir>   : Temp directory to use during conversion;
+                        default is .\\_vss2svn
+    --dumpfile <file> : specify the subversion dumpfile to be created;
+                        default is .\\vss2svn-dumpfile.txt
+    --revtimerange <msec> : specify the difference between two ss actions
+                            that are treated as one subversion revision;
+                            default is 3600 msec
+    
+    --resume          : Resume a failed or aborted previous run
+    --task <task>     : specify the task to resume; task is one of the following
+                        INIT, LOADVSSNAMES, FINDDBFILES, GETPHYSHIST,
+                        MERGEPARENTDATA, BUILDACTIONHIST, IMPORTSVN
+
+    --verbose         : Print more info about the items being processed
+    --debug           : Print lots of debugging info.
+    --progress        : Show progress information during various steps
 EOTXT
 
     exit(1);
@@ -1308,14 +1327,14 @@ RenamedProject	1	RENAME
 MovedProjectTo	1	IGNORE
 MovedProjectFrom	1	MOVE
 DeletedProject	1	DELETE
-DestroyedProject	1	IGNORE
+DestroyedProject	1	DELETE
 RecoveredProject	1	RECOVER
 CheckedIn	2	COMMIT
 CreatedFile	2	ADD
 AddedFile	2	ADD
 RenamedFile	2	RENAME
 DeletedFile	2	DELETE
-DestroyedFile	2	IGNORE
+DestroyedFile	2	DELETE
 RecoveredFile	2	RECOVER
 SharedFile	2	SHARE
 BranchFile	2	BRANCH
