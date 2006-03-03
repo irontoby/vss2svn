@@ -1,6 +1,7 @@
 package Vss2Svn::Dumpfile;
 
 use Vss2Svn::Dumpfile::Node;
+use Encode qw(from_to);
 
 use warnings;
 use strict;
@@ -426,7 +427,9 @@ sub output_node {
     my($self, $node) = @_;
     my $fh = $self->{fh};
 
-    print $fh $node->get_headers();
+    my $string = $node->get_headers();
+    from_to ($string, "windows-1252", "utf8");
+    print $fh $string;
     $self->output_content($node->{hideprops}? undef : $node->{props},
                           $node->{text});
 }  #  End output_node
