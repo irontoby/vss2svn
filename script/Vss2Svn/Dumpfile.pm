@@ -82,7 +82,11 @@ sub begin_revision {
 
     $comment = '' if !defined($comment);
     $author = '' if !defined($author);
-
+    
+    # convert to utf8
+    from_to ($comment, "windows-1252", "utf8");
+    from_to ($author, "windows-1252", "utf8");
+    
     if ($revision > 0) {
         push @$props, ['svn:log', $comment];
         push @$props, ['svn:author', $author];
