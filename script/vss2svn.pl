@@ -739,6 +739,13 @@ sub ExportVssPhysFile {
 
     mkpath($exportdir);
 
+    # MergeParentData normally will merge two corresponding item and parent
+    # actions. But if the actions are more appart than the maximum allowed
+    # timespan, we will end up with an undefined version in an ADD action here
+    # As a hot fix, we define the version to 1, which will also revert to the
+    # alpha 1 version behavoir.
+    $version = 1 unless defined $version;
+    
     if (! -e "$exportdir\\$physname.$version" ) {
         &DoSsCmd("get -b -v$version --force-overwrite $physpath $exportdir\\$physname");
     }
@@ -1299,9 +1306,9 @@ OPTIONAL PARAMETERS:
                         default is .\\_vss2svn
     --dumpfile <file> : specify the subversion dumpfile to be created;
                         default is .\\vss2svn-dumpfile.txt
-    --revtimerange <msec> : specify the difference between two ss actions
+    --revtimerange <sec> : specify the difference between two ss actions
                             that are treated as one subversion revision;
-                            default is 3600 msec
+                            default is 3600 seconds (==1hour)
     
     --resume          : Resume a failed or aborted previous run
     --task <task>     : specify the task to resume; task is one of the following
