@@ -116,11 +116,13 @@ sub LoadVssNames {
 ENTRY:
     foreach $entry (@$namesref) {
         $count = $entry->{NrOfEntries};
-        next ENTRY unless $count > 1;
+#        next ENTRY unless $count > 1;
 
         $offset = $entry->{offset};
 
-        if ($count == 2) {
+        if ($count == 1) {
+            $name = $entry->{Entry}->[0]->{content};
+        } elsif ($count == 2) {
             $name = $entry->{Entry}->[1]->{content};
         } else {
             $name = $entry->{Entry}->[$count - 2]->{content};
@@ -473,7 +475,7 @@ WHERE
     parentdata = 0
     AND physname = ?
     AND actiontype = ?
-    AND (? - timestamp IN (0, 1, 2))
+    AND (? - timestamp IN (0, 1, 2, 3, 4))
     AND author = ?
 ORDER BY
     timestamp
@@ -655,6 +657,7 @@ sub CreateSvnDumpfile {
 
 REVISION:
     while(defined($row = $sth->fetchrow_hashref() )) {
+       
         my $t0 = new Benchmark;
         
         $revision = $row->{revision_id};
@@ -678,11 +681,10 @@ ACTION:
             }
 
             $dumpfile->do_action($action, $exported{$physname});
+            
         }
-
-        my $t1 = new Benchmark;
-        print "revision $revision: ",timestr(timediff($t1, $t0)),"\n"
-            if $gCfg{progress};
+        print "revision $revision: ", timestr(timediff(new Benchmark, $t0)),"\n"
+            if $gCfg{timing};
     }
 
     my @err = @{ $dumpfile->{errors} };
@@ -713,10 +715,30 @@ WHERE
     sv.revision_id = ?
 EOSQL
 
-    $sth = $gCfg{dbh}->prepare($sql);
-    $sth->execute($revision);
+#    $sql = <<"EOSQL";
+#SELECT VssAction.*, $revision AS revision_id FROM
+#    VssAction 
+#WHERE action_id IN
+#    (SELECT action_id FROM SvnRevisionVssAction WHERE revision_id = ?)
+#EOSQL
 
-    return $sth->fetchall_arrayref( {} );
+    my $t0 = new Benchmark;
+    $sth = $gCfg{dbh}->prepare($sql);
+    my $t1 = new Benchmark;
+    $sth->execute($revision);
+    my $t2 = new Benchmark;
+
+    my $arrayref = $sth->fetchall_arrayref( {} );
+    my $t3 = new Benchmark;
+
+    print "revision $revision: PREPARE   ",timestr(timediff($t1, $t0)),"\n"
+        if ($gCfg{timing} >= 2);
+    print "revision $revision: EXECUTE   ",timestr(timediff($t2, $t1)),"\n"
+        if ($gCfg{timing} >= 2);
+    print "revision $revision: FA_ARRAY  ",timestr(timediff($t3, $t2)),"\n"
+        if ($gCfg{timing} >= 2);
+            
+    return $arrayref;
 }  #  End GetRevVssActions
 
 ###############################################################################
@@ -744,7 +766,12 @@ sub ExportVssPhysFile {
     # timespan, we will end up with an undefined version in an ADD action here
     # As a hot fix, we define the version to 1, which will also revert to the
     # alpha 1 version behavoir.
-    $version = 1 unless defined $version;
+    if (! defined $version) {
+        &ThrowWarning("unknown version for '$physname' to retrieve ");
+        
+        # fall through and try with version 1.
+        $version = 1;
+    }
     
     if (! -e "$exportdir\\$physname.$version" ) {
         &DoSsCmd("get -b -v$version --force-overwrite $physpath $exportdir\\$physname");
@@ -1232,7 +1259,7 @@ FIELD:
 ###############################################################################
 sub Initialize {
     GetOptions(\%gCfg,'vssdir=s','tempdir=s','dumpfile=s','resume','verbose',
-               'debug','progress','task=s','revtimerange=i');
+               'debug','timing+','task=s','revtimerange=i');
 
     &GiveHelp("Must specify --vssdir") if !defined($gCfg{vssdir});
     $gCfg{tempdir} = '.\\_vss2svn' if !defined($gCfg{tempdir});
@@ -1307,8 +1334,8 @@ OPTIONAL PARAMETERS:
     --dumpfile <file> : specify the subversion dumpfile to be created;
                         default is .\\vss2svn-dumpfile.txt
     --revtimerange <sec> : specify the difference between two ss actions
-                            that are treated as one subversion revision;
-                            default is 3600 seconds (==1hour)
+                           that are treated as one subversion revision;
+                           default is 3600 seconds (== 1hour)
     
     --resume          : Resume a failed or aborted previous run
     --task <task>     : specify the task to resume; task is one of the following
@@ -1317,7 +1344,7 @@ OPTIONAL PARAMETERS:
 
     --verbose         : Print more info about the items being processed
     --debug           : Print lots of debugging info.
-    --progress        : Show progress information during various steps
+    --timing          : Show timing information during various steps
 EOTXT
 
     exit(1);
