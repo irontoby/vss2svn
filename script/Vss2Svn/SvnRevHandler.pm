@@ -65,11 +65,12 @@ sub check {
 
     my $wasseen = $self->{seen}->{$physname};
 
+
     no warnings 'uninitialized';
     if(($author ne $prevauthor) || ($comment ne $prevcomment) || $wasseen ||
        ($timestamp - $prevtimestamp > $gCfg{revtimerange}) ||
        ($itemtype == 1 && $actiontype ne 'ADD') ||
-       ($actiontype eq 'RENAME')) {
+       $self->{commitPending} ) {
 
         $self->new_revision($data);
 
@@ -79,6 +80,11 @@ sub check {
         }
 
     }
+    
+    # Any of the following actions needs to be commited the next time:
+    #  * any action on a directory other than add
+    #  * the first initial creation of the $/ project
+    $self->{commitPending} = ($itemtype == 1 && $actiontype ne 'ADD') || ($self->{revnum} == 0);
     
     $self->{seen}->{$physname}++;
 
@@ -96,6 +102,7 @@ sub new_revision {
     $self->{svncache}->add( @{ $data }{qw(timestamp author comment)} );
     $self->{revnum} = $self->{svncache}->{pkey};
     $self->{seen} = {};
+    $self->{commitPending} = undef;
 
 }  #  End new_revision
 
