@@ -253,6 +253,10 @@ sub _branch_handler {
     my($self, $itempath, $nodes, $data, $expdir) = @_;
 
     # branching is a no-op in SVN
+    
+    # if the file is copied later, we need to track, the revision of this branch
+    # see the shareBranchShareModify Test
+    $self->track_modified($data->{physname}, $data->{revision_id}, $itempath);
 
 }  #  End _branch_handler
 
