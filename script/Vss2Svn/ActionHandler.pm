@@ -286,11 +286,13 @@ sub _delete_handler {
     my $row = $self->{row};
 
     # For a delete operation we return only the "main" path, since any deletion
-    # of shared paths will have their own entry
+    # of shared paths will have their own entry:
+    # WRONG: we need to return the path of the item to be deleted, and not the
+    # parent path
 
     my $physname = $row->{physname};
 
-    my $itempaths = $self->_get_current_item_paths(1);
+#    my $itempaths = $self->_get_current_item_paths(2, $row->{parentphys});
 
     my $physinfo = $gPhysInfo{$physname};
 
@@ -299,6 +301,9 @@ sub _delete_handler {
             . "$self->{physname_seen}\n";
         return 0;
     }
+
+    my $parentpaths = $self->_get_item_paths($row->{parentphys}, 1);
+    my $itempaths = [$parentpaths->[0] . $physinfo->{name}];
 
     if ($physinfo->{parentphys} eq $row->{parentphys}) {
         # Deleting from the "main" parent; find a new one by shifting off the
