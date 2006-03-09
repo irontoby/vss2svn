@@ -644,7 +644,7 @@ sub CreateSvnDumpfile {
     open $fh, ">$file"
         or &ThrowError("Could not create dumpfile '$file'");
 
-    my($sql, $sth, $row, $revision, $actions, $action, $physname, $itemtype);
+    my($sql, $sth, $action_sth, $row, $revision, $actions, $action, $physname, $itemtype);
 
     my %exported = ();
 
@@ -652,6 +652,16 @@ sub CreateSvnDumpfile {
 
     $sth = $gCfg{dbh}->prepare($sql);
     $sth->execute();
+
+    $sql = <<"EOSQL";
+SELECT * FROM
+    VssAction 
+WHERE action_id IN 
+    (SELECT action_id FROM SvnRevisionVssAction WHERE revision_id = ?) 
+ORDER BY action_id
+EOSQL
+
+    $action_sth = $gCfg{dbh}->prepare($sql);
 
     my $dumpfile = Vss2Svn::Dumpfile->new($fh);
 
@@ -665,7 +675,8 @@ REVISION:
 
         next REVISION if $revision == 0;
 
-        $actions = &GetRevVssActions($revision);
+        $action_sth->execute($revision);
+        $actions = $action_sth->fetchall_arrayref( {} );
 
 ACTION:
         foreach $action(@$actions) {
@@ -680,8 +691,10 @@ ACTION:
                 }
             }
 
+            # do_action needs to know the revision_id, so paste it on
+            $action->{revision_id} = $revision;
+
             $dumpfile->do_action($action, $exported{$physname});
-            
         }
         print "revision $revision: ", timestr(timediff(new Benchmark, $t0)),"\n"
             if $gCfg{timing};
@@ -698,48 +711,6 @@ ACTION:
     close $fh;
 
 }  #  End CreateSvnDumpfile
-
-###############################################################################
-#  GetRevVssActions
-###############################################################################
-sub GetRevVssActions {
-    my($revision) = @_;
-
-    my($sql, $sth);
-    $sql = <<"EOSQL";
-SELECT * FROM
-    VssAction v
-INNER JOIN
-    SvnRevisionVssAction sv ON sv.action_id = v.action_id
-WHERE
-    sv.revision_id = ?
-EOSQL
-
-#    $sql = <<"EOSQL";
-#SELECT VssAction.*, $revision AS revision_id FROM
-#    VssAction 
-#WHERE action_id IN
-#    (SELECT action_id FROM SvnRevisionVssAction WHERE revision_id = ?)
-#EOSQL
-
-    my $t0 = new Benchmark;
-    $sth = $gCfg{dbh}->prepare($sql);
-    my $t1 = new Benchmark;
-    $sth->execute($revision);
-    my $t2 = new Benchmark;
-
-    my $arrayref = $sth->fetchall_arrayref( {} );
-    my $t3 = new Benchmark;
-
-    print "revision $revision: PREPARE   ",timestr(timediff($t1, $t0)),"\n"
-        if ($gCfg{timing} >= 2);
-    print "revision $revision: EXECUTE   ",timestr(timediff($t2, $t1)),"\n"
-        if ($gCfg{timing} >= 2);
-    print "revision $revision: FA_ARRAY  ",timestr(timediff($t3, $t2)),"\n"
-        if ($gCfg{timing} >= 2);
-            
-    return $arrayref;
-}  #  End GetRevVssActions
 
 ###############################################################################
 #  ExportVssPhysFile
