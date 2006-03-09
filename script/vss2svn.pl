@@ -1286,6 +1286,7 @@ sub Initialize {
     if ($gCfg{debug}) {
         $gCfg{verbose} = 1;
     }
+    $gCfg{timing} = 0 unless defined $gCfg{timing};
 
     $gCfg{starttime} = scalar localtime($^T);
 
