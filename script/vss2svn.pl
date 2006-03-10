@@ -340,6 +340,8 @@ VERSION:
             }
         } elsif ($actiontype eq 'BRANCH') {
             $info = $action->{Parent};
+        } elsif ($actiontype eq 'PIN') {
+            $info = $action->{PinnedToVersion};
         }
 
         $vernum = ($parentdata)? undef : $version->{VersionNumber};
@@ -605,6 +607,7 @@ ROW:
         # RENAME: the new name (without path)
         # SHARE: the source path which was shared
         # MOVE: the new path
+        # PIN: the version that was pinned      
         $row->{info} = $handler->{info};
 
         $allitempaths = join("\t", @$itempaths);
@@ -738,7 +741,7 @@ sub ExportVssPhysFile {
     # As a hot fix, we define the version to 1, which will also revert to the
     # alpha 1 version behavoir.
     if (! defined $version) {
-        &ThrowWarning("unknown version for '$physname' to retrieve ");
+        &ThrowWarning("'$physname': no version specified for retrieval");
         
         # fall through and try with version 1.
         $version = 1;
@@ -1326,6 +1329,11 @@ EOTXT
 # ssphys; second field is item type (1=project, 2=file); third field is the
 # generic action it should be mapped to (loosely mapped to SVN actions)
 
+# RollBack is only seen in combiation with a BranchFile activity, so actually
+# RollBack is the item view on the activity and BranchFile is the parent side
+# ==> map RollBack to BRANCH, so that we can join the two actions in the
+# MergeParentData step
+    
 __DATA__
 CreatedProject	1	ADD
 AddedProject	1	ADD
@@ -1345,6 +1353,6 @@ RecoveredFile	2	RECOVER
 SharedFile	2	SHARE
 BranchFile	2	BRANCH
 PinnedFile	2	IGNORE
-RollBack	2	IGNORE
+RollBack	2	BRANCH
 UnpinnedFile	2	IGNORE
 Labeled	2	IGNORE
