@@ -292,8 +292,6 @@ sub _delete_handler {
 
     my $physname = $row->{physname};
 
-#    my $itempaths = $self->_get_current_item_paths(2, $row->{parentphys});
-
     my $physinfo = $gPhysInfo{$physname};
 
     if (!defined $physinfo) {
@@ -377,6 +375,7 @@ sub _recover_handler {
     return 1;
 
 }  #  End _recover_handler
+
 
 ###############################################################################
 #  _get_current_item_paths
