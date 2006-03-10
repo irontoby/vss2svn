@@ -302,6 +302,16 @@ sub _delete_handler {
         return 0;
     }
 
+    # protect for delete/purge cycles: if the parentphys isn't in the shares
+    # anymore, the file was already deleted from the parent and is now purged
+#    my %look = map {$_ => 1} @{ $physinfo->{sharedphys} };
+#    return 0 unless defined($look{$physinfo->{parentphys}});
+    my $parentFound = defined $physinfo->{parentphys};
+    foreach my $parent (@{ $physinfo->{sharedphys} }) {
+        $parentFound = 1 if ($physinfo->{parentphys} eq $parent);
+    }
+    return 0 unless $parentFound;
+
     my $parentpaths = $self->_get_item_paths($row->{parentphys}, 1);
     my $itempaths = [$parentpaths->[0] . $physinfo->{name}];
 
