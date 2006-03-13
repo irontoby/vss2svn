@@ -2,18 +2,18 @@
 //
 //////////////////////////////////////////////////////////////////////
 
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "Formatter.h"
 
-#include <boost\lexical_cast.hpp>
+#include <boost/lexical_cast.hpp>
 
-#include <SSPhysLib\SSFiles.h>
-#include <SSPhysLib\SSCheckoutObject.h>
-#include <SSPhysLib\SSNameObject.h>
-#include <SSPhysLib\SSItemInfoObject.h>
-#include <SSPhysLib\SSProjectObject.h>
-#include <SSPhysLib\SSParentFolderObject.h>
-#include <SSPhysLib\SSBranchFileObject.h>
+#include <SSPhysLib/SSFiles.h>
+#include <SSPhysLib/SSCheckOutObject.h>
+#include <SSPhysLib/SSNameObject.h>
+#include <SSPhysLib/SSItemInfoObject.h>
+#include <SSPhysLib/SSProjectObject.h>
+#include <SSPhysLib/SSParentFolderObject.h>
+#include <SSPhysLib/SSBranchFileObject.h>
 
 class CSSObjectVisitor : public ISSObjectVisitor
 {
@@ -192,8 +192,8 @@ void CVssFormatter::Apply (const SSVersionObject& rObject, const ISSContext* pCt
   char line1[60]; _snprintf (line1, 60, format1, rObject.GetVersionNumber ());
   char date[12];
   char time[12];
-  __time32_t versionDate = rObject.GetDate ();
-  const tm* ttm = _gmtime32 (&versionDate);//localtime (&versionDate);
+  time_t versionDate = rObject.GetDate ();
+  const tm* ttm = gmtime (&versionDate);//localtime (&versionDate);
   strftime (date, countof (date), "%x", ttm);
   strftime (time, countof (time), "%X", ttm);
   char line2[60]; _snprintf (line2, 60, format2, rObject.GetUsername ().c_str (), date, time);

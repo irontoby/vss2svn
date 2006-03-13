@@ -12,17 +12,21 @@
 #include <sstream>
 #include "SSRecord.h"
 
+#if !defined(_RAISE)
+#	define _RAISE(e) throw e
+#endif
+
 //---------------------------------------------------------------------------
 class SSException : public std::exception
 {
 public:
   SSException(const std::string& str)
-    : exception (""), m_Str (str)
+    : exception (), m_Str (str)
     {
     }
-	virtual ~SSException()
+	virtual ~SSException() throw ()
 		{}
-	virtual const char *what() const
+	virtual const char *what() const throw ()
 		{return (m_Str.c_str()); }
 protected:
 	virtual void _Doraise() const
@@ -56,7 +60,9 @@ public:
     : m_Action (action), m_record (record), SSException ("unknown action")
   {
   }
-	virtual const char *what() const
+  virtual ~SSUnknownActionException() throw ()
+  {}
+  virtual const char *what() const throw ()
   { 
     std::ostringstream stream;
 	stream << m_Str << " " << m_Action << " at offset 0x" << std::hex << m_record->GetOffset();

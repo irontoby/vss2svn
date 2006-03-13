@@ -2,12 +2,12 @@
 //
 //////////////////////////////////////////////////////////////////////
 
-#include "stdafx.h"
+#include "StdAfx.h"
 
 #pragma warning (disable: 4786)
 #include <string>
 #include <map>
-#include <boost\lexical_cast.hpp>
+#include <boost/lexical_cast.hpp>
 
 #include "SSNameObject.h"
 

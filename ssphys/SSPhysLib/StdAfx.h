@@ -24,7 +24,7 @@
 #include <vector>
 #include <string>
 
-#include <boost\smart_ptr.hpp>
+#include <boost/smart_ptr.hpp>
 
 //---------------------------------------------------------------------------
 #define countof(x) (sizeof(x) / sizeof(x[0]))

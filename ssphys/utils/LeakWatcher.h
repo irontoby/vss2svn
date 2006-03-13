@@ -4,9 +4,10 @@
 #ifndef IMWATCHINGYOULEAK
 #define IMWATCHINGYOULEAK
 
+#ifdef _DEBUG
+
 #include <crtdbg.h>
 
-#ifdef _DEBUG
 inline void* operator new(size_t nSize, const char * lpszFileName, int nLine)
 {
     return ::operator new(nSize, 1, lpszFileName, nLine);

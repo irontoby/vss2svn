@@ -10,7 +10,7 @@
 #endif // _MSC_VER > 1000
 
 #include "Options.h"
-#include <SSPhysLib\SSVersionObject.h>
+#include <SSPhysLib/SSVersionObject.h>
 
 enum eStyle {eBinary, eXML, eVSS, eDump};
 

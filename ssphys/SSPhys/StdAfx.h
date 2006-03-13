@@ -1,4 +1,4 @@
-// stdafx.h : include file for standard system include files,
+// StdAfx.h : include file for standard system include files,
 //  or project specific include files that are used frequently, but
 //      are changed infrequently
 //
@@ -23,7 +23,7 @@
 #include <vector>
 #include <string>
 
-#include <boost\smart_ptr.hpp>
+#include <boost/smart_ptr.hpp>
 
 //---------------------------------------------------------------------------
 #define countof(x) (sizeof(x) / sizeof(x[0]))
@@ -31,6 +31,11 @@
 //#define DELETE(x)  { delete (x); x = NULL; }
 
 typedef std::vector<std::string> StringVector;
+
+
+#if !defined(_MSC_VER)
+#define _snprintf snprintf
+#endif
 
 //---------------------------------------------------------------------------
 void Info (const char* message);
@@ -42,7 +47,7 @@ void Error (const char* message);
 #define warn_with_msg_if(x,y) (x) ? Warning (y), false : true;
 
 
-#include <SSPhysLib\SSexception.h>
+#include <SSPhysLib/SSException.h>
 
 #include "Options.h"
 

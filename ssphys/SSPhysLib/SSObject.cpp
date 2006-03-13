@@ -2,7 +2,7 @@
 //
 //////////////////////////////////////////////////////////////////////
 
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "SSObject.h"
 #include "SSItemInfoObject.h"
 #include "SSNameObject.h"

@@ -15,6 +15,12 @@ typedef unsigned char byte;
 typedef unsigned long ulong;
 typedef unsigned short ushort;
 
+#if !defined(_MSC_VER)
+// for non-Windows compilation, choose a 32-bit unsigned type here
+#include <sys/types.h>
+typedef u_int32_t __time32_t;
+#endif
+
 //---------------------------------------------------------------------------
 // OLE API documentation
 // http://msdn.microsoft.com/library/default.asp?url=/library/en-us/dnvss/html/vssauto.asp

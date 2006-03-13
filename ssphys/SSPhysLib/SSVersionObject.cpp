@@ -2,7 +2,7 @@
 //
 //////////////////////////////////////////////////////////////////////
 
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "SSVersionObject.h"
 #include "SSFiles.h"
 #include "SSName.h"
@@ -38,7 +38,7 @@ SSVersionObject::~SSVersionObject ()
   delete m_pAction;
 }
 
-SSVersionObject::SSVersionObject (SSVersionObject& object)
+SSVersionObject::SSVersionObject (SSVersionObject const & object)
   : SSObject (object), 
     m_pAction (NULL)
 {

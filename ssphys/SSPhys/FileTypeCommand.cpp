@@ -2,11 +2,11 @@
 //
 //////////////////////////////////////////////////////////////////////
 
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "FileTypeCommand.h"
 #include "Formatter.h"
-#include <SSPhysLib\SSFiles.h>
-#include <SSPhysLib\SSItemInfoObject.h>
+#include <SSPhysLib/SSFiles.h>
+#include <SSPhysLib/SSItemInfoObject.h>
 
 //////////////////////////////////////////////////////////////////////
 // Construction/Destruction

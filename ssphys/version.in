@@ -13,12 +13,7 @@
 #define FILEVER_REVDATE     "$WCDATE$"
 #define FILEVER_REVMODIFIED $WCMODS?" (locally modified)":""$
 
-// copied from boost/preprocessor/stringize.hpp
-#define PP_STRINGIZE(text) PP_STRINGIZE_A((text))
-#define PP_STRINGIZE_A(arg) PP_STRINGIZE_B ## (arg)
-#define PP_STRINGIZE_B(arg) PP_STRINGIZE_I ## arg
-#define PP_STRINGIZE_I(text) #text
-
+#include <boost/preprocessor/stringize.hpp>
 
 // FILEVER       will be e.g. "1,9,1,116"
 // PRODUCTVER    will be e.g. "0,9,1,116"
@@ -28,10 +23,12 @@
 
 
 #define MAKE_VERSION(x, y, z, b)  x,y,z,b
+// undefine VERSION passed on command line
+#undef	VERSION
 #define VERSION         MAKE_VERSION(FILEVER_MAJOR,FILEVER_MINOR,FILEVER_MICRO,FILEVER_REV)
-#define VERSION_STRING  PP_STRINGIZE(PRODUCTVER_MAJOR) "." PP_STRINGIZE(PRODUCTVER_MINOR) "." PP_STRINGIZE(PRODUCTVER_MICRO)
+#define VERSION_STRING  BOOST_PP_STRINGIZE(PRODUCTVER_MAJOR) "." BOOST_PP_STRINGIZE(PRODUCTVER_MINOR) "." BOOST_PP_STRINGIZE(PRODUCTVER_MICRO)
 
 #define FILEVER        VERSION
 #define PRODUCTVER     VERSION
-#define STRFILEVER     VERSION_STRING ", Build " PP_STRINGIZE(FILEVER_REVRANGE) FILEVER_REVMODIFIED "\0"
+#define STRFILEVER     VERSION_STRING ", Build " BOOST_PP_STRINGIZE(FILEVER_REVRANGE) FILEVER_REVMODIFIED "\0"
 #define STRPRODUCTVER  VERSION_STRING "\0"

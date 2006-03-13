@@ -2,12 +2,12 @@
 //
 //////////////////////////////////////////////////////////////////////
 
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "PropertiesCommand.h"
 #include "Formatter.h"
-#include <SSPhysLib\SSFiles.h>
-#include <SSPhysLib\SSItemInfoObject.h>
-#include <SSPhysLib\SSProjectObject.h>
+#include <SSPhysLib/SSFiles.h>
+#include <SSPhysLib/SSItemInfoObject.h>
+#include <SSPhysLib/SSProjectObject.h>
 
 //////////////////////////////////////////////////////////////////////
 // Construction/Destruction

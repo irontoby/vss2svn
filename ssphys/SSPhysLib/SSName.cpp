@@ -2,7 +2,7 @@
 //
 //////////////////////////////////////////////////////////////////////
 
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "SSName.h"
 //#include "SSDatabase.h"
 
@@ -47,7 +47,7 @@ std::string SSName::GetType () const
 std::string SSName::GetFullName () const
 {
   std::string name = m_ssName.name;
-  if (m_pNamesService && m_ssName.nsmap != NULL)
+  if (m_pNamesService && m_ssName.nsmap != 0UL)
   { 
     std::string altName = m_pNamesService->GetName (m_ssName.flags, m_ssName.nsmap);
     if (!altName.empty ())

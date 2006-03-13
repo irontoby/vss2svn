@@ -9,6 +9,7 @@
 #pragma once
 #endif // _MSC_VER > 1000
 
+#include <boost/shared_ptr.hpp>
 
 class SSItemInfoObject;
 class SSVersionObject;

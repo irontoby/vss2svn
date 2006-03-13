@@ -33,7 +33,7 @@ enum eType {
 
 class SSRecord
 {
-  friend SSFileImp;
+  friend class SSFileImp;
   SSRecord (SSFileImpPtr filePtr, long offset);
 public:
   SSRecord (eType type, const void* buffer, int len);

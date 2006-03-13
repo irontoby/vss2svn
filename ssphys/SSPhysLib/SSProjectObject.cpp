@@ -2,7 +2,7 @@
 //
 //////////////////////////////////////////////////////////////////////
 
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "SSProjectObject.h"
 #include "SSName.h"
 #include <strstream>
@@ -43,7 +43,9 @@ std::string SSProjectObject::GetName () const
   {
     char buffer[66];
     fullName += ";";
-    fullName += itoa (GetPinnedToVersion(), buffer, 10);
+    // note that Linux STL lacks itoa, as of FC2
+    sprintf(buffer, "%d", GetPinnedToVersion());
+    fullName += buffer;
   }
   return fullName;
 }

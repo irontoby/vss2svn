@@ -90,14 +90,15 @@ public:
   virtual ~SSVersionObject ();
 
   // handle copy constructor und assigment
-  SSVersionObject (SSVersionObject& object);
+  SSVersionObject (SSVersionObject const & object);
   SSVersionObject& operator= (SSVersionObject const & object);
 
 //  BOOST_PP_SEQ_FOR_EACH(DEFINE_ACCESSORS, GetData(), VERSION_RECORD_SEQ);
   ulong   GetPrevious ()                    const { return GetData ()->previous; }
   eAction  GetActionID  ()                  const { return static_cast <eAction> (GetAction ()->GetActionID ()); }
   short   GetVersionNumber ()               const { return GetData ()->versionNumber; }
-  __time32_t  GetDate ()                    const { return GetData ()->date; }
+  // note the implicit conversion here from Win32 __time32_t to portable time_t
+  time_t  GetDate ()                        const { return GetData ()->date; }
   std::string GetUsername ()                const { return std::string (GetData ()->username /*, 32*/); }
   std::string GetLabel ()                   const { return std::string (GetData ()->label    /*, 32*/); }
   ulong   GetOffsetToNextRecordOrComment () const { return GetData ()->offsetToNextRecordOrComment; }

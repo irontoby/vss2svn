@@ -9,8 +9,8 @@
 #pragma once
 #endif // _MSC_VER > 1000
 
-#include <SSPhysLib\SSObject.h>
-#include <SSPhysLib\SSVersionObject.h>
+#include <SSPhysLib/SSObject.h>
+#include <SSPhysLib/SSVersionObject.h>
 
 class CVersionFilter
 {

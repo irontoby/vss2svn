@@ -10,7 +10,7 @@
 #endif // _MSC_VER > 1000
 
 #include "tinyxml.h"
-#include <boost\lexical_cast.hpp>
+#include <boost/lexical_cast.hpp>
 
 typedef std::map<std::string, std::string> AttribMap;
 class XMLElement;

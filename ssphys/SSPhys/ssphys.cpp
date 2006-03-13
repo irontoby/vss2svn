@@ -1,10 +1,10 @@
 // ssphys.cpp : Defines the entry point for the console application.
 //
 
-#include "stdafx.h"
-#include "..\version.h"
+#include "StdAfx.h"
+#include "../version.h"
 
-#include "SSTests.h"
+//#include "SSTests.h"
 #include "CommandLine.h"
 #include "Command.h"
 #include "GlobalOptions.h"

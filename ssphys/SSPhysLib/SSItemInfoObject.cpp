@@ -2,7 +2,7 @@
 //
 //////////////////////////////////////////////////////////////////////
 
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "SSFiles.h"
 #include "SSName.h"
 #include "SSItemInfoObject.h"
@@ -130,16 +130,16 @@ bool SSItemInfoObject::Validate()
     if (pVersion)
     {
       SSVersionObject previous (pVersion->GetPreviousObject ());
-      offset = previous ? previous.GetOffset() : NULL; 
+      offset = previous ? previous.GetOffset() : 0L; 
       if (pVersion->GetActionID() == RollBack)
         nCount += pVersion->GetVersionNumber() - 1;
       lastActionId = pVersion->GetActionID();
     }
     else
-      offset = NULL;
+      offset = 0L;
 
     ++nCount;
-  } while (offset != NULL /*GetHistoryOffsetBegin ()*/);
+  } while (offset != 0L /*GetHistoryOffsetBegin ()*/);
   
   retval &= warn_if (nCount != GetNumberOfActions ());
   retval &= warn_if (lastActionId != Created_File && lastActionId != Created_Project && lastActionId != RollBack);

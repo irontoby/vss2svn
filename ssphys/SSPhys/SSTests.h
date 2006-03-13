@@ -10,7 +10,7 @@
 #endif // _MSC_VER > 1000
 
 #if 0
-#include <SSPhysLib\SSFiles.h>
+#include <SSPhysLib/SSFiles.h>
 #include "CommandLine.h"
 
 void CheckOffsetsToComment (SSRecordFile& file);

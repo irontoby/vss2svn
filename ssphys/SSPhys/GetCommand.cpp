@@ -2,16 +2,16 @@
 //
 //////////////////////////////////////////////////////////////////////
 
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "GetCommand.h"
-#include <SSPhysLib\SSFiles.h>
-#include <SSPhysLib\SSItemInfoObject.h>
-#include <SSPhysLib\SSVersionObject.h>
-#include <SSPhysLib\SSProjectObject.h>
-#include <boost\filesystem\operations.hpp>
-#include <boost\filesystem\convenience.hpp> // create_directories
-#include <boost\filesystem\exception.hpp>
-#include <io.h>
+#include <SSPhysLib/SSFiles.h>
+#include <SSPhysLib/SSItemInfoObject.h>
+#include <SSPhysLib/SSVersionObject.h>
+#include <SSPhysLib/SSProjectObject.h>
+#include <boost/integer/static_min_max.hpp>
+#include <boost/filesystem/operations.hpp>
+#include <boost/filesystem/convenience.hpp> // create_directories
+#include <boost/filesystem/exception.hpp>
 #include <fcntl.h>
 #include <fstream>
 #include <strstream>
@@ -123,39 +123,6 @@ protected:
   }
 };
 
-std::string CreateTempFile ( const char* pzPrefix = NULL, const char* pzPath = NULL)
-{
-  std::string cPath;
-  while( true ) 
-  {
-    cPath = tempnam( pzPath, pzPrefix );
-    if (fs::exists(cPath))
-      continue;
-    
-    int fd = ::_open (cPath.c_str(), _O_RDWR | _O_CREAT | _O_EXCL, _S_IREAD | S_IWRITE );
-	  if (fd < 0) 
-    {
-	    if ( errno == EEXIST ) 
-      {
-		    continue;
-	    } 
-      else 
-      {
-        boost::throw_exception( fs::filesystem_error(
-          "filesystem::create_temp_file",
-          cPath, fs::detail::system_error_code() ) );
-	    }
-	  }
-    else 
-    {
-      ::_close (fd);
-      break;
-	  }
-  }
-  
-  return cPath;
-}
-
 class CAutoFile 
 {
 public:
@@ -257,7 +224,7 @@ public:
 
           while (size > 0)
           {
-            long s = __min (size, sizeof (b));
+            long s = std::min (size, (long) sizeof (b));
             input.read (b, s);
             output.write (b, s);
             size -= s;
@@ -315,7 +282,7 @@ public:
   virtual bool Apply (const SSCreatedFileAction& rAction)
   {
     // create an empty file
-    CAutoFile targetFile (CreateTempFile());
+    CAutoFile targetFile (tmpnam(NULL));
     m_File = targetFile;
     
     return true;
@@ -337,7 +304,7 @@ public:
   virtual bool Apply (const SSCheckedInAction& rAction)
   {
     SSRecordPtr pRecord = rAction.GetFileDelta();
-    CAutoFile targetFile (CreateTempFile());
+    CAutoFile targetFile (tmpnam(NULL));
 
     std::ifstream input (m_File.GetPath().c_str(), std::ios::in|std::ios::binary);
     if (!input.is_open())
@@ -389,7 +356,7 @@ public:
 
   virtual void SaveAs (std::string name, bool overwrite = false)
   {
-    boost::throw_exception (std::exception ("get not yet implemented for project status files"));
+    boost::throw_exception (std::logic_error ("get not yet implemented for project status files"));
   }
 
   virtual bool Apply (const SSLabeledAction& rAction)           { /* nothing to do */ return true; }

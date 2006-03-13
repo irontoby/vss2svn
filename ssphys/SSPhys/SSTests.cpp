@@ -2,11 +2,11 @@
 //
 //////////////////////////////////////////////////////////////////////
 
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "SSTests.h"
-#include <SSPhysLib\SSVersionObject.h>
-#include <SSPhysLib\SSItemInfoObject.h>
-#include <SSPhysLib\SSNameObject.h>
+#include <SSPhysLib/SSVersionObject.h>
+#include <SSPhysLib/SSItemInfoObject.h>
+#include <SSPhysLib/SSNameObject.h>
 
 //#include <boost/filesystem/path.hpp>
 //namespace fs = boost::filesystem;
@@ -15,7 +15,7 @@
 // Construction/Destruction
 //////////////////////////////////////////////////////////////////////
 
-void TestComments (SSFile& file)
+void TestComments (SSRecordFile& file)
 {
   SSRecordPtr pRecord;
   int nCommentRecords = 0;
