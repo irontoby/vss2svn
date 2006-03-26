@@ -149,11 +149,14 @@ enum eAction {
   Checked_in = 17,
   // missing action 18
   RollBack = 19,
-  // missing known actions: archives, restores
+  // missing known actions: archives
+  Restore = 25,
 
   /// --- pseudo actions ---
-  Pinned_File = 20,
-  Unpinned_File = 21
+  Pinned_File = 26,
+  Unpinned_File = 27
+
+
 };
 
 struct VERSION_RECORD {
@@ -280,6 +283,13 @@ struct BRANCH_FILE_ACTION {
   char    physical[10];
   char    parent[10];
 };
+
+typedef struct {
+  SSNAME name;
+  char physical[10];
+  short dummy;
+  char filename[266];
+} RESTORE_ACTION;
 
 struct CF {
   char    user[32];

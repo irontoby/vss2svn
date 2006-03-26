@@ -292,6 +292,8 @@ SSAction* SSAction::MakeAction (SSRecordPtr pRecord)
 //    return new SSVersionObject (pRecord);
   else if (pVersion->actionID == RollBack)
     return new SSRollbackAction (pRecord);
+  else if (pVersion->actionID == Restore)
+    return new SSRestoreAction (pRecord);
   else 
     throw SSUnknownActionException (pVersion->actionID, pRecord);
 
@@ -583,4 +585,17 @@ void SSRollbackAction::ToXml (XMLNode* pParent) const
 void SSRollbackAction::Dump (std::ostream& os) const
 {
   SSItemAction<SSRollbackAction, ROLLBACK_ACTION>::Dump (os);
+}
+
+//---------------------------------------------------------------------------
+void SSRestoreAction::ToXml (XMLNode* pParent) const
+{
+  SSItemAction<SSRestoreAction, RESTORE_ACTION>::ToXml (pParent);
+
+  XMLElement fileNameNode (pParent, "FileName", GetFileName());
+}
+
+void SSRestoreAction::Dump (std::ostream& os) const
+{
+  SSItemAction<SSRestoreAction, RESTORE_ACTION>::Dump (os);
 }

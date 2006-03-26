@@ -35,6 +35,7 @@ class SSCreatedFileAction;        // Created_File = 16,
 class SSCheckedInAction;          // Checked_in = 17,
 //class SSAction18                // missing action 18
 class SSRollbackAction;           // RollBack = 19
+class SSRestoreAction;            // Restore = 25
   
 class ISSActionVisitor
 {
@@ -50,6 +51,7 @@ public:
   virtual bool Apply (const SSRecoveredFileAction& rAction) = 0;
   virtual bool Apply (const SSBranchFileAction& rAction) = 0;
   virtual bool Apply (const SSRollbackAction& rAction) = 0;
+  virtual bool Apply (const SSRestoreAction& rAction) = 0;
 
   virtual bool Apply (const SSDestroyedProjectAction& rAction) = 0;
   virtual bool Apply (const SSDestroyedFileAction& rAction) = 0;
@@ -312,6 +314,21 @@ public:
   virtual void Dump (std::ostream& os) const;
 };
 
+
+//---------------------------------------------------------------------------
+class SSRestoreAction : public SSItemAction<SSRestoreAction, RESTORE_ACTION>
+{
+public:
+  SSRestoreAction (SSRecordPtr pRecord)
+    : SSItemAction<SSRestoreAction, RESTORE_ACTION> (pRecord, "Restore ")
+  {
+  }
+
+  std::string GetFileName ()  const { return std::string (m_Action.filename); }
+
+  virtual void ToXml (XMLNode* pParent) const;
+  virtual void Dump (std::ostream& os) const;
+};
 //---------------------------------------------------------------------------
 
 template <class ACTION>

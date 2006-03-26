@@ -22,16 +22,22 @@ extern const char* g_szActions[] = {
   "Moved Project From", // = 12
   "Moved Project To",   // = 13
   "Shared File",        // = 14
-  "Branch File",        // = 15 ???
+  "Branch File",        // = 15
   "Created File",       // = 16
   "Checked In",         // = 17
   "Action 18",          // missing action 18
   "RollBack",           // = 19
-  // missing known actions: branches, archives, restores
+  "Action 20",          // missing action 20
+  "Action 21",          // missing action 21
+  "Action 22",          // missing action 22
+  "Action 23",          // missing action 23
+  "Action 24",          // missing action 24
+  "Restore",            // = 25
+  // missing known actions: archives
 
   /// --- pseudo actions ---
-  "Pinned File",        // = 20
-  "Unpinned File"       // = 21
+  "Pinned File",        // = 26
+  "Unpinned File"       // = 27
 };
 
 const char* CAction::ActionToString (eAction e)
