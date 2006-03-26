@@ -222,18 +222,33 @@ public:
           if (input.fail ())
             throw SSException ("reverse delta: invalid seek beyond file size");
 
-          while (size > 0)
+          while (size > 0 && !input.fail () && !output.fail ())
           {
             long s = std::min (size, (long) sizeof (b));
             input.read (b, s);
             output.write (b, s);
+            
+            // how many bytes did we really read?
+            s = input.gcount ();
             size -= s;
           }
+
+          if (input.fail ())
+            throw SSException ("reverse delta: failed to read necessary amount of data from input file");
+          if (output.fail ())
+            throw SSException ("reverse delta: failed to write necessary amount of data to the output file");
         }
         break;
       case 0:
-        output.write (m_pBuffer+i, pfd->end);
-        i += pfd->end;
+        {
+          long s = __min (pfd->end, m_length - i);
+          output.write (m_pBuffer+i, s);
+
+          if (s < pfd->end)
+            throw SSException ("reverse delta: invalid patch length in delta record");
+
+          i += s;
+        }
         break;
       default:
         std::strstream msg; 

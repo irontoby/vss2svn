@@ -124,7 +124,7 @@ int main(int argc, char* argv[])
   catch (std::exception& ex)
   {
     std::cerr << argv[0] << ": " << ex.what() << std::endl;
-    std::cerr << "Try `" << argv[0] << " --help` for more information" << std::endl;
+    // std::cerr << "Try `" << argv[0] << " --help` for more information" << std::endl;
     return -1;
   }
 
