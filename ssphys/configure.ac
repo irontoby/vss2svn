@@ -39,8 +39,8 @@ vss2svn_wcrev=\`$SVN info \$1 | $SED -ne "s/^Revision: \(.*\:\)\{0,1\}\(.*\)\$/\
 vss2svn_wcmixed=\`$SVNVERSION \$1 | $SED -ne "s/^[[^:]]*\$/2/p; s/^\(.*\):\(.*\)\$/1/p"\`
 vss2svn_wcdate=\`$SVN info \$1 | $SED -ne "s/^Last Changed Date: \(....-..-.. ..:..:..\).*\$/\\1/p"\`
 vss2svn_wcmods=\`$SVNVERSION \$1 | $SED -ne "s/^\([[0-9]]*:\)\{0,1\}[[0-9]]*S\{0,1\}\$/2/p; s/^\([[0-9]]*:\)\{0,1\}[[0-9]]*MS\{0,1\}\$/1/p"\`
-vss2svn_wcnow=`date "+%Y-%m-%d %H:%M:%S"`
-$AWK -v rev=\$vss2svn_wcrev -v range=\$vss2svn_wcrange  -v wcdate="\$vss2svn_wcdate" -v url="\$vss2svn_wcurl" -v now="\$vss2svn_wcnow" '! /\\\$WCNOW\\$|\\\$WCURL\\$|\\\$WCREV\\$|\\\$WCRANGE\\$|\\\$WCDATE\\$/ { print \$0; } /\\\$WCNOW\\$/ { gsub(/\\\$WCNOW\\$/, now); /\\\$WCURL\\$/ { gsub(/\\\$WCURL\\$/, url); print \$0; } /\\\$WCREV\\$/ { gsub(/\\\$WCREV\\$/, rev); print \$0; } /\\\$WCRANGE\\$/ { gsub(/\\\$WCRANGE\\$/, range); print \$0; } /\\\$WCDATE\\$/ { gsub(/\\\$WCDATE\\$/, wcdate); print \$0; }' \$2 | $SED -e "s/\\\$WCMODS?\(.*\):\(.*\)\\$/\\\\\$vss2svn_wcmods/g;" | $SED -e  "s/\\\$WCMIXED?\(.*\):\(.*\)\\$/\\\\\$vss2svn_wcmixed/g;" > \$3
+vss2svn_wcnow=\`date "+%Y-%m-%d %H:%M:%S"\`
+$AWK -v rev=\$vss2svn_wcrev -v range=\$vss2svn_wcrange  -v wcdate="\$vss2svn_wcdate" -v url="\$vss2svn_wcurl" -v now="\$vss2svn_wcnow" '! /\\\$WCNOW\\$|\\\$WCURL\\$|\\\$WCREV\\$|\\\$WCRANGE\\$|\\\$WCDATE\\$/ { print \$0; } /\\\$WCNOW\\$/ { gsub(/\\\$WCNOW\\$/, now); print \$0;} /\\\$WCURL\\$/ { gsub(/\\\$WCURL\\$/, url); print \$0; } /\\\$WCREV\\$/ { gsub(/\\\$WCREV\\$/, rev); print \$0; } /\\\$WCRANGE\\$/ { gsub(/\\\$WCRANGE\\$/, range); print \$0; } /\\\$WCDATE\\$/ { gsub(/\\\$WCDATE\\$/, wcdate); print \$0; }' \$2 | $SED -e "s/\\\$WCMODS?\(.*\):\(.*\)\\$/\\\\\$vss2svn_wcmods/g;" | $SED -e  "s/\\\$WCMIXED?\(.*\):\(.*\)\\$/\\\\\$vss2svn_wcmixed/g;" > \$3
 EOF
     chmod +x svnwcrev.sh
     AC_MSG_NOTICE([wrote svnwcrev.sh])
