@@ -242,7 +242,7 @@ public:
         break;
       case 0:
         {
-          long s = __min (pfd->end, m_length - i);
+	    long s = std::min (pfd->end, (ulong)(m_length - i));
           output.write (m_pBuffer+i, s);
 
           if (s < pfd->end)
