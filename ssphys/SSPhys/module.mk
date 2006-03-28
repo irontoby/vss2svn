@@ -39,6 +39,8 @@ ssphys_CPPFLAGS = -I$(top_builddir) -I$(top_srcdir)/SSPhys -I$(top_srcdir)/utils
 ssphys_CXXFLAGS = -Wno-deprecated
 ssphys_LDADD = libSSPhys.la
 
+$(top_srcdir)/SSPhys/ssphys.cpp : $(top_builddir)/version.h
+
 $(top_builddir)/version.h : $(top_builddir)/svnwcrev.sh $(top_srcdir)/version.in
 	./svnwcrev.sh $(top_srcdir) $(top_srcdir)/version.in $@
 
