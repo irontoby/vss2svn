@@ -17,7 +17,7 @@ use lib '.';
 use Vss2Svn::ActionHandler;
 use Vss2Svn::DataCache;
 use Vss2Svn::SvnRevHandler;
-use Vss2svn::Dumpfile;
+use Vss2Svn::Dumpfile;
 
 our(%gCfg, %gSth, @gErr, %gFh, $gSysOut, %gActionType, %gNameLookup, %gId);
 
