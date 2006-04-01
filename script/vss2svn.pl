@@ -116,24 +116,28 @@ sub LoadVssNames {
 ENTRY:
     foreach $entry (@$namesref) {
         $count = $entry->{NrOfEntries};
-#        next ENTRY unless $count > 1;
-
         $offset = $entry->{offset};
 
-        if ($count == 1) {
-            $name = $entry->{Entry}->[0]->{content};
-        } elsif ($count == 2) {
-            $name = $entry->{Entry}->[1]->{content};
-        } else {
-            $name = $entry->{Entry}->[$count - 2]->{content};
+        # The cache can contain 4 different entries:
+        #   id=1: abbreviated DOS 8.3 name for file items
+        #   id=2: full name for file items
+        #   id=3: abbreviated 27.3 name for file items
+        #   id=10: full name for project items
+        # Both ids 1 and 3 are not of any interest for us, since they only
+        # provide abbreviated names for different szenarios. We are only
+        # interested if we have id=2 for file items, or id=10 for project
+        # items.
+        foreach $name (@{$entry->{Entry}}) {
+            if ($name->{id} == 10 || $name->{id} == 2) {
+                $cache->add($offset, $name->{content});
+            }
         }
-
-        $cache->add($offset, $name);
     }
 
     $cache->commit();
 
 }  #  End LoadVssNames
+
 
 ###############################################################################
 #  FindPhysDbFiles
@@ -371,22 +375,13 @@ sub GetItemName {
     my $itemname = $nameelem->{content};
 
     if (defined($nameelem->{offset})) {
-        # Might have a "better" name in the name cache, but sometimes the
-        # original name is best.
+        # see if we have a better name in the cache
         my $cachename = $gNameLookup{ $nameelem->{offset} };
-        return $itemname unless defined($cachename);
 
-        if (!defined($itemname) ||
-            (length($cachename) >= length($itemname) &&
-            !($itemname !~ m/~/ && $cachename =~ m/~/))) {
-
+        if (defined($cachename)) {
             print "Changing name of '$itemname' to '$cachename' from "
-                . "name cache\n" if $gCfg{debug};
-
+                  . "name cache\n" if $gCfg{debug};
             $itemname = $cachename;
-        } else {
-            print "Found name '$cachename' in namecache, but kept original "
-                . "'$itemname'\n" if $gCfg{debug};
         }
     }
 
