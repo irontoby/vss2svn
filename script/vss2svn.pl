@@ -189,21 +189,48 @@ sub GetPhysVssHistory {
     while (defined($row = $sth->fetchrow_hashref() )) {
         $physname = $row->{physname};
 
-        $physdir = "$gCfg{vssdir}/data/" . substr($physname, 0, 1);
+        $physdir = "$gCfg{vssdir}/data/";
+        my $physfolder = substr($physname, 0, 1);
 
-        &GetVssPhysInfo($cache, $physdir, $physname, $xs);
+        &GetVssPhysInfo($cache, $physdir, $physfolder, $physname, $xs);
     }
 
     $cache->commit();
 
 }  #  End GetPhysVssHistory
 
+sub CaseFoldPhysname {
+    my($physdir, $physfolder, $physname) = @_;
+
+    # return it if it's already OK
+    return ($physdir, $physfolder, $physname) if -e "$physdir/$physfolder/$physname";
+    my $lcphysname = lc($physname);
+    my $lcphysfolder = lc($physfolder);
+
+    # try this one...
+    return ($physdir, $lcphysfolder, $lcphysname) if -e "$physdir/$lcphysfolder/$lcphysname";
+
+    # now this one...
+    return ($physdir, $lcphysfolder, $physname) if -e "$physdir/$lcphysfolder/$physname";
+
+    # haven't seen this one, but try it...
+    return ($physdir, $physfolder, $lcphysname) if -e "$physdir/$physfolder/$lcphysname";
+
+    # no idea what to return...
+    return (undef, undef, undef);
+}
+
 ###############################################################################
 #  GetVssPhysInfo
 ###############################################################################
 sub GetVssPhysInfo {
-    my($cache, $physdir, $physname, $xs) = @_;
+    my($cache, $physdir, $physfolder, $physname, $xs) = @_;
 
+    ($physdir, $physfolder, $physname) = CaseFoldPhysname($physdir, $physfolder, $physname);
+
+    print "physdir: \"$physdir\", physfolder: \"$physfolder\" physname: \"$physname\"\n" if $gCfg{debug}; 
+
+    $physdir .= $physfolder;
     &DoSsCmd("info \"$physdir/$physname\"");
 
     my $xml = $xs->XMLin($gSysOut);
@@ -219,7 +246,7 @@ sub GetVssPhysInfo {
     }
 
     if ($iteminfo->{Type} == 1) {
-        $parentphys = ($physname eq 'AAAAAAAA')?
+        $parentphys = (uc($physname) eq 'AAAAAAAA')?
             '' : &GetProjectParent($xml);
     } elsif ($iteminfo->{Type} == 2) {
         $parentphys = undef;
@@ -295,7 +322,7 @@ VERSION:
             $comment =~ s/\s+$//s;
         }
 
-        if ($itemtype == 1 && $physname eq 'AAAAAAAA'
+        if ($itemtype == 1 && uc($physname) eq 'AAAAAAAA'
             && ref($tphysname)) {
 
             $tphysname = $physname;
