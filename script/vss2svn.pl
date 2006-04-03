@@ -99,7 +99,7 @@ sub RunConversion {
 #  LoadVssNames
 ###############################################################################
 sub LoadVssNames {
-    &DoSsCmd("info \"$gCfg{vssdatadir}\\names.dat\"");
+    &DoSsCmd("info \"$gCfg{vssdatadir}/names.dat\"");
 
     my $xs = XML::Simple->new(KeyAttr => [],
                               ForceArray => [qw(NameCacheEntry Entry)],);
@@ -189,7 +189,7 @@ sub GetPhysVssHistory {
     while (defined($row = $sth->fetchrow_hashref() )) {
         $physname = $row->{physname};
 
-        $physdir = "$gCfg{vssdir}\\data\\" . substr($physname, 0, 1);
+        $physdir = "$gCfg{vssdir}/data/" . substr($physname, 0, 1);
 
         &GetVssPhysInfo($cache, $physdir, $physname, $xs);
     }
@@ -204,7 +204,7 @@ sub GetPhysVssHistory {
 sub GetVssPhysInfo {
     my($cache, $physdir, $physname, $xs) = @_;
 
-    &DoSsCmd("info \"$physdir\\$physname\"");
+    &DoSsCmd("info \"$physdir/$physname\"");
 
     my $xml = $xs->XMLin($gSysOut);
     my $parentphys;
@@ -718,8 +718,8 @@ sub ExportVssPhysFile {
 
     $physname =~ m/^((.).)/;
 
-    my $exportdir = "$gCfg{vssdata}\\$1";
-    my $physpath = "$gCfg{vssdir}\\data\\$2\\$physname";
+    my $exportdir = "$gCfg{vssdata}/$1";
+    my $physpath = "$gCfg{vssdir}/data/$2/$physname";
 
     if (! -e $physpath) {
         # physical file doesn't exist; it must have been destroyed later
@@ -742,8 +742,8 @@ sub ExportVssPhysFile {
         $version = 1;
     }
     
-    if (! -e "$exportdir\\$physname.$version" ) {
-        &DoSsCmd("get -b -v$version --force-overwrite $physpath $exportdir\\$physname");
+    if (! -e "$exportdir/$physname.$version" ) {
+        &DoSsCmd("get -b -v$version --force-overwrite $physpath $exportdir/$physname");
     }
 
     return $exportdir;
@@ -1002,7 +1002,7 @@ sub SetupGlobals {
     }
 
     $gCfg{ssphys} = 'SSPHYS.exe' if !defined($gCfg{ssphys});
-    $gCfg{vssdatadir} = "$gCfg{vssdir}\\data";
+    $gCfg{vssdatadir} = "$gCfg{vssdir}/data";
 
     (-d "$gCfg{vssdatadir}") or &ThrowError("$gCfg{vssdir} does not appear "
                                             . "to be a valid VSS database");
@@ -1228,23 +1228,23 @@ FIELD:
 ###############################################################################
 sub Initialize {
     GetOptions(\%gCfg,'vssdir=s','tempdir=s','dumpfile=s','resume','verbose',
-               'debug','timing+','task=s','revtimerange=i');
+               'debug','timing+','task=s','revtimerange=i', 'ssphys=s');
 
     &GiveHelp("Must specify --vssdir") if !defined($gCfg{vssdir});
-    $gCfg{tempdir} = '.\\_vss2svn' if !defined($gCfg{tempdir});
+    $gCfg{tempdir} = './_vss2svn' if !defined($gCfg{tempdir});
     $gCfg{dumpfile} = 'vss2svn-dumpfile.txt' if !defined($gCfg{dumpfile});
 
-    $gCfg{sqlitedb} = "$gCfg{tempdir}\\vss_data.db";
+    $gCfg{sqlitedb} = "$gCfg{tempdir}/vss_data.db";
 
     # XML output from ssphysout placed here.
-    $gCfg{ssphysout} = "$gCfg{tempdir}\\ssphysout";
+    $gCfg{ssphysout} = "$gCfg{tempdir}/ssphysout";
 
     # Commit messages for SVN placed here.
-    $gCfg{svncomment} = "$gCfg{tempdir}\\svncomment.tmp.txt";
+    $gCfg{svncomment} = "$gCfg{tempdir}/svncomment.tmp.txt";
     mkdir $gCfg{tempdir} unless (-d $gCfg{tempdir});
 
     # Directories for holding VSS revisions
-    $gCfg{vssdata} = "$gCfg{tempdir}\\vssdata";
+    $gCfg{vssdata} = "$gCfg{tempdir}/vssdata";
 
     if ($gCfg{resume} && !-e $gCfg{sqlitedb}) {
         warn "WARNING: --resume set but no database exists; starting new "
@@ -1300,9 +1300,9 @@ REQUIRED PARAMETERS:
 OPTIONAL PARAMETERS:
     --ssphys <path>   : Full path to ssphys.exe program; uses PATH otherwise
     --tempdir <dir>   : Temp directory to use during conversion;
-                        default is .\\_vss2svn
+                        default is ./_vss2svn
     --dumpfile <file> : specify the subversion dumpfile to be created;
-                        default is .\\vss2svn-dumpfile.txt
+                        default is ./vss2svn-dumpfile.txt
     --revtimerange <sec> : specify the difference between two ss actions
                            that are treated as one subversion revision;
                            default is 3600 seconds (== 1hour)
