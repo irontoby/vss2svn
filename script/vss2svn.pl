@@ -189,7 +189,7 @@ sub GetPhysVssHistory {
     while (defined($row = $sth->fetchrow_hashref() )) {
         $physname = $row->{physname};
 
-        $physdir = "$gCfg{vssdir}/data/";
+        $physdir = "$gCfg{vssdir}/data";
         my $physfolder = substr($physname, 0, 1);
 
         &GetVssPhysInfo($cache, $physdir, $physfolder, $physname, $xs);
@@ -199,22 +199,25 @@ sub GetPhysVssHistory {
 
 }  #  End GetPhysVssHistory
 
-sub CaseFoldPhysname {
+###############################################################################
+#  FindPhysnameFile
+###############################################################################
+sub FindPhysnameFile {
     my($physdir, $physfolder, $physname) = @_;
 
-    # return it if it's already OK
-    return ($physdir, $physfolder, $physname) if -e "$physdir/$physfolder/$physname";
+    # return it if we can find it without any alteration
+    return ($physdir, $physfolder, $physname) if -f "$physdir/$physfolder/$physname";
     my $lcphysname = lc($physname);
     my $lcphysfolder = lc($physfolder);
 
-    # try this one...
-    return ($physdir, $lcphysfolder, $lcphysname) if -e "$physdir/$lcphysfolder/$lcphysname";
+    # try finding lowercase folder/filename
+    return ($physdir, $lcphysfolder, $lcphysname) if -f "$physdir/$lcphysfolder/$lcphysname";
 
-    # now this one...
-    return ($physdir, $lcphysfolder, $physname) if -e "$physdir/$lcphysfolder/$physname";
+    # try finding lowercase folder/uppercase filename
+    return ($physdir, $lcphysfolder, $physname) if -f "$physdir/$lcphysfolder/$physname";
 
     # haven't seen this one, but try it...
-    return ($physdir, $physfolder, $lcphysname) if -e "$physdir/$physfolder/$lcphysname";
+    return ($physdir, $physfolder, $lcphysname) if -f "$physdir/$physfolder/$lcphysname";
 
     # no idea what to return...
     return (undef, undef, undef);
@@ -226,12 +229,19 @@ sub CaseFoldPhysname {
 sub GetVssPhysInfo {
     my($cache, $physdir, $physfolder, $physname, $xs) = @_;
 
-    ($physdir, $physfolder, $physname) = CaseFoldPhysname($physdir, $physfolder, $physname);
+    my @filesegment = FindPhysnameFile($physdir, $physfolder, $physname);
 
-    print "physdir: \"$physdir\", physfolder: \"$physfolder\" physname: \"$physname\"\n" if $gCfg{debug}; 
+    print "physdir: \"$filesegment[0]\", physfolder: \"$filesegment[1]\" physname: \"$filesegment[2]\"\n" if $gCfg{debug}; 
 
-    $physdir .= $physfolder;
-    &DoSsCmd("info \"$physdir/$physname\"");
+    if (!defined $filesegment[0] || !defined $filesegment[1]
+	|| !defined $filesegment[2]) {
+        # physical file doesn't exist; it must have been destroyed later
+        &ThrowWarning("Can't retrieve info from physical file "
+                      . "'$physname'; it was either destroyed or corrupted");
+        return;
+    }
+
+    &DoSsCmd("info \"$filesegment[0]/$filesegment[1]/$filesegment[2]\"");
 
     my $xml = $xs->XMLin($gSysOut);
     my $parentphys;
@@ -746,16 +756,24 @@ sub ExportVssPhysFile {
     $physname =~ m/^((.).)/;
 
     my $exportdir = "$gCfg{vssdata}/$1";
-    my $physpath = "$gCfg{vssdir}/data/$2/$physname";
+    my @filesegment = FindPhysnameFile("$gCfg{vssdir}/data", $2, $physname);
 
-    if (! -e $physpath) {
+    if (!defined $filesegment[0] || !defined $filesegment[1] || !defined $filesegment[2]) {
+        # physical file doesn't exist; it must have been destroyed later
+        &ThrowWarning("Can't retrieve revisions from physical file "
+                      . "'$physname'; it was either destroyed or corrupted");
+        return undef;
+    }
+    my $physpath = "$filesegment[0]/$filesegment[1]/$filesegment[2]";
+
+    if (! -f $physpath) {
         # physical file doesn't exist; it must have been destroyed later
         &ThrowWarning("Can't retrieve revisions from physical file "
                       . "'$physname'; it was either destroyed or corrupted");
         return undef;
     }
 
-    mkpath($exportdir);
+    mkpath($exportdir) if ! -e $exportdir;
 
     # MergeParentData normally will merge two corresponding item and parent
     # actions. But if the actions are more appart than the maximum allowed
@@ -770,7 +788,7 @@ sub ExportVssPhysFile {
     }
     
     if (! -e "$exportdir/$physname.$version" ) {
-        &DoSsCmd("get -b -v$version --force-overwrite $physpath $exportdir/$physname");
+        &DoSsCmd("get -b -v$version --force-overwrite \"$physpath\" $exportdir/$physname");
     }
 
     return $exportdir;
