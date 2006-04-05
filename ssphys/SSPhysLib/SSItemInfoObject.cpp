@@ -8,6 +8,8 @@
 #include "SSItemInfoObject.h"
 #include "SSParentFolderObject.h"
 #include "SSBranchFileObject.h"
+#include <boost/filesystem/operations.hpp>
+#include <cctype>
 
 //---------------------------------------------------------------------------
 #include "LeakWatcher.h"
@@ -153,6 +155,24 @@ void SSItemInfoObject::ToXml (XMLNode* pParent) const
   XMLElement ext   (pParent, "LatestExt", GetLatestExt());
   GetSSName().ToXml (pParent);
   XMLElement noActions (pParent, "NumberOfActions", GetNumberOfActions());
+}
+
+std::string SSItemInfoObject::GetDataFileName () const
+{
+  std::string fileName = GetFile ()->GetFileName () + GetLatestExt ();
+  boost::filesystem::path fpath(fileName);
+
+  if (!boost::filesystem::exists(fpath))
+  {
+    std::string lcExt(fileName);
+    lcExt[lcExt.length()-1] = tolower(lcExt[lcExt.length()-1]);
+    boost::filesystem::path lcpath(lcExt);
+    if (boost::filesystem::exists(lcpath))
+    {
+      fileName = lcExt;
+    }
+  }
+  return fileName;
 }
 
 void SSItemInfoObject::Dump (std::ostream& os) const

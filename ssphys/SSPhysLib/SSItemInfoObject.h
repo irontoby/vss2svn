@@ -41,7 +41,7 @@ public:
   std::string GetName ()                const { SSName name (GetSSName ()); return name.GetFullName(); }
 
   SSVersionObject GetHistoryLast ()     const { return SSVersionObject (GetFile ()->GetRecord (GetHistoryOffsetLast())); }
-  std::string GetDataFileName ()        const { return GetFile ()->GetFileName () + GetLatestExt (); }
+  std::string GetDataFileName () const;
   
 //  bool GetDeleted ()            { return 0; }
 //  bool GetCheckedOut ()         { return 0; }
