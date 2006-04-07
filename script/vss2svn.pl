@@ -19,7 +19,7 @@ use Vss2Svn::DataCache;
 use Vss2Svn::SvnRevHandler;
 use Vss2Svn::Dumpfile;
 
-our(%gCfg, %gSth, @gErr, %gFh, $gSysOut, %gActionType, %gNameLookup, %gId);
+our(%gCfg, %gSth, %gErr, %gFh, $gSysOut, %gActionType, %gNameLookup, %gId);
 
 our $VERSION = '0.10';
 
@@ -31,8 +31,8 @@ our $VERSION = '0.10';
 
 &RunConversion;
 
-&DisconnectDatabase;
 &ShowSummary;
+&DisconnectDatabase;
 
 ###############################################################################
 #  RunConversion
@@ -82,6 +82,7 @@ sub RunConversion {
             or die "FATAL ERROR: Unknown task '$gCfg{task}'\n";
 
         print "TASK: $gCfg{task}\n";
+        push @{ $gCfg{tasks} }, $gCfg{task};
 
         if ($gCfg{prompt}) {
             print "Press ENTER to continue...\n";
@@ -229,9 +230,9 @@ sub FindPhysnameFile {
 sub GetVssPhysInfo {
     my($cache, $physdir, $physfolder, $physname, $xs) = @_;
 
-    my @filesegment = FindPhysnameFile($physdir, $physfolder, $physname);
+    my @filesegment = &FindPhysnameFile($physdir, $physfolder, $physname);
 
-    print "physdir: \"$filesegment[0]\", physfolder: \"$filesegment[1]\" physname: \"$filesegment[2]\"\n" if $gCfg{debug}; 
+    print "physdir: \"$filesegment[0]\", physfolder: \"$filesegment[1]\" physname: \"$filesegment[2]\"\n" if $gCfg{debug};
 
     if (!defined $filesegment[0] || !defined $filesegment[1]
 	|| !defined $filesegment[2]) {
@@ -625,21 +626,31 @@ ROW:
 
         $itempaths = $handler->{itempaths};
 
-        if (!defined $itempaths) {
-            &ThrowWarning($handler->{errmsg})
-                if $handler->{errmsg};
-            next ROW;
-        }
-
         # In cases of a corrupted share source, the handler may change the
         # action from 'SHARE' to 'ADD'
         $row->{actiontype} = $handler->{action};
+
+        if (!defined $itempaths) {
+            # Couldn't determine name of item
+            &ThrowWarning($handler->{errmsg})
+                if $handler->{errmsg};
+
+            # If we were adding or modifying a file, commit it to lost+found;
+            # otherwise give up on it
+            if ($row->{itemtype} == 2 && ($row->{actiontype} eq 'ADD' ||
+                $row->{actiontype} eq 'COMMIT')) {
+
+                $itempaths = [undef];
+            } else {
+                next ROW;
+            }
+        }
 
         # May contain add'l info for the action depending on type:
         # RENAME: the new name (without path)
         # SHARE: the source path which was shared
         # MOVE: the new path
-        # PIN: the version that was pinned      
+        # PIN: the version that was pinned
         $row->{info} = $handler->{info};
 
         $allitempaths = join("\t", @$itempaths);
@@ -690,9 +701,9 @@ sub CreateSvnDumpfile {
 
     $sql = <<"EOSQL";
 SELECT * FROM
-    VssAction 
-WHERE action_id IN 
-    (SELECT action_id FROM SvnRevisionVssAction WHERE revision_id = ?) 
+    VssAction
+WHERE action_id IN
+    (SELECT action_id FROM SvnRevisionVssAction WHERE revision_id = ?)
 ORDER BY action_id
 EOSQL
 
@@ -702,9 +713,9 @@ EOSQL
 
 REVISION:
     while(defined($row = $sth->fetchrow_hashref() )) {
-       
+
         my $t0 = new Benchmark;
-        
+
         $revision = $row->{revision_id};
         $dumpfile->begin_revision($row);
 
@@ -738,8 +749,7 @@ ACTION:
     my @err = @{ $dumpfile->{errors} };
 
     if (scalar @err > 0) {
-        print "\nERRORS during dumpfile creation:\n   ";
-        print join("\n   ", @err);
+        map { &ThrowWarning($_) } @err;
     }
 
     $dumpfile->finish();
@@ -756,7 +766,7 @@ sub ExportVssPhysFile {
     $physname =~ m/^((.).)/;
 
     my $exportdir = "$gCfg{vssdata}/$1";
-    my @filesegment = FindPhysnameFile("$gCfg{vssdir}/data", $2, $physname);
+    my @filesegment = &FindPhysnameFile("$gCfg{vssdir}/data", $2, $physname);
 
     if (!defined $filesegment[0] || !defined $filesegment[1] || !defined $filesegment[2]) {
         # physical file doesn't exist; it must have been destroyed later
@@ -782,11 +792,11 @@ sub ExportVssPhysFile {
     # alpha 1 version behavoir.
     if (! defined $version) {
         &ThrowWarning("'$physname': no version specified for retrieval");
-        
+
         # fall through and try with version 1.
         $version = 1;
     }
-    
+
     if (! -e "$exportdir/$physname.$version" ) {
         &DoSsCmd("get -b -v$version --force-overwrite \"$physpath\" $exportdir/$physname");
     }
@@ -825,6 +835,48 @@ EOTXT
 ###############################################################################
 sub ShowSummary {
 
+    if (keys(%gErr) || $gCfg{resume}) {
+       print <<"EOTXT";
+=============================================================================
+                               ERROR SUMMARY
+
+EOTXT
+
+        if($gCfg{resume}) {
+            print <<"EOTXT";
+**NOTICE** Because this run was resumed from a previous run, this may be only
+a partial list; other errors may have been reported during previous run.
+
+EOTXT
+        }
+
+        foreach my $task (@{ $gCfg{errortasks} }) {
+            print "\n$task:\n   ";
+            print join("\n   ", @{ $gErr{$task} }),"\n";
+        }
+    }
+
+    print <<"EOTXT";
+=============================================================================
+                             END OF CONVERSION
+
+The VSS to SVN conversion is complete. You should now use the "svnadmin load"
+command to load the generated dumpfile '$gCfg{dumpfile}'. The "svnadmin"
+utility is provided as part of the Subversion command-line toolset; use a
+command such as the following:
+    svnadmin load <repodir> < "$gCfg{dumpfile}"
+
+You may need to precede this with "svnadmin create <repodir>" if you have not
+yet created a repository. Type "svnadmin help <cmd>" for more information on
+"create" and/or "load".
+
+If any errors occurred during the conversion, they are summarized above.
+
+For more information on the vss2svn project, see:
+http://www.pumacode.org/projects/vss2svn/
+
+EOTXT
+
     my $starttime = ctime($^T);
     chomp $starttime;
     my $endtime = ctime(time);
@@ -844,14 +896,64 @@ sub ShowSummary {
         $elapsed = sprintf("%2.2i:%2.2i:%2.2i", $hours, $mins, $secs);
     }
 
+    my($actions, $revisions, $mintime, $maxtime) = &GetStats();
+
     print <<"EOTXT";
-Started at    : $starttime
-Ended at      : $endtime
-Elapsed time  : $elapsed (H:M:S)
+Started at              : $starttime
+Ended at                : $endtime
+Elapsed time            : $elapsed (H:M:S)
+
+VSS Actions read        : $actions
+SVN Revisions converted : $revisions
+Date range (YYYY/MM/DD) : $mintime to $maxtime
 
 EOTXT
 
 }  #  End ShowSummary
+
+###############################################################################
+#  GetStats
+###############################################################################
+sub GetStats {
+    my($sql, $actions, $revisions, $mintime, $maxtime);
+
+    $sql = <<"EOSQL";
+SELECT
+    COUNT(*)
+FROM
+    VssAction
+EOSQL
+
+    ($actions) = $gCfg{dbh}->selectrow_array($sql);
+
+    $sql = <<"EOSQL";
+SELECT
+    COUNT(*)
+FROM
+    SvnRevision
+EOSQL
+
+    ($revisions) = $gCfg{dbh}->selectrow_array($sql);
+
+    $sql = <<"EOSQL";
+SELECT
+    MIN(timestamp), MAX(timestamp)
+FROM
+    PhysicalAction
+EOSQL
+
+    ($mintime, $maxtime) = $gCfg{dbh}->selectrow_array($sql);
+
+    foreach($mintime, $maxtime) {
+        $_ = &Vss2Svn::Dumpfile::SvnTimestamp($_);
+        s:T.*::;
+        s:-:/:g;
+    }
+
+    # initial creation of the repo wasn't considered an action or revision
+    return($actions - 1, $revisions - 1, $mintime, $maxtime);
+
+}  #  End GetStats
 
 ###############################################################################
 #  DoSsCmd
@@ -919,7 +1021,14 @@ sub ThrowWarning {
 
     warn "ERROR -- $msg\n";
 
-    push @gErr, $msg;
+    my $task = $gCfg{task};
+
+    if(!defined $gErr{$task}) {
+        $gErr{$task} = [];
+        push @{ $gCfg{errortasks} }, $task;
+    }
+
+    push @{ $gErr{$task} }, $msg;
 
 }  #  End ThrowWarning
 
@@ -1304,6 +1413,10 @@ sub Initialize {
 
     $gCfg{starttime} = scalar localtime($^T);
 
+    $gCfg{junkdir} = '/lost+found';
+
+    $gCfg{errortasks} = [];
+
     ### Don't go past here if resuming a previous run ###
     if ($gCfg{resume}) {
         return 1;
@@ -1311,11 +1424,6 @@ sub Initialize {
 
     rmtree($gCfg{vssdata}) if (-e $gCfg{vssdata});
     mkdir $gCfg{vssdata};
-
-    #foreach my $check (qw(svnurl)) {
-    #    &GiveHelp("ERROR: missing required parameter $check")
-    #        unless defined $gCfg{$check};
-    #}
 
     $gCfg{ssphys} ||= 'SSPHYS.exe';
     $gCfg{svn} ||= 'SVN.exe';
@@ -1351,7 +1459,7 @@ OPTIONAL PARAMETERS:
     --revtimerange <sec> : specify the difference between two ss actions
                            that are treated as one subversion revision;
                            default is 3600 seconds (== 1hour)
-    
+
     --resume          : Resume a failed or aborted previous run
     --task <task>     : specify the task to resume; task is one of the following
                         INIT, LOADVSSNAMES, FINDDBFILES, GETPHYSHIST,
@@ -1373,7 +1481,7 @@ EOTXT
 # RollBack is the item view on the activity and BranchFile is the parent side
 # ==> map RollBack to BRANCH, so that we can join the two actions in the
 # MergeParentData step
-    
+
 __DATA__
 CreatedProject	1	ADD
 AddedProject	1	ADD

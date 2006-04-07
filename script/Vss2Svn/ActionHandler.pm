@@ -302,8 +302,6 @@ sub _delete_handler {
 
     # protect for delete/purge cycles: if the parentphys isn't in the shares
     # anymore, the file was already deleted from the parent and is now purged
-#    my %look = map {$_ => 1} @{ $physinfo->{sharedphys} };
-#    return 0 unless defined($look{$physinfo->{parentphys}});
     my $parentFound = defined $physinfo->{parentphys};
     foreach my $parent (@{ $physinfo->{sharedphys} }) {
         $parentFound = 1 if ($physinfo->{parentphys} eq $parent);
@@ -465,24 +463,6 @@ PARENT:
     return $paths;
 
 }  #  End _get_item_paths
-
-###############################################################################
-#  _get_current_item_name
-###############################################################################
-sub _get_current_item_name {
-    my($self) = @_;
-
-    my $physname = $self->{row}->{physname};
-    my $physinfo = $gPhysInfo{$physname};
-
-    if (!defined $physinfo) {
-        $self->{errmsg} .= "Could not determine real name for '$physname':\n"
-            . "$self->{physname_seen}\n";
-        return undef;
-    }
-
-    return $physinfo->{name};
-}  #  End _get_current_item_name
 
 
 

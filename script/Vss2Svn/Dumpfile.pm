@@ -37,18 +37,20 @@ sub new {
          errors => [],
          modified_cache => {},
          deleted_cache => {},
+         svn_items => {},
+         junk_itempaths => {},
+         need_junkdir => 0,
+         need_missing_dirs => [],
         };
 
-    # prevent perl from doing line-ending conversions, but this means we'll
-    # need to explicitly output DOS-style line endings between info lines
+    # prevent perl from doing line-ending conversions
     binmode($fh);
 
     my $old = select($fh);
     $| = 1;
     select($old);
 
-    #TODO: take out UUID
-    print $fh "SVN-fs-dump-format-version: 2\n\nUUID: 2d233e98-0cb8-4f47-9081-4b0a55eb6c6b\n";
+    print $fh "SVN-fs-dump-format-version: 2\n\n";
 
     $self = bless($self, $class);
     return $self;
@@ -82,11 +84,11 @@ sub begin_revision {
 
     $comment = '' if !defined($comment);
     $author = '' if !defined($author);
-    
+
     # convert to utf8
     from_to ($comment, "windows-1252", "utf8");
     from_to ($author, "windows-1252", "utf8");
-    
+
     if ($revision > 0) {
         push @$props, ['svn:log', $comment];
         push @$props, ['svn:author', $author];
@@ -106,7 +108,6 @@ sub do_action {
     my($self, $data, $expdir) = @_;
 
     my $action = $data->{action};
-    my $handler = $gHandlers{$action};
 
     my $nodes = [];
 
@@ -119,7 +120,48 @@ sub do_action {
     $self->{modified_cache} = {};
     $self->{deleted_cache} = {};
 
+    my($handler, $this_action);
+
     foreach my $itempath (split "\t", $data->{itempaths}) {
+        $this_action = $action;
+
+        if(defined($itempath)) {
+            ($this_action, $itempath) =
+                $self->_action_path_sanity_check($this_action, $itempath, $data);
+
+            return 0 unless defined($itempath);
+
+        } else {
+            # if the item's path isn't defined, its real name was corrupted in
+            # vss, so we'll check it in to the junk drawer as an add
+            if (defined $main::gCfg{junkdir}) {
+                $itempath = $self->_get_junk_itempath($main::gCfg{junkdir},
+                    join('.', @$data{ qw(physname version revision_id) }));
+
+                $self->add_error("Using filename '$itempath' for item with "
+                    . "unrecoverable name at revision $data->{revision_id}");
+
+                $this_action = 'ADD';
+            } else {
+                return 0;
+            }
+        }
+
+        # if need_junkdir = 1, the first item is just about to be added to the
+        # junk drawer, so create the dumpfile node to add this directory
+        if ($self->{need_junkdir} == 1) {
+            $self->_add_svn_dir($nodes, $main::gCfg{junkdir});
+            $self->{need_junkdir} = -1;
+        }
+
+        foreach my $dir (@{ $self->{need_missing_dirs} }) {
+            $self->_add_svn_dir($nodes, $dir);
+            $self->add_error("Creating missing directory '$dir' for item "
+                . "'$itempath' at revision $data->{revision_id}");
+        }
+
+        $handler = $gHandlers{$this_action};
+
         $self->$handler($itempath, $nodes, $data, $expdir);
         $self->{is_primary} = 0;
     }
@@ -138,6 +180,283 @@ sub do_action {
     }
 
 }  #  End do_action
+
+###############################################################################
+#  _get_junk_itempath
+###############################################################################
+sub _get_junk_itempath {
+    my($self, $dir, $base) = @_;
+
+    $base =~ s:.*/::;
+    my $itempath = "$dir/$base";
+    my $count = 1;
+
+    if($self->{need_junkdir} == 0) {
+        $self->{need_junkdir} = 1;
+    }
+
+    if(!defined($self->{junk_itempaths}->{$itempath})) {
+        $self->{junk_itempaths}->{$itempath} = 1;
+        return $itempath;
+    }
+
+    my($file, $ext);
+
+    if($base =~ m/^(.*)\.(.*)/) {
+        ($file, $ext) = ($1, ".$2");
+    } else {
+        ($file, $ext) = ($base, '');
+    }
+
+    while(defined($self->{junk_itempaths}->{$itempath})) {
+        $itempath = "$dir/$file.$count$ext";
+        $count++;
+    }
+
+    return $itempath;
+}  #  End _get_junk_itempath
+
+###############################################################################
+#  _action_path_sanity_check
+###############################################################################
+sub _action_path_sanity_check {
+    my($self, $action, $itempath, $data) = @_;
+
+    my($itemtype, $revision_id) = @{ $data }{qw(itemtype revision_id)};
+
+    return($action, $itempath) if ($itempath eq '' || $itempath eq '/');
+
+    my($newaction, $newpath) = ($action, $itempath);
+    my $success;
+
+    $self->{need_missing_dirs} = [];
+
+    if($action eq 'ADD' || $action eq 'SHARE' || $action eq 'RECOVER') {
+        $success = $self->_add_svn_struct_item($itempath, $itemtype);
+
+        if(!defined($success)) {
+            $newpath = undef;
+            $self->add_error("Path consistency failure while trying to add "
+                . "item '$itempath' at revision $revision_id; skipping");
+
+        } elsif($success == 0) {
+            # trying to re-add existing item; if file, change it to a commit
+            if ($itemtype == 1) {
+
+                $newpath = undef;
+                $self->add_error("Attempt to re-add directory '$itempath' at "
+                . "revision $revision_id; possibly missing delete");
+
+            } else {
+
+                $newaction = 'COMMIT';
+                $self->add_error("Attempt to re-add file '$itempath' at "
+                    . "revision $revision_id, changing to modify; possibly "
+                    . "missing delete");
+
+            }
+        }
+
+    } elsif ($action eq 'DELETE') {
+        $success = $self->_delete_svn_struct_item($itempath, $itemtype);
+
+        if(!$success) {
+            $newpath = undef;
+            $self->add_error("Attempt to delete non-existent item '$itempath' "
+                . "at revision $revision_id; skipping...");
+        }
+
+    } elsif ($action eq 'RENAME') {
+        $success = $self->_rename_svn_struct_item($itempath, $itemtype,
+            $data->{info});
+
+        if(!$success) {
+            $newpath = undef;
+            $self->add_error("Attempt to rename non-existent item '$itempath' "
+                . "at revision $revision_id; skipping...");
+        }
+    } elsif ($action eq 'MOVE') {
+        my ($ref, $item) = $self->_get_svn_struct_ref_for_move($itempath);
+
+        if(!$ref) {
+            $newpath = undef;
+            $self->add_error("Attempt to move non-existent directory '$itempath' "
+                . "at revision $revision_id; skipping...");
+        }
+
+        $success = $self->_add_svn_struct_item($data->{info}, 1, $ref->{$item});
+
+        if(!$success) {
+            $newpath = undef;
+            $self->add_error("Error while attempting to move directory '$itempath' "
+                . "at revision $revision_id; skipping...");
+        }
+
+        delete $ref->{$item};
+    }
+
+    return($newaction, $newpath);
+
+}  #  End _action_path_sanity_check
+
+###############################################################################
+#  _add_svn_struct_item
+###############################################################################
+sub _add_svn_struct_item {
+    my($self, $itempath, $itemtype, $newref) = @_;
+
+    $itempath =~ s:^/::;
+    my @subdirs = split '/', $itempath;
+
+    my $item = pop(@subdirs);
+    my $ref = $self->{svn_items};
+
+    my $thispath = '';
+
+    foreach my $subdir (@subdirs) {
+        $thispath .= "$subdir/";
+
+        if(ref($ref) ne 'HASH') {
+            return undef;
+        }
+        if(!defined($ref->{$subdir})) {
+            # parent directory doesn't exist; add it to list of missing dirs
+            # to build up
+            push @{ $self->{need_missing_dirs} }, $thispath;
+
+            $ref->{$subdir} = {};
+        }
+
+        $ref = $ref->{$subdir};
+    }
+
+    if(ref($ref) ne 'HASH') {
+        # parent "directory" is actually a file
+        return undef;
+    }
+
+    if(defined($ref->{$item})) {
+        # item already exists; can't add it
+        return 0;
+    }
+
+    if(defined($newref)) {
+        $ref->{$item} = $newref;
+    } else {
+        $ref->{$item} = ($itemtype == 1)? {} : 1;
+    }
+
+    return 1;
+
+}  #  End _add_svn_struct_item
+
+###############################################################################
+#  _delete_svn_struct_item
+###############################################################################
+sub _delete_svn_struct_item {
+    my($self, $itempath, $itemtype) = @_;
+
+    return $self->_delete_rename_svn_struct_item($itempath, $itemtype);
+}  #  End _delete_svn_struct_item
+
+###############################################################################
+#  _rename_svn_struct_item
+###############################################################################
+sub _rename_svn_struct_item {
+    my($self, $itempath, $itemtype, $newname) = @_;
+
+    return $self->_delete_rename_svn_struct_item($itempath, $itemtype, $newname);
+}  #  End _rename_svn_struct_item
+
+###############################################################################
+#  _delete_rename_svn_struct_item
+###############################################################################
+sub _delete_rename_svn_struct_item {
+    my($self, $itempath, $itemtype, $newname, $movedref) = @_;
+
+    $itempath =~ s:^/::;
+    $newname =~ s:/$:: if defined($newname);
+    my @subdirs = split '/', $itempath;
+
+    my $item = pop(@subdirs);
+    my $ref = $self->{svn_items};
+
+    foreach my $subdir (@subdirs) {
+        if(!(ref($ref) eq 'HASH') || !defined($ref->{$subdir})) {
+            # can't get to item because a parent directory doesn't exist; give up
+            return undef;
+        }
+
+        $ref = $ref->{$subdir};
+    }
+
+    if((ref($ref) ne 'HASH') || !defined($ref->{$item})) {
+        # item doesn't exist; can't delete/rename it
+        return 0;
+    }
+
+    if(defined $newname) {
+        $ref->{$newname} = $ref->{$item};
+    }
+
+    delete $ref->{$item};
+
+    return 1;
+
+}  #  End _delete_rename_svn_struct_item
+
+###############################################################################
+#  _get_svn_struct_ref_for_move
+###############################################################################
+sub _get_svn_struct_ref_for_move {
+    my($self, $itempath) = @_;
+
+    $itempath =~ s:^/::;
+    my @subdirs = split '/', $itempath;
+
+    my $item = pop(@subdirs);
+    my $ref = $self->{svn_items};
+
+    my $thispath = '';
+
+    foreach my $subdir (@subdirs) {
+        $thispath .= "$subdir/";
+
+        if(ref($ref) ne 'HASH') {
+            return undef;
+        }
+        if(!defined($ref->{$subdir})) {
+            return undef;
+        }
+
+        $ref = $ref->{$subdir};
+    }
+
+    if((ref($ref) ne 'HASH') || !defined($ref->{$item}) ||
+       (ref($ref->{$item} ne 'HASH'))) {
+        return undef;
+    }
+
+    return ($ref, $item);
+
+}  #  End _get_svn_struct_ref_for_move
+
+###############################################################################
+#  _add_svn_dir
+###############################################################################
+sub _add_svn_dir {
+    my($self, $nodes, $dir) = @_;
+
+    my $node = Vss2Svn::Dumpfile::Node->new();
+    my $data = { itemtype => 1, is_binary => 0 };
+
+    $node->set_initial_props($dir, $data);
+    $node->{action} = 'add';
+
+    push @$nodes, $node;
+    $self->_add_svn_struct_item($dir, 1);
+
+}  #  End _add_svn_dir
 
 ###############################################################################
 #  _add_handler
@@ -191,11 +510,7 @@ sub _rename_handler {
 
     my $newpath = $itempath;
 
-    if ($data->{itemtype} == 1) {
-        $newpath =~ s:(.*/)?.+$:$1$newname/:;
-    } else {
-        $newpath =~ s:(.*/)?.*:$1$newname:;
-    }
+    $newpath =~ s:(.*/)?.*:$1$newname:;
 
     my $node = Vss2Svn::Dumpfile::Node->new();
     $node->set_initial_props($newpath, $data);
@@ -253,7 +568,7 @@ sub _branch_handler {
     my($self, $itempath, $nodes, $data, $expdir) = @_;
 
     # branching is a no-op in SVN
-    
+
     # if the file is copied later, we need to track, the revision of this branch
     # see the shareBranchShareModify Test
     $self->track_modified($data->{physname}, $data->{revision_id}, $itempath);
@@ -326,9 +641,9 @@ sub _recover_handler {
     my($copyrev, $copypath) = $self->last_deleted_rev_path($data->{physname});
 
     if (!defined $copyrev) {
-        push @{ $self->{errors} },
+        $self->add_error(
             "Could not recover path $itempath at revision $data->{revision_id};"
-            . " unable to determine deleted revision";
+            . " unable to determine deleted revision");
         return 0;
     }
 
@@ -404,16 +719,15 @@ sub get_export_contents {
     if (!defined($expdir)) {
         return 0;
     } elsif (!defined($data->{version})) {
-        push @{ $self->{errors} },
-            "Attempt to retrieve file contents with unknown version number";
+        $self->add_error(
+            "Attempt to retrieve file contents with unknown version number");
         return 0;
     }
 
     my $file = "$expdir\\$data->{physname}.$data->{version}";
 
     if (!open EXP, "$file") {
-        push @{ $self->{errors} },
-            "Could not open export file '$file'";
+        $self->add_error("Could not open export file '$file'");
         return 0;
     }
 
@@ -491,6 +805,16 @@ sub output_content {
 sub svn_timestamp {
     my($self, $vss_timestamp) = @_;
 
+    return &SvnTimestamp($vss_timestamp);
+
+}  #  End svn_timestamp
+
+###############################################################################
+#  SvnTimestamp
+###############################################################################
+sub SvnTimestamp {
+    my($vss_timestamp) = @_;
+
     my($sec, $min, $hour, $day, $mon, $year) = gmtime($vss_timestamp);
 
     $year += 1900;
@@ -499,7 +823,17 @@ sub svn_timestamp {
     return sprintf("%4.4i-%2.2i-%2.2iT%2.2i:%2.2i:%2.2i.%6.6iZ",
         $year, $mon, $day, $hour, $min, $sec, 0);
 
-}  #  End svn_timestamp
+}  #  End SvnTimestamp
+
+###############################################################################
+#  add_error
+###############################################################################
+sub add_error {
+    my($self, $msg) = @_;
+
+    push @{ $self->{errors} }, $msg;
+}  #  End add_error
+
 
 
 1;
