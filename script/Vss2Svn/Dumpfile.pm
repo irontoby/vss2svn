@@ -510,7 +510,11 @@ sub _rename_handler {
 
     my $newpath = $itempath;
 
-    $newpath =~ s:(.*/)?.*:$1$newname:;
+    if ($data->{itemtype} == 1) {
+        $newpath =~ s:(.*/)?.+$:$1$newname:;
+    } else {
+        $newpath =~ s:(.*/)?.*:$1$newname:;
+    }
 
     my $node = Vss2Svn::Dumpfile::Node->new();
     $node->set_initial_props($newpath, $data);
