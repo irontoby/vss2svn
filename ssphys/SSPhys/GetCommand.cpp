@@ -50,7 +50,7 @@ po::options_description CGetCommand::GetOptionsDescription () const
                                          "\n"
                                          "  find data -name ???????? | xargs -n 1 ssphys get -b -v 1 -s 1 --output shadowdir/ \n"
                                          "\n"
-                                         "If you specify a relative or absolute path to the phyiscal file, all non "
+                                         "If you specify a relative or absolute path to the physical file, all non "
                                          "directory elements will be appended to the output directory, e.g.\n"
                                          "\n"
                                          "  ssphys get data/b/baaaaaaa shadow/ \n"

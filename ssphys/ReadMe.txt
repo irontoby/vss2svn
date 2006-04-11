@@ -36,12 +36,12 @@ Projects or Files. To differntiate between Projects and Files, Projects are
 written with a leading dollar sign like $/Project. 
 
 VSS stores both types of items (Projects and Files) in seperate physical files 
-within the archive. During all activities the name of the phyiscal never 
+within the archive. During all activities the name of the physical never 
 changes, even throughout renames or deletes. If two items with the same name are 
 stored within one Project, these two items are represented in two different 
-phyiscal files. 
+physical files. 
 
-The name of the phyiscal file used for an item is build from an increasing list 
+The name of the physical file used for an item is build from an increasing list 
 of 8 characters (aaaaaaaa...zzzzzzzz). The name of the file has no relation to 
 the name of the Item. The last name that was used is recorded in the file 
 aaaaaaaa.cnt in the data directory of the archive.
@@ -77,7 +77,7 @@ The data directory of the archive is made up of several different files:
 
 Most of these files are made from special records that contain a header with 
 length, type and crc information. The type is a two character code like "EL", 
-"MC" or "FD", e.g names.dat and all phyiscal files. 
+"MC" or "FD", e.g names.dat and all physical files. 
 
 Others files are simply binary files, without a special record structure, e.g 
 status.dat

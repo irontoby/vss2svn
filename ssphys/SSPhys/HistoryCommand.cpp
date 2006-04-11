@@ -14,7 +14,7 @@
 
 //---------------------------------------------------------------------------
 CHistoryCommand::CHistoryCommand ()
-  : CMultiArgCommand ("history", "Shows the history of a VSS phyiscal file"),
+  : CMultiArgCommand ("history", "Shows the history of a VSS physical file"),
     m_bIncludeDeadRecords (false),
     m_bIncludeLabels (false),
     m_bIncludeActions (true)

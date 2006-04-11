@@ -36,6 +36,8 @@ po::positional_options_description CCommand::GetPositionalOptionsDescription () 
 
 void CCommand::PrintUsage () const
 {
+  std::cout << GetCommandDescription () << std::endl << std::endl;
+
   po::options_description descr (GetOptionsDescription ());
   descr.add (CFormatterFactory::GetOptionsDescription());
   
@@ -116,6 +118,10 @@ void CMultiArgCommand::Execute (po::variables_map const& options, std::vector<po
     std::vector <std::string>::const_iterator end = args.end ();
     for (std::vector <std::string>::const_iterator citor = args.begin (); citor != end; ++citor)
       Execute (options, *citor);
+  }
+  else
+  {
+    throw std::exception ("missing argument");
   }
 //  std::vector<po::option>::const_iterator end = args.end();
 //  for (std::vector<po::option>::const_iterator citor = args.begin (); citor != end; ++citor)

@@ -14,7 +14,7 @@
 //////////////////////////////////////////////////////////////////////
 
 CInfoCommand::CInfoCommand()
-  : CMultiArgCommand ("info", "report on all or specific records of a VSS phyiscal file")
+  : CMultiArgCommand ("info", "report on all or specific records of a VSS physical file")
 {
 }
 
