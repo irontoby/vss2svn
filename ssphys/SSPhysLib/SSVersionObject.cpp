@@ -391,7 +391,7 @@ template <class ACTION>
 std::string SSDestroyedAction<ACTION>::FormatActionString ()   
 { 
   std::string action (m_Prefix);
-  action += GetName () + " Destroyed";
+  action += SSItemAction<ACTION,DESTROYED_ACTION>::GetName () + " Destroyed";
   return action; 
 }
 
@@ -406,8 +406,8 @@ SSRenamedAction<ACTION>::SSRenamedAction (SSRecordPtr pRecord, std::string prefi
 template <class ACTION>
 std::string SSRenamedAction<ACTION>::FormatActionString ()   
 { 
-  SSName ssOldName (GetSSName ());
-  SSName ssNewName (m_Action.newName);
+  SSName ssOldName (SSRenamedAction<ACTION>::GetSSName ());
+  SSName ssNewName (SSRenamedAction<ACTION>::GetNewSSName ());
   std::string action (m_Prefix);
   action += ssOldName.GetFullName ();
   action += " renamedto " + m_Prefix;

@@ -368,8 +368,8 @@ class SSRenamedAction : public SSItemAction<ACTION, RENAMED_ACTION>
 public:
   SSRenamedAction (SSRecordPtr pRecord, std::string prefix);
 
-  std::string GetNewName ()   const { SSName name (m_Action.newName); return name.GetFullName (); }
-  SSName GetNewSSName ()      const { return m_Action.newName; }
+  std::string GetNewName ()   const { SSName name (SSItemAction<ACTION,RENAMED_ACTION>::m_Action.newName); return name.GetFullName (); }
+  SSName GetNewSSName ()      const { return SSItemAction<ACTION,RENAMED_ACTION>::m_Action.newName; }
 
   virtual std::string FormatActionString ();
 
