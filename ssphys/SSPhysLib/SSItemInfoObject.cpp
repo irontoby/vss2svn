@@ -160,7 +160,7 @@ void SSItemInfoObject::ToXml (XMLNode* pParent) const
 std::string SSItemInfoObject::GetDataFileName () const
 {
   std::string fileName = GetFile ()->GetFileName () + GetLatestExt ();
-  boost::filesystem::path fpath(fileName);
+  boost::filesystem::path fpath(fileName, boost::filesystem::native);
 
   if (!boost::filesystem::exists(fpath))
   {
