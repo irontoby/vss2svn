@@ -4,6 +4,7 @@
 
 #include "StdAfx.h"
 #include "Command.h"
+#include <stdexcept>
 
 //////////////////////////////////////////////////////////////////////
 // Construction/Destruction
@@ -121,7 +122,7 @@ void CMultiArgCommand::Execute (po::variables_map const& options, std::vector<po
   }
   else
   {
-    throw std::exception ("missing argument");
+      throw std::runtime_error("missing argument");
   }
 //  std::vector<po::option>::const_iterator end = args.end();
 //  for (std::vector<po::option>::const_iterator citor = args.begin (); citor != end; ++citor)
