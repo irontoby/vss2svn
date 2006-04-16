@@ -162,14 +162,24 @@ std::string SSItemInfoObject::GetDataFileName () const
   std::string fileName = GetFile ()->GetFileName () + GetLatestExt ();
   boost::filesystem::path fpath(fileName, boost::filesystem::native);
 
-  if (!boost::filesystem::exists(fpath))
+  if (!boost::filesystem::exists(fpath) && fpath.has_leaf() && fpath.has_branch_path())
   {
-    std::string lcExt(fileName);
-    lcExt[lcExt.length()-1] = tolower(lcExt[lcExt.length()-1]);
-    boost::filesystem::path lcpath(lcExt);
-    if (boost::filesystem::exists(lcpath))
+    std::string lcLeaf = fpath.leaf();
+    std::string ucLeaf = fpath.leaf();
+    for (int i = 0; i < lcLeaf.length(); ++i) {
+	lcLeaf[i] = tolower(lcLeaf[i]);
+	ucLeaf[i] = toupper(ucLeaf[i]);
+    }
+
+    boost::filesystem::path ucPath = fpath.branch_path() / ucLeaf;
+    boost::filesystem::path lcPath = fpath.branch_path() / lcLeaf;
+    if (boost::filesystem::exists(lcPath))
     {
-      fileName = lcExt;
+	fileName = lcPath.string();
+    }
+    else if (boost::filesystem::exists(ucPath))
+    {
+	fileName = ucPath.string();
     }
   }
   return fileName;
