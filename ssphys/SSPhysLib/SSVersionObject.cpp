@@ -167,7 +167,15 @@ bool SSVersionObject::Validate ()
 void SSVersionObject::ToXml (XMLNode* pParent) const
 {
   XMLElement versionNumber (pParent, "VersionNumber", GetVersionNumber());
-  XMLElement useName (pParent, "UserName", GetUsername());
+  XMLElement userName (pParent, "UserName", GetUsername());
+  if (!GetLabel ().empty ())
+  {
+    XMLElement label (pParent, "Label", GetLabel());
+    if (!GetLabelComment ().empty())
+    {
+      XMLElement labelComment (pParent, "LabelComment", GetLabelComment());
+    }
+  }
   XMLElement date (pParent, "Date", GetDate());
   if (!GetComment ().empty ())
   {
