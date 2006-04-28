@@ -1,32 +1,51 @@
 #!C:\Program Files\ActiveState Perl Dev Kit 6.0\bin\lib\pai.exe
 PAP-Version: 1.0
 Packer: C:\Program Files\ActiveState Perl Dev Kit 6.0\bin\perlapp.exe
-Add: DBD::SQLite2
-Clean: 
-Date: 2006-04-12 11:47:31
-Debug: 
-Dependent: 
-Dyndll: 
-Exe: vss2svn.exe
-Force: 
-Gui: 
-No-Compress: 
-No-Logo: 
-Runlib: 
 Script: vss2svn.pl
+Add: DBD::SQLite2
+Add: XML::SAX::Expat
+Add: integer
+Bind: big5.enc[file=C:\Perl\site\lib\XML\Parser\Encodings\big5.enc,extract,mode=666]
+Bind: euc-kr.enc[file=C:\Perl\site\lib\XML\Parser\Encodings\euc-kr.enc,extract,mode=666]
+Bind: iso-8859-2.enc[file=C:\Perl\site\lib\XML\Parser\Encodings\iso-8859-2.enc,extract,mode=666]
+Bind: iso-8859-3.enc[file=C:\Perl\site\lib\XML\Parser\Encodings\iso-8859-3.enc,extract,mode=666]
+Bind: iso-8859-4.enc[file=C:\Perl\site\lib\XML\Parser\Encodings\iso-8859-4.enc,extract,mode=666]
+Bind: iso-8859-5.enc[file=C:\Perl\site\lib\XML\Parser\Encodings\iso-8859-5.enc,extract,mode=666]
+Bind: iso-8859-7.enc[file=C:\Perl\site\lib\XML\Parser\Encodings\iso-8859-7.enc,extract,mode=666]
+Bind: iso-8859-8.enc[file=C:\Perl\site\lib\XML\Parser\Encodings\iso-8859-8.enc,extract,mode=666]
+Bind: iso-8859-9.enc[file=C:\Perl\site\lib\XML\Parser\Encodings\iso-8859-9.enc,extract,mode=666]
+Bind: windows-1250.enc[file=C:\Perl\site\lib\XML\Parser\Encodings\windows-1250.enc,extract,mode=666]
+Bind: windows-1252.enc[file=C:\Perl\site\lib\XML\Parser\Encodings\windows-1252.enc,extract,mode=666]
+Bind: x-euc-jp-jisx0221.enc[file=C:\Perl\site\lib\XML\Parser\Encodings\x-euc-jp-jisx0221.enc,extract,mode=666]
+Bind: x-euc-jp-unicode.enc[file=C:\Perl\site\lib\XML\Parser\Encodings\x-euc-jp-unicode.enc,extract,mode=666]
+Bind: x-sjis-cp932.enc[file=C:\Perl\site\lib\XML\Parser\Encodings\x-sjis-cp932.enc,extract,mode=666]
+Bind: x-sjis-jdk117.enc[file=C:\Perl\site\lib\XML\Parser\Encodings\x-sjis-jdk117.enc,extract,mode=666]
+Bind: x-sjis-jisx0221.enc[file=C:\Perl\site\lib\XML\Parser\Encodings\x-sjis-jisx0221.enc,extract,mode=666]
+Bind: x-sjis-unicode.enc[file=C:\Perl\site\lib\XML\Parser\Encodings\x-sjis-unicode.enc,extract,mode=666]
+Clean: 0
+Date: 2006-04-27 23:13:54
+Debug: 
+Dependent: 0
+Dyndll: 0
+Exe: vss2svn.exe
+Force: 1
+Gui: 0
+No-Compress: 0
+No-Logo: 0
+Runlib: 
 Shared: none
 Tmpdir: 
 Trim: DBD::
 Trim: DBI::PurePerl
-Verbose: 
-Version-Comments: 
-Version-CompanyName: 
+Verbose: 0
+Version-Comments: See http://www.pumacode.org/projects/vss2svn for more info
+Version-CompanyName: PumaCode.org
 Version-FileDescription: 
 Version-FileVersion: 
 Version-InternalName: 
-Version-LegalCopyright: 
+Version-LegalCopyright: (c) 2006 PumaCode.org
 Version-LegalTrademarks: 
 Version-OriginalFilename: 
-Version-ProductName: 
-Version-ProductVersion: 
-Xclude: 
+Version-ProductName: Vss2Svn
+Version-ProductVersion: 0.9.99.1
+Xclude: 0

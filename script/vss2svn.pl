@@ -825,6 +825,7 @@ Dumpfile     : $gCfg{dumpfile}
 
 SSPHYS exe   : $gCfg{ssphys}
 SSPHYS ver   : $ssversion
+XML Parser   : $gCfg{xmlParser}
 
 EOTXT
 
@@ -1003,8 +1004,8 @@ sub DoSysCmd {
 #  GetSsVersion
 ###############################################################################
 sub GetSsVersion {
-    my $out = `\"$gCfg{ssphys}\" -v 2>&1`;
-    $out =~ m/^(ssphys v.*?)[:\n]/m;
+    my $out = `\"$gCfg{ssphys}\" --version 2>&1`;
+    $out =~ m/^(ssphys .*?)[:\n]/m;
 
     return $1 || 'unknown';
 }  #  End GetSsVersion
@@ -1161,12 +1162,7 @@ sub SetupGlobals {
     (-d "$gCfg{vssdatadir}") or &ThrowError("$gCfg{vssdir} does not appear "
                                             . "to be a valid VSS database");
 
-    my($id, $type, $action);
-    while(<DATA>) {
-        chomp;
-        ($id, $type, $action) = split "\t";
-        $gActionType{$id} = {type => $type, action => $action};
-    }
+    &SetupActionTypes;
 
     Vss2Svn::DataCache->SetCacheDir($gCfg{tempdir});
     Vss2Svn::DataCache->SetDbHandle($gCfg{dbh});
@@ -1176,6 +1172,41 @@ sub SetupGlobals {
         if defined $gCfg{revtimerange};
 
 }  #  End SetupGlobals
+
+###############################################################################
+#  SetupActionTypes
+###############################################################################
+sub SetupActionTypes {
+    # RollBack is only seen in combiation with a BranchFile activity, so actually
+    # RollBack is the item view on the activity and BranchFile is the parent side
+    # ==> map RollBack to BRANCH, so that we can join the two actions in the
+    # MergeParentData step
+
+    %gActionType = (
+        CreatedProject => {type => 1, action => 'ADD'},
+        AddedProject => {type => 1, action => 'ADD'},
+        RenamedProject => {type => 1, action => 'RENAME'},
+        MovedProjectTo => {type => 1, action => 'IGNORE'},
+        MovedProjectFrom => {type => 1, action => 'MOVE'},
+        DeletedProject => {type => 1, action => 'DELETE'},
+        DestroyedProject => {type => 1, action => 'DELETE'},
+        RecoveredProject => {type => 1, action => 'RECOVER'},
+        CheckedIn => {type => 2, action => 'COMMIT'},
+        CreatedFile => {type => 2, action => 'ADD'},
+        AddedFile => {type => 2, action => 'ADD'},
+        RenamedFile => {type => 2, action => 'RENAME'},
+        DeletedFile => {type => 2, action => 'DELETE'},
+        DestroyedFile => {type => 2, action => 'DELETE'},
+        RecoveredFile => {type => 2, action => 'RECOVER'},
+        SharedFile => {type => 2, action => 'SHARE'},
+        BranchFile => {type => 2, action => 'BRANCH'},
+        PinnedFile => {type => 2, action => 'IGNORE'},
+        RollBack => {type => 2, action => 'BRANCH'},
+        UnpinnedFile => {type => 2, action => 'IGNORE'},
+        Labeled => {type => 2, action => 'IGNORE'},
+    );
+
+}  #  End SetupActionTypes
 
 ###############################################################################
 #  InitSysTables
@@ -1417,6 +1448,8 @@ sub Initialize {
 
     $gCfg{errortasks} = [];
 
+    &ConfigureXmlParser();
+
     ### Don't go past here if resuming a previous run ###
     if ($gCfg{resume}) {
         return 1;
@@ -1431,6 +1464,55 @@ sub Initialize {
     $gCfg{task} = 'INIT';
     $gCfg{step} = 0;
 }  #  End Initialize
+
+###############################################################################
+#  ConfigureXmlParser
+###############################################################################
+sub ConfigureXmlParser {
+
+    if(defined($ENV{XML_SIMPLE_PREFERRED_PARSER})) {
+        # user has defined a preferred parser; don't mess with it
+        $gCfg{xmlParser} = $ENV{XML_SIMPLE_PREFERRED_PARSER};
+        return 1;
+    }
+
+    $gCfg{xmlParser} = 'XML::Simple';
+
+    eval { require XML::SAX; };
+    if($@) {
+        # no XML::SAX; let XML::Simple use its own parser
+        return 1;
+    }
+
+    $gCfg{xmlParser} = 'XML::SAX::Expat';
+    $XML::SAX::ParserPackage = $gCfg{xmlParser};
+
+    my $p;
+
+    eval { $p = XML::SAX::ParserFactory->parser(); };
+
+    if(!$@) {
+        # XML::SAX::Expat installed; use it
+
+        # for exe version, XML::Parser::Expat needs help finding its encmaps
+        no warnings 'once';
+        push(@XML::Parser::Expat::Encoding_Path, @INC);
+        return 1;
+    }
+
+    undef $XML::SAX::ParserPackage;
+    eval { $p = XML::SAX::ParserFactory->parser(); };
+
+    if(!$@) {
+        $gCfg{xmlParser} = ref $p;
+        return 1;
+    }
+
+    # couldn't find a better package; go back to XML::Simple
+    $gCfg{'xmlParser'} = 'XML::Simple';
+    return 1;
+
+}  #  End ConfigureXmlParser
 
 ###############################################################################
 #  GiveHelp
@@ -1472,35 +1554,3 @@ EOTXT
 
     exit(1);
 }  #  End GiveHelp
-
-# Following is the data for %gActionType. First field is the node type from
-# ssphys; second field is item type (1=project, 2=file); third field is the
-# generic action it should be mapped to (loosely mapped to SVN actions)
-
-# RollBack is only seen in combiation with a BranchFile activity, so actually
-# RollBack is the item view on the activity and BranchFile is the parent side
-# ==> map RollBack to BRANCH, so that we can join the two actions in the
-# MergeParentData step
-
-__DATA__
-CreatedProject	1	ADD
-AddedProject	1	ADD
-RenamedProject	1	RENAME
-MovedProjectTo	1	IGNORE
-MovedProjectFrom	1	MOVE
-DeletedProject	1	DELETE
-DestroyedProject	1	DELETE
-RecoveredProject	1	RECOVER
-CheckedIn	2	COMMIT
-CreatedFile	2	ADD
-AddedFile	2	ADD
-RenamedFile	2	RENAME
-DeletedFile	2	DELETE
-DestroyedFile	2	DELETE
-RecoveredFile	2	RECOVER
-SharedFile	2	SHARE
-BranchFile	2	BRANCH
-PinnedFile	2	IGNORE
-RollBack	2	BRANCH
-UnpinnedFile	2	IGNORE
-Labeled	2	IGNORE
