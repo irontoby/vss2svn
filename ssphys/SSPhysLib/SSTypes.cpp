@@ -27,13 +27,12 @@ extern const char* g_szActions[] = {
   "Checked In",         // = 17
   "Action 18",          // missing action 18
   "RollBack",           // = 19
-  "Action 20",          // missing action 20
-  "Action 21",          // missing action 21
-  "Action 22",          // missing action 22
-  "Action 23",          // missing action 23
-  "Action 24",          // missing action 24
-  "Restore",            // = 25
-  // missing known actions: archives
+  "Archive Versions of File",  // = 20
+  "Action 19",          // missing action 19
+  "Archive File",      // = 22
+  "Archive Project",   // = 23
+  "Restored File",      // = 24
+  "Restored Project",   // = 25
 
   /// --- pseudo actions ---
   "Pinned File",        // = 26

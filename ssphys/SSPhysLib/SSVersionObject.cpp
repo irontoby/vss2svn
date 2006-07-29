@@ -300,8 +300,16 @@ SSAction* SSAction::MakeAction (SSRecordPtr pRecord)
 //    return new SSVersionObject (pRecord);
   else if (pVersion->actionID == RollBack)
     return new SSRollbackAction (pRecord);
-  else if (pVersion->actionID == Restore)
-    return new SSRestoreAction (pRecord);
+  else if (pVersion->actionID == ArchiveVersion_File)
+    return new SSArchivedVersionsAction (pRecord);
+  else if (pVersion->actionID == Archive_File)
+    return new SSArchiveFileAction (pRecord);
+  else if (pVersion->actionID == Archive_Project)
+    return new SSArchiveProjectAction (pRecord);
+  else if (pVersion->actionID == Restore_File)
+    return new SSRestoreFileAction (pRecord);
+  else if (pVersion->actionID == Restore_Project)
+    return new SSRestoreProjectAction (pRecord);
   else 
     throw SSUnknownActionException (pVersion->actionID, pRecord);
 
@@ -391,7 +399,7 @@ void SSItemAction<T, ACTION>::Dump (std::ostream& os) const
 template <class ACTION>
 SSDestroyedAction<ACTION>::SSDestroyedAction (SSRecordPtr pRecord, std::string prefix)
   : SSItemAction<ACTION, DESTROYED_ACTION> (pRecord, ""),
-    m_Prefix (prefix)
+  m_Prefix (prefix)
 {
 }
 
@@ -596,14 +604,45 @@ void SSRollbackAction::Dump (std::ostream& os) const
 }
 
 //---------------------------------------------------------------------------
-void SSRestoreAction::ToXml (XMLNode* pParent) const
+void SSArchivedVersionsAction::ToXml (XMLNode* pParent) const
 {
-  SSItemAction<SSRestoreAction, RESTORE_ACTION>::ToXml (pParent);
+  SSItemAction<SSArchivedVersionsAction, ARCHIVE_VERSIONS_ACTION>::ToXml (pParent);
 
-  XMLElement fileNameNode (pParent, "FileName", GetFileName());
+  XMLElement parentNode (pParent, "Archive", GetFileName());
+  XMLElement versionNode (pParent, "ArchiveVersion", GetArchiveVersion());
 }
 
-void SSRestoreAction::Dump (std::ostream& os) const
+void SSArchivedVersionsAction::Dump (std::ostream& os) const
 {
-  SSItemAction<SSRestoreAction, RESTORE_ACTION>::Dump (os);
+  SSItemAction<SSArchivedVersionsAction, ARCHIVE_VERSIONS_ACTION>::Dump (os);
+}
+
+//---------------------------------------------------------------------------
+template <class ACTION>
+void SSArchiveAction<ACTION>::ToXml (XMLNode* pParent) const
+{
+  SSItemAction<ACTION, ARCHIVE_ACTION>::ToXml (pParent);
+
+  XMLElement fileNameNode (pParent, "Archive", GetFileName());
+}
+
+template <class ACTION>
+void SSArchiveAction<ACTION>::Dump (std::ostream& os) const
+{
+  SSItemAction<ACTION, ARCHIVE_ACTION>::Dump (os);
+}
+
+//---------------------------------------------------------------------------
+template <class ACTION>
+void SSRestoreAction<ACTION>::ToXml (XMLNode* pParent) const
+{
+  SSItemAction<ACTION, RESTORE_ACTION>::ToXml (pParent);
+
+  XMLElement fileNameNode (pParent, "Archive", GetFileName());
+}
+
+template <class ACTION>
+void SSRestoreAction<ACTION>::Dump (std::ostream& os) const
+{
+  SSItemAction<ACTION, RESTORE_ACTION>::Dump (os);
 }

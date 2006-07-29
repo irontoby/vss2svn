@@ -149,8 +149,12 @@ enum eAction {
   Checked_in = 17,
   // missing action 18
   RollBack = 19,
-  // missing known actions: archives
-  Restore = 25,
+  ArchiveVersion_File = 20, 
+  // missing action 21, probably RestoreVersion_File
+  Archive_File = 22,
+  Archive_Project = 23,
+  Restore_File = 24,
+  Restore_Project = 25,
 
   /// --- pseudo actions ---
   Pinned_File = 26,
@@ -278,6 +282,14 @@ struct ROLLBACK_ACTION {
   char    parent[10];
 };
 
+struct ARCHIVE_VERSIONS_ACTION {
+  SSNAME  name;
+  char    physical[10];
+  char    unknown2[14];
+  short archiveVersion;
+  char targetFile[252];
+};
+
 struct BRANCH_FILE_ACTION {
   SSNAME  name;
   char    physical[10];
@@ -288,7 +300,14 @@ typedef struct {
   SSNAME name;
   char physical[10];
   short dummy;
-  char filename[266];
+  char filename[264];
+} ARCHIVE_ACTION;
+
+typedef struct {
+  SSNAME name;
+  char physical[10];
+  short dummy;
+  char filename[264];
 } RESTORE_ACTION;
 
 struct CF {

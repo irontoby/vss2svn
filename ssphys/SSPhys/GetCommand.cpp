@@ -106,7 +106,11 @@ public:
   virtual bool Apply (const SSRecoveredFileAction& rAction)     { return Apply ((const SSAction&) rAction); }
   virtual bool Apply (const SSBranchFileAction& rAction)        { return Apply ((const SSAction&) rAction); }
   virtual bool Apply (const SSRollbackAction& rAction)          { return Apply ((const SSAction&) rAction); }
-  virtual bool Apply (const SSRestoreAction& rAction)           { return Apply ((const SSAction&) rAction); }
+  virtual bool Apply (const SSArchivedVersionsAction& rAction)  { return Apply ((const SSAction&) rAction); }
+  virtual bool Apply (const SSArchiveFileAction& rAction)       { return Apply ((const SSAction&) rAction); }
+  virtual bool Apply (const SSArchiveProjectAction& rAction)    { return Apply ((const SSAction&) rAction); }
+  virtual bool Apply (const SSRestoreFileAction& rAction)       { return Apply ((const SSAction&) rAction); }
+  virtual bool Apply (const SSRestoreProjectAction& rAction)    { return Apply ((const SSAction&) rAction); }
 
   virtual bool Apply (const SSDestroyedProjectAction& rAction)  { return Apply ((const SSAction&) rAction); }
   virtual bool Apply (const SSDestroyedFileAction& rAction)     { return Apply ((const SSAction&) rAction); }
@@ -304,6 +308,12 @@ public:
     return true;
   }
 
+  virtual bool Apply (const SSArchivedVersionsAction& rAction)
+  {
+    // end building the history at this point
+    return false;
+  }
+  
   virtual bool Apply (const SSLabeledAction& rAction)
   {
     // nothing to do for a file labeling operation
@@ -711,7 +721,8 @@ void CGetCommand::Execute (po::variables_map const & options, std::vector<po::op
 //          throw SSException ("failed to create target file " + bulkFile);
       }
 
-      version.GetAction ()->Accept (*pVisitor.get());
+      if (!version.GetAction ()->Accept (*pVisitor.get()))
+        break;
     }
 
     version = version.GetPreviousObject ();

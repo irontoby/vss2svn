@@ -12,6 +12,7 @@
 #include "SSObject.h"
 #include "SSCommentObject.h"
 #include "SSName.h"
+#include "SSTypes.h"
 //#include "SSItem.h"
 
 //class SSItemAction;
@@ -35,7 +36,11 @@ class SSCreatedFileAction;        // Created_File = 16,
 class SSCheckedInAction;          // Checked_in = 17,
 //class SSAction18                // missing action 18
 class SSRollbackAction;           // RollBack = 19
-class SSRestoreAction;            // Restore = 25
+class SSArchivedVersionsAction;   // Archived Versions of File
+class SSArchiveFileAction;        // ArchiveFile
+class SSArchiveProjectAction;     // ArchiveProject
+class SSRestoreFileAction;        // RestoreFile
+class SSRestoreProjectAction;     // RestoreProject
   
 class ISSActionVisitor
 {
@@ -51,7 +56,11 @@ public:
   virtual bool Apply (const SSRecoveredFileAction& rAction) = 0;
   virtual bool Apply (const SSBranchFileAction& rAction) = 0;
   virtual bool Apply (const SSRollbackAction& rAction) = 0;
-  virtual bool Apply (const SSRestoreAction& rAction) = 0;
+  virtual bool Apply (const SSArchivedVersionsAction& rAction) = 0;
+  virtual bool Apply (const SSArchiveFileAction& rAction) = 0;
+  virtual bool Apply (const SSArchiveProjectAction& rAction) = 0;
+  virtual bool Apply (const SSRestoreFileAction& rAction) = 0;
+  virtual bool Apply (const SSRestoreProjectAction& rAction) = 0;
 
   virtual bool Apply (const SSDestroyedProjectAction& rAction) = 0;
   virtual bool Apply (const SSDestroyedFileAction& rAction) = 0;
@@ -314,23 +323,122 @@ public:
   virtual void Dump (std::ostream& os) const;
 };
 
-
 //---------------------------------------------------------------------------
-class SSRestoreAction : public SSItemAction<SSRestoreAction, RESTORE_ACTION>
+class SSArchivedVersionsAction : public SSItemAction<SSArchivedVersionsAction, ARCHIVE_VERSIONS_ACTION>
 {
 public:
-  SSRestoreAction (SSRecordPtr pRecord)
-    : SSItemAction<SSRestoreAction, RESTORE_ACTION> (pRecord, "Restore ")
+  SSArchivedVersionsAction (SSRecordPtr pRecord)
+    : SSItemAction<SSArchivedVersionsAction, ARCHIVE_VERSIONS_ACTION> (pRecord, "Archived versions of ")
   {
+  }
+
+  std::string GetFileName ()  const { return std::string (m_Action.targetFile); }
+  short GetArchiveVersion ()  const { return m_Action.archiveVersion; }
+
+  virtual void ToXml (XMLNode* pParent) const;
+  virtual void Dump (std::ostream& os) const;
+};
+
+//---------------------------------------------------------------------------
+template <class ACTION>
+class SSRestoreAction : public SSItemAction<ACTION, RESTORE_ACTION>
+{
+public:
+  SSRestoreAction (SSRecordPtr pRecord, std::string prefix)
+    : SSItemAction<ACTION, RESTORE_ACTION> (pRecord, ""),
+    m_Prefix (prefix)
+  {
+  }
+
+  virtual std::string FormatActionString ()
+  { 
+    std::string action;
+    action = "Restore " + m_Prefix + SSItemAction<ACTION, RESTORE_ACTION>::GetName ();
+    return action; 
   }
 
   std::string GetFileName ()  const { return std::string (m_Action.filename); }
 
   virtual void ToXml (XMLNode* pParent) const;
   virtual void Dump (std::ostream& os) const;
-};
-//---------------------------------------------------------------------------
 
+private:
+  std::string m_Prefix;
+};
+
+class SSRestoreProjectAction : public SSRestoreAction<SSRestoreProjectAction>
+{
+public:
+  SSRestoreProjectAction (SSRecordPtr pRecord)
+    : SSRestoreAction<SSRestoreProjectAction> (pRecord, "$")
+  {}
+};
+
+class SSRestoreFileAction : public SSRestoreAction<SSRestoreFileAction>
+{
+public:
+  SSRestoreFileAction (SSRecordPtr pRecord)
+    : SSRestoreAction<SSRestoreFileAction> (pRecord, "")
+  {}
+};
+// class SSRestoreAction : public SSItemAction<SSRestoreAction, RESTORE_ACTION>
+// {
+// public:
+//   SSRestoreAction (SSRecordPtr pRecord)
+//     : SSItemAction<SSRestoreAction, RESTORE_ACTION> (pRecord, "Restore ")
+//   {
+//   }
+// 
+//   std::string GetFileName ()  const { return std::string (m_Action.filename); }
+// 
+//   virtual void ToXml (XMLNode* pParent) const;
+//   virtual void Dump (std::ostream& os) const;
+// };
+
+//---------------------------------------------------------------------------
+template <class ACTION>
+class SSArchiveAction : public SSItemAction<ACTION, ARCHIVE_ACTION>
+{
+public:
+  SSArchiveAction (SSRecordPtr pRecord, std::string prefix)
+    : SSItemAction<ACTION, ARCHIVE_ACTION> (pRecord, ""),
+     m_Prefix (prefix)
+  {
+  }
+
+  virtual std::string FormatActionString ()
+  { 
+    std::string action;
+    action = "Archive " + m_Prefix + SSItemAction<ACTION, ARCHIVE_ACTION>::GetName ();
+    return action; 
+  }
+
+  std::string GetFileName ()  const { return std::string (m_Action.filename); }
+
+  virtual void ToXml (XMLNode* pParent) const;
+  virtual void Dump (std::ostream& os) const;
+
+private:
+  std::string m_Prefix;
+};
+
+class SSArchiveProjectAction : public SSArchiveAction<SSArchiveProjectAction>
+{
+public:
+  SSArchiveProjectAction (SSRecordPtr pRecord)
+    : SSArchiveAction<SSArchiveProjectAction> (pRecord, "$")
+  {}
+};
+
+class SSArchiveFileAction : public SSArchiveAction<SSArchiveFileAction>
+{
+public:
+  SSArchiveFileAction (SSRecordPtr pRecord)
+    : SSArchiveAction<SSArchiveFileAction> (pRecord, "")
+  {}
+};
+
+//---------------------------------------------------------------------------
 template <class ACTION>
 class SSDestroyedAction : public SSItemAction<ACTION, DESTROYED_ACTION>
 {
