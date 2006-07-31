@@ -1,4 +1,4 @@
-package Vss2Svn::SvnRevHandler;
+ package Vss2Svn::SvnRevHandler;
 
 use warnings;
 use strict;
@@ -14,7 +14,10 @@ sub new {
     my($class) = @_;
 
     my $svncache = Vss2Svn::DataCache->new('SvnRevision', 1);
-
+  
+    # we need to start at revision 1 and not 0
+    ++$svncache->{pkey};
+  
     if (!defined($svncache)) {
         print "\nERROR: Could not create cache 'SvnRevision'\n";
         return undef;

@@ -24,7 +24,7 @@ sub new {
          pkey => -1,
          verbose => $gCfg{verbose},
          fh => undef,
-         file => "$gCfg{cachedir}\\datachache.$table.tmp.txt",
+         file => "$gCfg{cachedir}/datachache.$table.tmp.txt",
         };
 
     $self = bless($self, $class);

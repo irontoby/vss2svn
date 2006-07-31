@@ -1,6 +1,7 @@
 package Vss2Svn::Dumpfile;
 
 use Vss2Svn::Dumpfile::Node;
+use Vss2Svn::Dumpfile::SanityChecker;
 use Encode qw(from_to);
 
 use warnings;
@@ -16,13 +17,16 @@ our %gHandlers =
      MOVE       => \&_move_handler,
      DELETE     => \&_delete_handler,
      RECOVER    => \&_recover_handler,
+     PIN        => \&_pin_handler,
+     LABEL      => \&_label_handler,
     );
 
 # Keep track of when paths were modified or deleted, for subsequent copies
 # or recovers.
 
-our %gModified = ();
+#our %gModified = ();
 our %gDeleted = ();
+our %gVersion = ();
 
 ###############################################################################
 #  new
@@ -35,12 +39,9 @@ sub new {
          fh => $fh,
          revision => 0,
          errors => [],
-         modified_cache => {},
          deleted_cache => {},
-         svn_items => {},
-         junk_itempaths => {},
-         need_junkdir => 0,
-         need_missing_dirs => [],
+         version_cache => [],
+         repository => Vss2Svn::Dumpfile::SanityChecker->new(),
         };
 
     # prevent perl from doing line-ending conversions
@@ -117,52 +118,32 @@ sub do_action {
     # if we need to copy or recover one.
 
     $self->{is_primary} = 1;
-    $self->{modified_cache} = {};
     $self->{deleted_cache} = {};
+    $self->{version_cache} = [];
 
     my($handler, $this_action);
 
     foreach my $itempath (split "\t", $data->{itempaths}) {
         $this_action = $action;
 
-        if(defined($itempath)) {
-            ($this_action, $itempath) =
-                $self->_action_path_sanity_check($this_action, $itempath, $data);
-
-            return 0 unless defined($itempath);
-
-        } else {
-            # if the item's path isn't defined, its real name was corrupted in
-            # vss, so we'll check it in to the junk drawer as an add
-            if (defined $main::gCfg{junkdir}) {
-                $itempath = $self->_get_junk_itempath($main::gCfg{junkdir},
-                    join('.', @$data{ qw(physname version revision_id) }));
-
-                $self->add_error("Using filename '$itempath' for item with "
-                    . "unrecoverable name at revision $data->{revision_id}");
-
-                $this_action = 'ADD';
-            } else {
-                return 0;
-            }
-        }
-
-        # if need_junkdir = 1, the first item is just about to be added to the
-        # junk drawer, so create the dumpfile node to add this directory
-        if ($self->{need_junkdir} == 1) {
-            $self->_add_svn_dir($nodes, $main::gCfg{junkdir});
-            $self->{need_junkdir} = -1;
-        }
-
-        foreach my $dir (@{ $self->{need_missing_dirs} }) {
-            $self->_add_svn_dir($nodes, $dir);
-            $self->add_error("Creating missing directory '$dir' for item "
-                . "'$itempath' at revision $data->{revision_id}");
-        }
-
+#        $this_action = $self->sanity_checker->check ($data, $itempath, $nodes);
+#        if (!defined ($this_action)) {
+#            return 0;
+#        }
+            
         $handler = $gHandlers{$this_action};
 
-        $self->$handler($itempath, $nodes, $data, $expdir);
+        my $thisnodes = [];
+        $self->$handler($itempath, $thisnodes, $data, $expdir);
+
+        # we need to apply all local changes to our repository directly: if we
+        # have an action that operates on multiple items, e.g labeling, the
+        # necessary missing directories are created for the first item
+        foreach my $node (@$thisnodes) {
+            $self->{repository}->load($node);
+            push @$nodes, $node;
+        }
+        
         $self->{is_primary} = 0;
     }
 
@@ -171,292 +152,22 @@ sub do_action {
     }
 
     my($physname, $cache);
-    while(($physname, $cache) = each %{ $self->{modified_cache} }) {
-        $gModified{$physname} = $cache;
+ 
+    my ($parentphys, $physnames);
+    while(($parentphys, $physnames) = each %{ $self->{deleted_cache} }) {
+        while(($physname, $cache) = each %{ $physnames }) {
+            $gDeleted{$parentphys}->{$physname} = $cache;
+        }
     }
 
-    while(($physname, $cache) = each %{ $self->{deleted_cache} }) {
-        $gDeleted{$physname} = $cache;
+    # track the version -> revision mapping for the file
+    foreach my $record (@{$self->{version_cache}}) {
+        my $version = \%{$gVersion{$record->{physname}}->[$record->{version}]};
+        $version->{$record->{itempath}} = $record->{revision};
     }
 
 }  #  End do_action
 
-###############################################################################
-#  _get_junk_itempath
-###############################################################################
-sub _get_junk_itempath {
-    my($self, $dir, $base) = @_;
-
-    $base =~ s:.*/::;
-    my $itempath = "$dir/$base";
-    my $count = 1;
-
-    if($self->{need_junkdir} == 0) {
-        $self->{need_junkdir} = 1;
-    }
-
-    if(!defined($self->{junk_itempaths}->{$itempath})) {
-        $self->{junk_itempaths}->{$itempath} = 1;
-        return $itempath;
-    }
-
-    my($file, $ext);
-
-    if($base =~ m/^(.*)\.(.*)/) {
-        ($file, $ext) = ($1, ".$2");
-    } else {
-        ($file, $ext) = ($base, '');
-    }
-
-    while(defined($self->{junk_itempaths}->{$itempath})) {
-        $itempath = "$dir/$file.$count$ext";
-        $count++;
-    }
-
-    return $itempath;
-}  #  End _get_junk_itempath
-
-###############################################################################
-#  _action_path_sanity_check
-###############################################################################
-sub _action_path_sanity_check {
-    my($self, $action, $itempath, $data) = @_;
-
-    my($itemtype, $revision_id) = @{ $data }{qw(itemtype revision_id)};
-
-    return($action, $itempath) if ($itempath eq '' || $itempath eq '/');
-
-    my($newaction, $newpath) = ($action, $itempath);
-    my $success;
-
-    $self->{need_missing_dirs} = [];
-
-    if($action eq 'ADD' || $action eq 'SHARE' || $action eq 'RECOVER') {
-        $success = $self->_add_svn_struct_item($itempath, $itemtype);
-
-        if(!defined($success)) {
-            $newpath = undef;
-            $self->add_error("Path consistency failure while trying to add "
-                . "item '$itempath' at revision $revision_id; skipping");
-
-        } elsif($success == 0) {
-            # trying to re-add existing item; if file, change it to a commit
-            if ($itemtype == 1) {
-
-                $newpath = undef;
-                $self->add_error("Attempt to re-add directory '$itempath' at "
-                . "revision $revision_id; possibly missing delete");
-
-            } else {
-
-                $newaction = 'COMMIT';
-                $self->add_error("Attempt to re-add file '$itempath' at "
-                    . "revision $revision_id, changing to modify; possibly "
-                    . "missing delete");
-
-            }
-        }
-
-    } elsif ($action eq 'DELETE') {
-        $success = $self->_delete_svn_struct_item($itempath, $itemtype);
-
-        if(!$success) {
-            $newpath = undef;
-            $self->add_error("Attempt to delete non-existent item '$itempath' "
-                . "at revision $revision_id; skipping...");
-        }
-
-    } elsif ($action eq 'RENAME') {
-        $success = $self->_rename_svn_struct_item($itempath, $itemtype,
-            $data->{info});
-
-        if(!$success) {
-            $newpath = undef;
-            $self->add_error("Attempt to rename non-existent item '$itempath' "
-                . "at revision $revision_id; skipping...");
-        }
-    } elsif ($action eq 'MOVE') {
-        my ($ref, $item) = $self->_get_svn_struct_ref_for_move($itempath);
-
-        if(!$ref) {
-            $newpath = undef;
-            $self->add_error("Attempt to move non-existent directory '$itempath' "
-                . "at revision $revision_id; skipping...");
-        }
-
-        $success = $self->_add_svn_struct_item($data->{info}, 1, $ref->{$item});
-
-        if(!$success) {
-            $newpath = undef;
-            $self->add_error("Error while attempting to move directory '$itempath' "
-                . "at revision $revision_id; skipping...");
-        }
-
-        delete $ref->{$item};
-    }
-
-    return($newaction, $newpath);
-
-}  #  End _action_path_sanity_check
-
-###############################################################################
-#  _add_svn_struct_item
-###############################################################################
-sub _add_svn_struct_item {
-    my($self, $itempath, $itemtype, $newref) = @_;
-
-    $itempath =~ s:^/::;
-    my @subdirs = split '/', $itempath;
-
-    my $item = pop(@subdirs);
-    my $ref = $self->{svn_items};
-
-    my $thispath = '';
-
-    foreach my $subdir (@subdirs) {
-        $thispath .= "$subdir/";
-
-        if(ref($ref) ne 'HASH') {
-            return undef;
-        }
-        if(!defined($ref->{$subdir})) {
-            # parent directory doesn't exist; add it to list of missing dirs
-            # to build up
-            push @{ $self->{need_missing_dirs} }, $thispath;
-
-            $ref->{$subdir} = {};
-        }
-
-        $ref = $ref->{$subdir};
-    }
-
-    if(ref($ref) ne 'HASH') {
-        # parent "directory" is actually a file
-        return undef;
-    }
-
-    if(defined($ref->{$item})) {
-        # item already exists; can't add it
-        return 0;
-    }
-
-    if(defined($newref)) {
-        $ref->{$item} = $newref;
-    } else {
-        $ref->{$item} = ($itemtype == 1)? {} : 1;
-    }
-
-    return 1;
-
-}  #  End _add_svn_struct_item
-
-###############################################################################
-#  _delete_svn_struct_item
-###############################################################################
-sub _delete_svn_struct_item {
-    my($self, $itempath, $itemtype) = @_;
-
-    return $self->_delete_rename_svn_struct_item($itempath, $itemtype);
-}  #  End _delete_svn_struct_item
-
-###############################################################################
-#  _rename_svn_struct_item
-###############################################################################
-sub _rename_svn_struct_item {
-    my($self, $itempath, $itemtype, $newname) = @_;
-
-    return $self->_delete_rename_svn_struct_item($itempath, $itemtype, $newname);
-}  #  End _rename_svn_struct_item
-
-###############################################################################
-#  _delete_rename_svn_struct_item
-###############################################################################
-sub _delete_rename_svn_struct_item {
-    my($self, $itempath, $itemtype, $newname, $movedref) = @_;
-
-    $itempath =~ s:^/::;
-    $newname =~ s:/$:: if defined($newname);
-    my @subdirs = split '/', $itempath;
-
-    my $item = pop(@subdirs);
-    my $ref = $self->{svn_items};
-
-    foreach my $subdir (@subdirs) {
-        if(!(ref($ref) eq 'HASH') || !defined($ref->{$subdir})) {
-            # can't get to item because a parent directory doesn't exist; give up
-            return undef;
-        }
-
-        $ref = $ref->{$subdir};
-    }
-
-    if((ref($ref) ne 'HASH') || !defined($ref->{$item})) {
-        # item doesn't exist; can't delete/rename it
-        return 0;
-    }
-
-    if(defined $newname) {
-        $ref->{$newname} = $ref->{$item};
-    }
-
-    delete $ref->{$item};
-
-    return 1;
-
-}  #  End _delete_rename_svn_struct_item
-
-###############################################################################
-#  _get_svn_struct_ref_for_move
-###############################################################################
-sub _get_svn_struct_ref_for_move {
-    my($self, $itempath) = @_;
-
-    $itempath =~ s:^/::;
-    my @subdirs = split '/', $itempath;
-
-    my $item = pop(@subdirs);
-    my $ref = $self->{svn_items};
-
-    my $thispath = '';
-
-    foreach my $subdir (@subdirs) {
-        $thispath .= "$subdir/";
-
-        if(ref($ref) ne 'HASH') {
-            return undef;
-        }
-        if(!defined($ref->{$subdir})) {
-            return undef;
-        }
-
-        $ref = $ref->{$subdir};
-    }
-
-    if((ref($ref) ne 'HASH') || !defined($ref->{$item}) ||
-       (ref($ref->{$item} ne 'HASH'))) {
-        return undef;
-    }
-
-    return ($ref, $item);
-
-}  #  End _get_svn_struct_ref_for_move
-
-###############################################################################
-#  _add_svn_dir
-###############################################################################
-sub _add_svn_dir {
-    my($self, $nodes, $dir) = @_;
-
-    my $node = Vss2Svn::Dumpfile::Node->new();
-    my $data = { itemtype => 1, is_binary => 0 };
-
-    $node->set_initial_props($dir, $data);
-    $node->{action} = 'add';
-
-    push @$nodes, $node;
-    $self->_add_svn_struct_item($dir, 1);
-
-}  #  End _add_svn_dir
 
 ###############################################################################
 #  _add_handler
@@ -464,6 +175,34 @@ sub _add_svn_dir {
 sub _add_handler {
     my($self, $itempath, $nodes, $data, $expdir) = @_;
 
+    if ($self->{repository}->exists ($itempath)) {
+        if ($data->{itemtype} == 2) {
+            $self->add_error("Attempt to re-add file '$itempath' at "
+                . "revision $data->{revision_id}, changing to modify; possibly "
+                . "missing delete");
+            return $self->_commit_handler ($itempath, $nodes, $data, $expdir);
+        }
+        else {
+            $self->add_error("Attempt to re-add directory '$itempath' at "
+                . "revision $data->{revision_id}, skipping action: possibly "
+                . "missing delete");
+            return 0;
+        }
+    }
+
+    my $success = $self->{repository}->exists_parent ($itempath);
+    if(!defined($success)) {
+        $self->add_error("Path consistency failure while trying to add "
+            . "item '$itempath' at revision $data->{revision_id}; skipping");
+        return 0;
+    }
+    elsif ($success == 0) {
+        $self->add_error("Parent path missing while trying to add "
+            . "item '$itempath' at revision $data->{revision_id}: adding missing "
+            . "parents");
+        $self->_create_svn_path ($nodes, $itempath);
+    }
+    
     my $node = Vss2Svn::Dumpfile::Node->new();
     $node->set_initial_props($itempath, $data);
     $node->{action} = 'add';
@@ -472,7 +211,8 @@ sub _add_handler {
         $self->get_export_contents($node, $data, $expdir);
     }
 
-    $self->track_modified($data->{physname}, $data->{revision_id}, $itempath);
+#    $self->track_modified($data->{physname}, $data->{revision_id}, $itempath);
+    $self->track_version ($data->{physname}, $data->{version}, $itempath);
 
     push @$nodes, $node;
 
@@ -484,6 +224,13 @@ sub _add_handler {
 sub _commit_handler {
     my($self, $itempath, $nodes, $data, $expdir) = @_;
 
+    if (!$self->{repository}->exists ($itempath)) {
+        $self->add_error("Attempt to commit to non-existant file '$itempath' at "
+            . "revision $data->{revision_id}, changing to add; possibly "
+            . "missing recover");
+        return $self->_add_handler ($itempath, $nodes, $data, $expdir);
+    }
+    
     my $node = Vss2Svn::Dumpfile::Node->new();
     $node->set_initial_props($itempath, $data);
     $node->{action} = 'change';
@@ -492,7 +239,8 @@ sub _commit_handler {
         $self->get_export_contents($node, $data, $expdir);
     }
 
-    $self->track_modified($data->{physname}, $data->{revision_id}, $itempath);
+#    $self->track_modified($data->{physname}, $data->{revision_id}, $itempath);
+    $self->track_version ($data->{physname}, $data->{version}, $itempath);
 
     push @$nodes, $node;
 
@@ -507,13 +255,26 @@ sub _rename_handler {
     # to rename a file in SVN, we must add "with history" then delete the orig.
 
     my $newname = $data->{info};
-
     my $newpath = $itempath;
 
     if ($data->{itemtype} == 1) {
         $newpath =~ s:(.*/)?.+$:$1$newname:;
     } else {
         $newpath =~ s:(.*/)?.*:$1$newname:;
+    }
+
+    if ($self->{repository}->exists ($newpath)) {
+        $self->add_error("Attempt to rename item '$itempath' to '$newpath' at "
+            . "revision $data->{revision_id}, but destination already exists: possibly "
+            . "missing delete; skipping");
+        return 0;
+    }
+
+    if (!$self->{repository}->exists ($itempath)) {
+        $self->add_error("Attempt to rename item '$itempath' to '$newpath' at "
+            . "revision $data->{revision_id}, but source doesn't exists: possibly "
+            . "missing recover; skipping");
+        return 0;
     }
 
     my $node = Vss2Svn::Dumpfile::Node->new();
@@ -532,10 +293,11 @@ sub _rename_handler {
 
     push @$nodes, $node;
 
-    $self->track_modified($data->{physname}, $data->{revision_id}, $newpath);
+#    $self->track_modified($data->{physname}, $data->{revision_id}, $newpath);
+#    $self->track_version ($data->{physname}, $data->{version}, $newpath);
 
     $node = Vss2Svn::Dumpfile::Node->new();
-    $node->{path} = $itempath;
+    $node->set_initial_props($itempath, $data);
     $node->{action} = 'delete';
     $node->{hideprops} = 1;
 
@@ -552,14 +314,36 @@ sub _rename_handler {
 sub _share_handler {
     my($self, $itempath, $nodes, $data, $expdir) = @_;
 
+    if ($self->{repository}->exists ($itempath)) {
+        $self->add_error("Attempt to share item '$data->{info}' to '$itempath' at "
+            . "revision $data->{revision_id}, but destination already exists: possibly "
+            . "missing delete; skipping");
+        return 0;
+    }
+
+#   It could be possible that we share from a historically renamed item, so we don't check the source
+#    if ($self->{repository}->exists ($data->{info})) {
+#        $self->add_error("Attempt to share item '$itempath' to '$newpath' at "
+#            . "revision $data->{revision_id}, but destination already exists: possibly "
+#            . "missing delete; skipping");
+#        return 0;
+#    }
+
     my $node = Vss2Svn::Dumpfile::Node->new();
     $node->set_initial_props($itempath, $data);
     $node->{action} = 'add';
 
-    @{ $node }{ qw(copyrev copypath) }
-        = $self->last_modified_rev_path($data->{physname});
+#    @{ $node }{ qw(copyrev copypath) }
+#        = $self->last_modified_rev_path($data->{physname});
+    $node->{copyrev} =
+        $self->get_revision ($data->{physname}, $data->{version}, $data->{info});
+    $node->{copypath} = $data->{info};
 
-    return unless defined($node->{copyrev});
+    if (!defined $node->{copyrev} || !defined $node->{copypath}) {
+        return $self->_commit_handler ($itempath, $nodes, $data, $expdir);
+    }
+
+    $self->track_version ($data->{physname}, $data->{version}, $itempath);
 
     push @$nodes, $node;
 
@@ -573,9 +357,10 @@ sub _branch_handler {
 
     # branching is a no-op in SVN
 
-    # if the file is copied later, we need to track, the revision of this branch
-    # see the shareBranchShareModify Test
-    $self->track_modified($data->{physname}, $data->{revision_id}, $itempath);
+#    # if the file is copied later, we need to track, the revision of this branch
+#    # see the shareBranchShareModify Test
+#    $self->track_modified($data->{physname}, $data->{revision_id}, $itempath);
+    $self->track_version ($data->{physname}, $data->{version}, $itempath);
 
 }  #  End _branch_handler
 
@@ -589,6 +374,20 @@ sub _move_handler {
 
     my $newpath = $data->{info};
 
+    if ($self->{repository}->exists ($newpath)) {
+        $self->add_error("Attempt to move item '$itempath' to '$newpath' at "
+            . "revision $data->{revision_id}, but destination already exists: possibly "
+            . "missing delete; skipping");
+        return 0;
+    }
+
+    if (!$self->{repository}->exists ($itempath)) {
+        $self->add_error("Attempt to move item '$itempath' to '$newpath' at "
+            . "revision $data->{revision_id}, but source doesn't exists: possibly "
+            . "missing recover; skipping");
+        return 0;
+    }
+    
     my $node = Vss2Svn::Dumpfile::Node->new();
     $node->set_initial_props($newpath, $data);
     $node->{action} = 'add';
@@ -603,10 +402,11 @@ sub _move_handler {
 
     push @$nodes, $node;
 
-    $self->track_modified($data->{physname}, $data->{revision_id}, $newpath);
+#    $self->track_modified($data->{physname}, $data->{revision_id}, $newpath);
+#    $self->track_version ($data->{physname}, $data->{version}, $newpath);
 
     $node = Vss2Svn::Dumpfile::Node->new();
-    $node->{path} = $itempath;
+    $node->set_initial_props($itempath, $data);
     $node->{action} = 'delete';
     $node->{hideprops} = 1;
 
@@ -620,15 +420,22 @@ sub _move_handler {
 sub _delete_handler {
     my($self, $itempath, $nodes, $data, $expdir) = @_;
 
+    if (!$self->{repository}->exists ($itempath)) {
+        $self->add_error("Attempt to delete non-existent item '$itempath' at "
+            . "revision $data->{revision_id}: possibly "
+            . "missing recover/add/share; skipping");
+        return 0;
+    }
+
     my $node = Vss2Svn::Dumpfile::Node->new();
-    $node->{path} = $itempath;
+    $node->set_initial_props($itempath, $data);
     $node->{action} = 'delete';
     $node->{hideprops} = 1;
 
     push @$nodes, $node;
 
-    $self->track_deleted($data->{physname}, $data->{revision_id},
-                         $itempath);
+    $self->track_deleted($data->{parentphys}, $data->{physname},
+                         $data->{revision_id}, $itempath);
 
 }  #  End _delete_handler
 
@@ -638,49 +445,200 @@ sub _delete_handler {
 sub _recover_handler {
     my($self, $itempath, $nodes, $data, $expdir) = @_;
 
+    if ($self->{repository}->exists ($itempath)) {
+        $self->add_error("Attempt to recover existing item '$itempath' at "
+            . "revision $data->{revision_id}: possibly "
+            . "missing delete; change to commit");
+        return $self->_commit_handler ($itempath, $nodes, $data, $expdir);
+    }
+
     my $node = Vss2Svn::Dumpfile::Node->new();
     $node->set_initial_props($itempath, $data);
     $node->{action} = 'add';
 
-    my($copyrev, $copypath) = $self->last_deleted_rev_path($data->{physname});
-
-    if (!defined $copyrev) {
+    # for projects we want to go back to the revision just one before the deleted
+    # revision. For files, we need to go back to the specified revision, since
+    # the file could have been modified via a share.
+    my($copyrev, $copypath);
+    if (!defined ($data->{version})) {
+        ($copyrev, $copypath)= $self->last_deleted_rev_path($data->{parentphys},
+                                                            $data->{physname});
+        $copyrev -= 1;
+    }
+    else {
+        $copyrev =
+            $self->get_revision ($data->{physname}, $data->{version}, $data->{info});
+        $copypath = $data->{info};
+    }
+    
+    if (!defined $copyrev || !defined $copypath) {
         $self->add_error(
             "Could not recover path $itempath at revision $data->{revision_id};"
-            . " unable to determine deleted revision");
+            . " unable to determine deleted revision or path");
         return 0;
     }
 
-    $node->{copyrev} = $copyrev - 1;
+    $node->{copyrev} = $copyrev;
     $node->{copypath} = $copypath;
+
+    if (defined ($data->{version})) {
+        $self->track_version ($data->{physname}, $data->{version}, $itempath);
+    }
 
     push @$nodes, $node;
 
 }  #  End _recover_handler
 
 ###############################################################################
-#  track_modified
+#  _pin_handler
 ###############################################################################
-sub track_modified {
-    my($self, $physname, $revision, $path) = @_;
+sub _pin_handler {
+    my($self, $itempath, $nodes, $data, $expdir) = @_;
 
-    return unless $self->{is_primary};
+    if (!$self->{repository}->exists ($itempath)) {
+        $self->add_error("Attempt to pin non-existing item '$itempath' at "
+            . "revision $data->{revision_id}: possibly "
+            . "missing recover; skipping");
+        return 0;
+    }
 
-    $self->{modified_cache}->{$physname} =
+    my $copyrev = 
+        $self->get_revision ($data->{physname}, $data->{version}, $data->{info});
+    my $copypath = $data->{info};
+    
+    # if one of the necessary copy from attributes are unavailable we fall back
+    # to a complete checkin
+    if (!defined $copyrev || !defined $copypath) {
+        return $self->_commit_handler ($itempath, $nodes, $data, $expdir);
+    }
+    
+    my $node = Vss2Svn::Dumpfile::Node->new();
+    $node->set_initial_props($itempath, $data);
+    $node->{action} = 'add';
+
+    $node->{copyrev} = $copyrev;
+    $node->{copypath} = $copypath;
+
+    $self->track_version ($data->{physname}, $data->{version}, $itempath);
+
+    push @$nodes, $node;
+
+}  #  End _pin_handler
+
+###############################################################################
+#  _label_handler
+###############################################################################
+sub _label_handler {
+    my($self, $itempath, $nodes, $data, $expdir) = @_;
+
+    if (!$self->{repository}->exists ($itempath)) {
+        $self->add_error("Attempt to label non-existing item '$itempath' at "
+            . "revision $data->{revision_id}: possibly "
+            . "missing recover; skipping");
+        return 0;
+    }
+
+    my $label = $data->{info};
+    
+    # It is possible that the label was deleted later, so we see here a label
+    # action, but no label was assigned. In this case, we only need to track
+    # the version->revision mapping, since the version could have been used
+    # as a valid share source.
+    if (defined ($label)) {
+        my $uniquepath = join('.', @$data{ qw(physname version) });
+        my $labelpath = "$main::gCfg{labeldir}/$data->{info}$itempath";
+
+        $self->_create_svn_path ($nodes, $labelpath);
+
+        my $node = Vss2Svn::Dumpfile::Node->new();
+        $node->set_initial_props($labelpath, $data);
+        $node->{action} = 'add';
+    
+        my $copyrev = $data->{revision_id} - 1;
+        my $copypath = $itempath;
+
+        $node->{copyrev} = $copyrev;
+        $node->{copypath} = $copypath;
+
+        push @$nodes, $node;
+        
+    }
+
+    $self->track_version ($data->{physname}, $data->{version}, $itempath);
+}  #  End _label_handler
+
+###############################################################################
+#  _add_svn_dir
+###############################################################################
+sub _add_svn_dir {
+    my($self, $nodes, $dir) = @_;
+
+    my $node = Vss2Svn::Dumpfile::Node->new();
+    my $data = { itemtype => 1, is_binary => 0 };
+
+    $node->set_initial_props($dir, $data);
+    $node->{action} = 'add';
+
+    push @$nodes, $node;
+}  #  End _add_svn_dir
+
+
+###############################################################################
+#  _create_svn_path
+###############################################################################
+sub _create_svn_path {
+    my($self, $nodes, $itempath) = @_;
+
+    my $missing_dirs = $self->{repository}->get_missing_dirs($itempath);
+
+    foreach my $dir (@$missing_dirs) {
+        $self->_add_svn_dir($nodes, $dir);
+    }
+}  #  End _create_svn_path
+
+###############################################################################
+#  track_version
+###############################################################################
+sub track_version {
+    my($self, $physname, $version, $itempath) = @_;
+
+    my $record = 
         {
-         revision => $revision,
-         path => $path,
+         physname => $physname,
+         version => $version,
+         revision => $self->{revision},
+         itempath => $itempath,
         };
+    push @{$self->{version_cache}}, $record;
 
-}  #  End track_modified
+}  #  End track_version
+
+
+###############################################################################
+#  get_revision
+###############################################################################
+sub get_revision {
+    my($self, $physname, $version, $itempath) = @_;
+
+    if (!defined($gVersion{$physname})) {
+        return (undef);
+    }
+
+    if (!exists($gVersion{$physname}->[$version])) {
+        return (undef);
+    }
+    
+    return $gVersion{$physname}->[$version]->{$itempath};
+
+}  #  End get_revision
 
 ###############################################################################
 #  track_deleted
 ###############################################################################
 sub track_deleted {
-    my($self, $physname, $revision, $path) = @_;
+    my($self, $parentphys, $physname, $revision, $path) = @_;
 
-    $self->{deleted_cache}->{$physname} =
+    $self->{deleted_cache}->{$parentphys}->{$physname} =
         {
          revision => $revision,
          path => $path,
@@ -689,29 +647,20 @@ sub track_deleted {
 }  #  End track_deleted
 
 ###############################################################################
-#  last_modified_rev_path
-###############################################################################
-sub last_modified_rev_path {
-    my($self, $physname) = @_;
-
-    if (!defined($gModified{$physname})) {
-        return (undef, undef);
-    }
-
-    return @{ $gModified{$physname} }{ qw(revision path) };
-}  #  End last_modified_rev_path
-
-###############################################################################
 #  last_deleted_rev_path
 ###############################################################################
 sub last_deleted_rev_path {
-    my($self, $physname) = @_;
+    my($self, $parentphys, $physname) = @_;
 
-    if (!defined($gDeleted{$physname})) {
+    if (!defined($gDeleted{$parentphys})) {
         return (undef, undef);
     }
 
-    return @{ $gDeleted{$physname} }{ qw(revision path) };
+    if (!defined($gDeleted{$parentphys}->{$physname})) {
+        return (undef, undef);
+    }
+
+    return @{ $gDeleted{$parentphys}->{$physname} }{ qw(revision path) };
 }  #  End last_deleted_rev_path
 
 ###############################################################################
@@ -728,7 +677,7 @@ sub get_export_contents {
         return 0;
     }
 
-    my $file = "$expdir\\$data->{physname}.$data->{version}";
+    my $file = "$expdir/$data->{physname}.$data->{version}";
 
     if (!open EXP, "$file") {
         $self->add_error("Could not open export file '$file'");

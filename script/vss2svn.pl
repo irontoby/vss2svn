@@ -63,6 +63,10 @@ sub RunConversion {
 
             # Merge data from parent records into child records where possible
             MERGEPARENTDATA => {handler => \&MergeParentData,
+                                next    => 'MERGEMOVEDATA'},
+
+            # Merge data from move actions 
+            MERGEMOVEDATA => {handler => \&MergeMoveData,
                                 next    => 'BUILDACTIONHIST'},
 
             # Take the history of physical actions and convert them to VSS
@@ -136,9 +140,7 @@ ENTRY:
     }
 
     $cache->commit();
-
 }  #  End LoadVssNames
-
 
 ###############################################################################
 #  FindPhysDbFiles
@@ -291,7 +293,7 @@ sub GetVssItemVersions {
 
     my($parentdata, $version, $vernum, $action, $name, $actionid, $actiontype,
        $tphysname, $itemname, $itemtype, $parent, $user, $timestamp, $comment,
-       $is_binary, $info, $priority, $sortkey, $cachename);
+       $is_binary, $info, $priority, $sortkey, $label, $cachename);
 
 VERSION:
     foreach $version (@{ $xml->{Version} }) {
@@ -323,9 +325,34 @@ VERSION:
         $info = undef;
         $parentdata = 0;
         $priority = 5;
-
+        $label = undef;
+        
         if ($version->{Comment} && !ref($version->{Comment})) {
             $comment = $version->{Comment} || undef;
+        }
+
+        # In case of Label the itemtype is the type of the item currently
+        # under investigation
+        if ($actiontype eq 'LABEL') {
+            my $iteminfo = $xml->{ItemInfo};
+            $itemtype = $iteminfo->{Type};
+
+        }
+
+        # we can have label actions and labes attached to versions
+        if (defined $action->{Label} && !ref($action->{Label})) {
+            $label = $action->{Label};
+            
+            # append the label comment to a possible version comment
+            if ($action->{LabelComment} && !ref($action->{LabelComment})) {
+                if (defined $comment) {
+                    print "Merging LabelComment and Comment for "
+                        . "'$tphysname;$version->{VersionNumber}'"; # if $gCfg{verbose};
+                    $comment .= "\n";
+                }
+  
+                $comment .= $action->{LabelComment} || undef;
+            }
         }
 
         if (defined($comment)) {
@@ -382,14 +409,20 @@ VERSION:
             }
         } elsif ($actiontype eq 'BRANCH') {
             $info = $action->{Parent};
-        } elsif ($actiontype eq 'PIN') {
-            $info = $action->{PinnedToVersion};
-        }
+        } 
 
         $vernum = ($parentdata)? undef : $version->{VersionNumber};
 
+        # since there is no corresponding client action for PIN, we need to
+        # enter the concrete version number here manually
+        # In a share action the pinnedToVersion attribute can also be set
+#        if ($actiontype eq 'PIN') {
+            $vernum = $action->{PinnedToVersion} if (defined $action->{PinnedToVersion});
+#        }
+
         $priority -= 4 if $actiontype eq 'ADD'; # Adds are always first
         $priority -= 3 if $actiontype eq 'SHARE';
+        $priority -= 3 if $actiontype eq 'PIN';
         $priority -= 2 if $actiontype eq 'BRANCH';
 
         # store the reversed physname as a sortkey; a bit wasteful but makes
@@ -398,7 +431,7 @@ VERSION:
 
         $cache->add($tphysname, $vernum, $parentphys, $actiontype, $itemname,
                     $itemtype, $timestamp, $user, $is_binary, $info, $priority,
-                    $sortkey, $parentdata, $comment);
+                    $sortkey, $parentdata, $label, $comment);
 
     }
 
@@ -492,7 +525,7 @@ sub MergeParentData {
 #  GetChildRecs
 ###############################################################################
 sub GetChildRecs {
-    my($parentrec) = @_;
+    my($parentrec, $parentdata) = @_;
 
     # Here we need to find any child rows which give us additional info on the
     # parent rows. There's no definitive way to find matching rows, but joining
@@ -501,23 +534,25 @@ sub GetChildRecs {
     # so we need to also look for any that are up to two seconds apart and hope
     # we don't get the wrong row.
 
+    $parentdata = 0 unless defined $parentdata;
+    
     my $sql = <<"EOSQL";
 SELECT
     *
 FROM
     PhysicalAction
 WHERE
-    parentdata = 0
+    parentdata = ?
     AND physname = ?
     AND actiontype = ?
-    AND (? - timestamp IN (0, 1, 2, 3, 4))
+    AND (? - timestamp IN (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25))
     AND author = ?
 ORDER BY
     timestamp
 EOSQL
 
     my $sth = $gCfg{dbh}->prepare($sql);
-    $sth->execute( @{ $parentrec }{qw(physname actiontype timestamp author)} );
+    $sth->execute( $parentdata, @{ $parentrec }{qw(physname actiontype timestamp author)} );
 
     return $sth->fetchall_arrayref( {} );
 }  #  End GetChildRecs
@@ -558,6 +593,53 @@ EOSQL
 }  #  End UpdateParentRec
 
 ###############################################################################
+#  MergeMoveData
+###############################################################################
+sub MergeMoveData {
+    # Similar to the MergeParentData, the MergeMove Data combines two the src
+    # and target move actions into one move action. Since both items are parents
+    # the MergeParentData function can not deal with this specific problem
+
+    my($sth, $rows, $row);
+    $sth = $gCfg{dbh}->prepare('SELECT * FROM PhysicalAction '
+                               . 'WHERE actiontype = "MOVE_FROM"');
+    $sth->execute();
+
+    # need to pull in all recs at once, since we'll be updating/deleting data
+    $rows = $sth->fetchall_arrayref( {} );
+
+    my($childrecs, $child, $id);
+    my @delchild = ();
+
+    foreach $row (@$rows) {
+        $row->{actiontype} = 'MOVE';
+        $childrecs = &GetChildRecs($row, 1);
+
+        if (scalar @$childrecs > 1) {
+            &ThrowWarning("Multiple chidl recs for parent MOVE rec "
+                          . "'$row->{action_id}'");
+        }
+
+        foreach $child (@$childrecs) {
+            my $update;
+            $update = $gCfg{dbh}->prepare('UPDATE PhysicalAction SET info = ?'
+                                          . 'WHERE action_id = ?');
+            
+            $update->execute( $row->{parentphys}, $child->{action_id} );
+        }
+        
+        push(@delchild, $row->{action_id});
+    }
+
+    foreach $id (@delchild) {
+        &DeleteChildRec($id);
+    }
+
+    1;
+
+}  #  End MergeMoveData
+
+###############################################################################
 #  DeleteChildRec
 ###############################################################################
 sub DeleteChildRec {
@@ -579,6 +661,9 @@ sub BuildVssActionHistory {
     my $joincache = Vss2Svn::DataCache->new('SvnRevisionVssAction')
         || &ThrowError("Could not create cache 'SvnRevisionVssAction'");
 
+    my $labelcache = Vss2Svn::DataCache->new('Label')
+        || &ThrowError("Could not create cache 'Label'");
+
     # This will keep track of the current SVN revision, and increment it when
     # the author or comment changes, the timestamps span more than an hour
     # (by default), or the same physical file is affected twice
@@ -590,14 +675,13 @@ sub BuildVssActionHistory {
     my($sth, $row, $action, $handler, $physinfo, $itempaths, $allitempaths);
 
     my $sql = 'SELECT * FROM PhysicalAction ORDER BY timestamp ASC, '
-                    . 'priority ASC, sortkey ASC';
+            . 'itemtype ASC, priority ASC, sortkey ASC';
 
     $sth = $gCfg{dbh}->prepare($sql);
     $sth->execute();
 
 ROW:
     while(defined($row = $sth->fetchrow_hashref() )) {
-        $svnrevs->check($row);
         $action = $row->{actiontype};
 
         $handler = Vss2Svn::ActionHandler->new($row);
@@ -646,26 +730,41 @@ ROW:
             }
         }
 
+        # we need to check for the next rev number, after all pathes that can
+        # prematurally call the next row. Otherwise, we get an empty revision.
+        $svnrevs->check($row);
+        
         # May contain add'l info for the action depending on type:
         # RENAME: the new name (without path)
         # SHARE: the source path which was shared
         # MOVE: the new path
-        # PIN: the version that was pinned
+        # PIN: the path of the version that was pinned      
+        # LABEL: the name of the label
         $row->{info} = $handler->{info};
 
+        # The version may have changed
+        if (defined $handler->{version}) {
+            $row->{version} = $handler->{version};
+        }
+        
         $allitempaths = join("\t", @$itempaths);
         $row->{itempaths} = $allitempaths;
 
-        $vsscache->add(@$row{ qw(physname version actiontype itempaths
+        $vsscache->add(@$row{ qw(parentphys physname version actiontype itempaths
                              itemtype is_binary info) });
         $joincache->add( $svnrevs->{revnum}, $vsscache->{pkey} );
+        
+        if (defined $row->{label}) {
+            $labelcache->add(@$row{ qw(physname version label itempaths) });
+        }
 
     }
 
     $vsscache->commit();
     $svnrevs->commit();
     $joincache->commit();
-
+    $labelcache->commit();
+    
 }  #  End BuildVssActionHistory
 
 ###############################################################################
@@ -719,7 +818,7 @@ REVISION:
         $revision = $row->{revision_id};
         $dumpfile->begin_revision($row);
 
-        next REVISION if $revision == 0;
+#        next REVISION if $revision == 0;
 
         $action_sth->execute($revision);
         $actions = $action_sth->fetchall_arrayref( {} );
@@ -1156,7 +1255,7 @@ sub SetupGlobals {
         &ReloadSysTables;
     }
 
-    $gCfg{ssphys} = 'SSPHYS.exe' if !defined($gCfg{ssphys});
+    $gCfg{ssphys} = 'ssphys' if !defined($gCfg{ssphys});
     $gCfg{vssdatadir} = "$gCfg{vssdir}/data";
 
     (-d "$gCfg{vssdatadir}") or &ThrowError("$gCfg{vssdir} does not appear "
@@ -1186,11 +1285,12 @@ sub SetupActionTypes {
         CreatedProject => {type => 1, action => 'ADD'},
         AddedProject => {type => 1, action => 'ADD'},
         RenamedProject => {type => 1, action => 'RENAME'},
-        MovedProjectTo => {type => 1, action => 'IGNORE'},
-        MovedProjectFrom => {type => 1, action => 'MOVE'},
+        MovedProjectTo => {type => 1, action => 'MOVE'},
+        MovedProjectFrom => {type => 1, action => 'MOVE_FROM'},
         DeletedProject => {type => 1, action => 'DELETE'},
         DestroyedProject => {type => 1, action => 'DELETE'},
         RecoveredProject => {type => 1, action => 'RECOVER'},
+        Restore => {type => 1, action => 'RESTORE'},
         CheckedIn => {type => 2, action => 'COMMIT'},
         CreatedFile => {type => 2, action => 'ADD'},
         AddedFile => {type => 2, action => 'ADD'},
@@ -1200,10 +1300,10 @@ sub SetupActionTypes {
         RecoveredFile => {type => 2, action => 'RECOVER'},
         SharedFile => {type => 2, action => 'SHARE'},
         BranchFile => {type => 2, action => 'BRANCH'},
-        PinnedFile => {type => 2, action => 'IGNORE'},
+        PinnedFile => {type => 2, action => 'PIN'},
         RollBack => {type => 2, action => 'BRANCH'},
-        UnpinnedFile => {type => 2, action => 'IGNORE'},
-        Labeled => {type => 2, action => 'IGNORE'},
+        UnpinnedFile => {type => 2, action => 'PIN'},
+        Labeled => {type => 2, action => 'LABEL'},
     );
 
 }  #  End SetupActionTypes
@@ -1252,6 +1352,7 @@ CREATE TABLE
         priority    INTEGER,
         sortkey     VARCHAR,
         parentdata  INTEGER,
+        label       VARCHAR,
         comment     TEXT
     )
 EOSQL
@@ -1289,6 +1390,7 @@ EOSQL
 CREATE TABLE
     VssAction (
         action_id   INTEGER PRIMARY KEY,
+        parentphys  VARCHAR,
         physname    VARCHAR,
         version     INTEGER,
         action      VARCHAR,
@@ -1341,6 +1443,19 @@ CREATE INDEX
     SvnRevisionVssAction_IDX1 ON SvnRevisionVssAction (
         revision_id ASC,
         action_id   ASC
+    )
+EOSQL
+
+    $sth = $gCfg{dbh}->prepare($sql);
+    $sth->execute;
+
+    $sql = <<"EOSQL";
+CREATE TABLE
+    Label (
+        physical VARCHAR,
+        version  INTEGER,
+        label    VARCHAR,
+        imtempaths  VARCHAR
     )
 EOSQL
 
@@ -1446,6 +1561,8 @@ sub Initialize {
 
     $gCfg{junkdir} = '/lost+found';
 
+    $gCfg{labeldir} = '/labels';
+
     $gCfg{errortasks} = [];
 
     &ConfigureXmlParser();
@@ -1458,7 +1575,7 @@ sub Initialize {
     rmtree($gCfg{vssdata}) if (-e $gCfg{vssdata});
     mkdir $gCfg{vssdata};
 
-    $gCfg{ssphys} ||= 'SSPHYS.exe';
+    $gCfg{ssphys} ||= 'ssphys';
     $gCfg{svn} ||= 'SVN.exe';
 
     $gCfg{task} = 'INIT';
