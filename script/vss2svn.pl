@@ -545,12 +545,14 @@ WHERE
     parentdata = ?
     AND physname = ?
     AND actiontype = ?
-    AND (? - timestamp IN (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25))
+    AND (ABS(? - timestamp) < 21600)
     AND author = ?
 ORDER BY
     timestamp
 EOSQL
 
+    # timestamp test is within 21600 seconds equals 6 hours (allows for
+    # really bad Windows clocks, timezones, and WAN delays)
     my $sth = $gCfg{dbh}->prepare($sql);
     $sth->execute( $parentdata, @{ $parentrec }{qw(physname actiontype timestamp author)} );
 
