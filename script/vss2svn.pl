@@ -629,8 +629,25 @@ sub MergeMoveData {
             
             $update->execute( $row->{parentphys}, $child->{action_id} );
         }
-        
-        push(@delchild, $row->{action_id});
+
+        if (scalar @$childrecs == 0) {
+            my $sql = <<"EOSQL";
+UPDATE
+    PhysicalAction
+SET
+    parentphys = ?,
+    actiontype = 'MOVE',
+    info = ?
+WHERE
+    action_id = ?
+EOSQL
+            my $update;
+            $update = $gCfg{dbh}->prepare($sql);
+            $update->execute( undef, $row->{parentphys},
+            $row->{action_id});
+        } else {
+            push(@delchild, $row->{action_id});
+        }
     }
 
     foreach $id (@delchild) {

@@ -126,6 +126,7 @@ sub _add_handler {
          parents    => {},
          last_version => $version,
          orphaned   => $orphaned,
+         was_binary => $row->{is_binary},
         };
 
     $self->_add_parent ($row->{physname}, $row->{parentphys});
@@ -155,6 +156,8 @@ sub _commit_handler {
 
         return 0;
     }
+
+    $physinfo->{was_binary} = $row->{is_binary};
 
     # We need to track at least the version number, even if there is no
     # active parent. This is necessary, if we later share this item, we need
@@ -255,6 +258,8 @@ sub _share_handler {
     my $version = $row->{version};
     $version = $physinfo->{last_version} if (!defined $version);
 
+    $row->{is_binary} = $physinfo->{was_binary};
+
     # 'itempath' is the path for this new location (the share target);
     # note: since we can share from a orphaned item, we use the itemname that
     # is provided in the row information for the share target and not the
@@ -333,6 +338,21 @@ sub _branch_handler {
 #        $oldphysinfo->{sharedphys} = $sharedphys;
 #    }
 
+    my $version = defined $row->{version} ? $row->{version}
+                    : $self->{version};
+
+    # if we branch into a destroyed object, delete is the logical choice
+    if (!defined $version ) {
+      $self->{errmsg} .= "Attempt to branch '$oldphysname' into "
+                         "'$physname' at an unknown version number "
+                         "('$physname' probably destroyed)\n";
+      $gOrphanedInfo{$physname} = 1;
+      $self->{action} = 'DELETE';
+      $row->{physname} = $oldphysname;
+      $row->{info} = undef;
+      return $self->_delete_handler();
+    }
+
     # treat the old path as deleted
     # we can't branch an item, that doesn't have a parent. This happens when the
     # parent was destroyed. 
@@ -389,14 +409,33 @@ sub _move_handler {
         return 0;
     }
 
+    if (!defined $row->{parentphys}) {
+      # Check if this is an orphaned item
+      if (scalar @{$physinfo->{order}} == 1) {
+        $row->{parentphys} = $physinfo->{order}[0];
+      } else {
+        # Don't know from where to move. Share it there instead
+        $row->{parentphys} = $row->{info};
+        $row->{info} = undef;
+        $self->{action} = 'SHARE';
+        return $self->_share_handler();
+      }
+    }
+
     # '$sourceinfo' is the path for the old location (the move source);
     my $parentpath = $self->_get_current_parent_path ();
-    my $sourceinfo = $parentpath . $row->{itemname};
+    my $sourceinfo = $parentpath . $physinfo->{name}; # $row->{itemname};
+
+    if (!defined ($row->{info})) {
+        # the target directory was destroyed, so there is no apropriate move
+        # target information. Fall back to a move to the orphaned cache
+        $row->{info} = '_' . $row->{physname};
+    }
 
     # '$itempath' contains the move target path
     my $itempath = $self->_get_parent_path ($row->{info}) . $row->{itemname};
 
-    if (!defined($sourceinfo)) {
+    if (!defined($parentpath)) {
         # We can't figure out the path for the parent that this move came from,
         # so it was either destroyed or corrupted. That means that this isn't
         # a move anymore; it's a new add.
@@ -413,6 +452,9 @@ sub _move_handler {
         # set the old parent inactive
         $physinfo->{parents}->{$row->{parentphys}}->{deleted} = 1;
     }
+
+    # if the item mysteriously changed name during the move
+    $physinfo->{name} = $row->{itemname};
 
     # track the addition of the new parent
     $self->_add_parent ($physname, $row->{info});
