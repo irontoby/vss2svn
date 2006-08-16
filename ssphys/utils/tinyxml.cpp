@@ -127,16 +127,14 @@ void TiXmlBase::PutString( const TIXML_STRING& str, TIXML_STRING* outString )
 			outString->append( buf, (int)strlen( buf ) );
 			++i;
 		}
-		else if (isprint (c))
-		{
-			//char realc = (char) c;
-			//outString->append( &realc, 1 );
-			*outString += (char) c;	// somewhat more efficient function call.
-			++i;
-		}
 		else
 		{
-			// in any other case, we drop this character
+			// just pass these through, since we've
+			// declared an encoding that presumably allows
+			// them
+			*outString += (char) c;	// somewhat more efficient function call.
+			//char realc = (char) c;
+			//outString->append( &realc, 1 );
 			++i;
 		}
 	}

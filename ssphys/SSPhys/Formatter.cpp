@@ -53,9 +53,8 @@ public:
   CXMLFormatter ()
     : m_pCurrentFileNode (NULL)
   {
+    // patch this line to match your VSS DB's locale
     TiXmlDeclaration decl ("1.0", "windows-1252", "");
-    if (NULL == setlocale (LC_ALL, ".1252"))
-      std::cerr << "WARNING: unable to correctly set the windows-1252 locale" << std::endl;
     m_Document.InsertEndChild (decl);
   }
   ~CXMLFormatter ()

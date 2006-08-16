@@ -45,6 +45,9 @@ sub new {
         return undef;
     }
 
+    # we'll be sending UTF-8 to this handle
+    binmode $self->{fh}, ":utf8";
+
     return $self;
 }  #  End new
 

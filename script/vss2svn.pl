@@ -19,6 +19,8 @@ use Vss2Svn::DataCache;
 use Vss2Svn::SvnRevHandler;
 use Vss2Svn::Dumpfile;
 
+require Encode;
+
 our(%gCfg, %gSth, %gErr, %gFh, $gSysOut, %gActionType, %gNameLookup, %gId);
 
 our $VERSION = '0.10';
@@ -470,7 +472,7 @@ sub LoadNameLookup {
     $sth->execute();
 
     while(defined($row = $sth->fetchrow_hashref() )) {
-        $gNameLookup{ $row->{offset} } = $row->{name};
+        $gNameLookup{ $row->{offset} } = Encode::decode_utf8( $row->{name} );
     }
 }  #  End LoadNameLookup
 
@@ -711,6 +713,8 @@ ROW:
             &ThrowError("Inconsistent item type for '$row->{physname}'; "
                         . "'$row->{itemtype}' unexpected");
         }
+
+	$row->{itemname} = Encode::decode_utf8( $row->{itemname} );
 
         # The handler's job is to keep track of physical-to-real name mappings
         # and return the full item paths corresponding to the physical item. In

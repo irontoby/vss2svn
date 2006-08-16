@@ -5,35 +5,6 @@
 #include "StdAfx.h"
 #include "XML.h"
 
-class CValidXMLChar
-{
-public:
-  bool operator () (char c)
-  {
-    unsigned char uc = static_cast <unsigned char> (c);
-    bool b = true;
-    if ( (uc < 0x20 && uc != 0x09 && uc != 0x0A && uc != 0x0D)
-      || (uc >= 0x7f && uc <= 0x84)
-      || (uc >= 0x86 && uc <= 0x9f) )
-    {
-      m_bInvalidOccured = true;
-      return true;
-    }
-    return false;
-  }
-  bool m_bInvalidOccured;
-};
-
-std::string sanitizeForXML (const std::string& input)
-{
-  std::string output (input);
-  CValidXMLChar validXMLChar;
-  std::replace_if (output.begin (), output.end (), validXMLChar, '_');
-  return output;
-}
-
-// ---------------------------------------------------------------
-
 XMLNode::XMLNode (XMLNode* pParent, std::string name, AttribMap attrib)
   : m_Node (name), m_pParent (pParent)
 {
@@ -45,7 +16,7 @@ void XMLNode::SetAttributes (AttribMap attrib)
   AttribMap::iterator itor = attrib.begin ();
   for (; itor != attrib.end (); ++itor)
   {
-    m_Node.SetAttribute(itor->first, sanitizeForXML (itor->second));
+    m_Node.SetAttribute(itor->first, itor->second);
   }
 }
 
@@ -61,7 +32,7 @@ void XMLNode::AddText (XMLText* pContent)
 
 void XMLNode::SetText (std::string text)
 {
-  TiXmlText xmlText (sanitizeForXML (text));
+  TiXmlText xmlText (text);
   m_Node.InsertEndChild(xmlText);
 }
 
@@ -81,7 +52,5 @@ XMLText::~XMLText ()
 
 void XMLText::SetValue (std::string value)
 {
-  m_Text.SetValue (sanitizeForXML (value));
+  m_Text.SetValue (value);
 }
-
-

@@ -2,7 +2,7 @@ package Vss2Svn::Dumpfile;
 
 use Vss2Svn::Dumpfile::Node;
 use Vss2Svn::Dumpfile::SanityChecker;
-use Encode qw(from_to);
+require Encode;
 
 use warnings;
 use strict;
@@ -86,9 +86,8 @@ sub begin_revision {
     $comment = '' if !defined($comment);
     $author = '' if !defined($author);
 
-    # convert to utf8
-    from_to ($comment, "windows-1252", "utf8");
-    from_to ($author, "windows-1252", "utf8");
+    $comment = Encode::decode_utf8( $comment );
+    $author = Encode::decode_utf8( $author );
 
     if ($revision > 0) {
         push @$props, ['svn:log', $comment];
@@ -703,7 +702,6 @@ sub output_node {
     my $fh = $self->{fh};
 
     my $string = $node->get_headers();
-    from_to ($string, "windows-1252", "utf8");
     print $fh $string;
     $self->output_content($node->{hideprops}? undef : $node->{props},
                           $node->{text});
