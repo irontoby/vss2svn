@@ -344,8 +344,8 @@ sub _branch_handler {
     # if we branch into a destroyed object, delete is the logical choice
     if (!defined $version ) {
       $self->{errmsg} .= "Attempt to branch '$oldphysname' into "
-                         "'$physname' at an unknown version number "
-                         "('$physname' probably destroyed)\n";
+			 . "'$physname' at an unknown version number "
+                         . "('$physname' probably destroyed)\n";
       $gOrphanedInfo{$physname} = 1;
       $self->{action} = 'DELETE';
       $row->{physname} = $oldphysname;
