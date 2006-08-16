@@ -692,7 +692,7 @@ sub _get_parent_path {
     if ($self->{verbose}) {
         my $physprint = (defined $physname)? $physname : '!UNDEF';
         my $space = ($self->{recursed})? '   ' : '';
-        print "${space}_get_item_paths($physprint)\n";
+        print "${space}_get_parent_path($physprint)\n";
     }
 
     if (++($self->{recursed}) >= 1000) {

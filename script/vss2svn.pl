@@ -347,7 +347,7 @@ VERSION:
             if ($action->{LabelComment} && !ref($action->{LabelComment})) {
                 if (defined $comment) {
                     print "Merging LabelComment and Comment for "
-                        . "'$tphysname;$version->{VersionNumber}'"; # if $gCfg{verbose};
+                        . "'$tphysname;$version->{VersionNumber}'\n"; # if $gCfg{verbose};
                     $comment .= "\n";
                 }
   
