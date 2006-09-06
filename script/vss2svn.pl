@@ -696,7 +696,7 @@ sub BuildVssActionHistory {
     my($sth, $row, $action, $handler, $physinfo, $itempaths, $allitempaths);
 
     my $sql = 'SELECT * FROM PhysicalAction ORDER BY timestamp ASC, '
-            . 'itemtype ASC, priority ASC, sortkey ASC';
+            . 'itemtype ASC, priority ASC, sortkey ASC, action_id ASC';
 
     $sth = $gCfg{dbh}->prepare($sql);
     $sth->execute();
