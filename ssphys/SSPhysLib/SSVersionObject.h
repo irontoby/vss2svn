@@ -357,7 +357,7 @@ public:
     return action; 
   }
 
-  std::string GetFileName ()  const { return std::string (m_Action.filename); }
+  std::string GetFileName ()  const { return std::string (SSItemAction<ACTION, RESTORE_ACTION>::m_Action.filename); }
 
   virtual void ToXml (XMLNode* pParent) const;
   virtual void Dump (std::ostream& os) const;
@@ -413,7 +413,7 @@ public:
     return action; 
   }
 
-  std::string GetFileName ()  const { return std::string (m_Action.filename); }
+  std::string GetFileName ()  const { return std::string (SSItemAction<ACTION, ARCHIVE_ACTION>::m_Action.filename); }
 
   virtual void ToXml (XMLNode* pParent) const;
   virtual void Dump (std::ostream& os) const;

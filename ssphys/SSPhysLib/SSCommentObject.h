@@ -17,7 +17,7 @@ public:
 	SSCommentObject(SSRecordPtr pRecord);
 	virtual ~SSCommentObject();
 
-  std::string SSCommentObject::GetComment () const;
+  std::string GetComment () const;
 
   virtual void Accept (ISSObjectVisitor& rVisitor, const ISSContext* pCtx = NULL) const { rVisitor.Apply (*this, pCtx); }
   
