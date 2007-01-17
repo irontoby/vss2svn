@@ -28,6 +28,7 @@ distribution.
 #ifdef TIXML_USE_STL
 #include <sstream>
 #include <iostream>
+#include <iomanip>
 #endif
 
 
@@ -112,19 +113,12 @@ void TiXmlBase::PutString( const TIXML_STRING& str, TIXML_STRING* outString )
 		}
 		else if (iscntrl (c)) // ( c < 32)
 		{
-			// Easy pass at non-alpha/numeric/symbol
-			// Below 32 is symbolic.
-			char buf[ 32 ];
+			std::cerr << "WARNING: control character 0x"
+					<< std::hex << std::setw(2) << std::setfill('0') << (unsigned)c
+					<< " in text input at character "
+					<< std::dec << std::setw(0) << i
+					<< std::endl;
 			
-			#if defined(TIXML_SNPRINTF)		
-				TIXML_SNPRINTF( buf, sizeof(buf), "&#x%02X;", (unsigned) ( c & 0xff ) );
-			#else
-				sprintf( buf, "&#x%02X;", (unsigned) ( c & 0xff ) );
-			#endif		
-
-			//*ME:	warning C4267: convert 'size_t' to 'int'
-			//*ME:	Int-Cast to make compiler happy ...
-			outString->append( buf, (int)strlen( buf ) );
 			++i;
 		}
 		else

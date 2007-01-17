@@ -12,6 +12,7 @@ our %gHandlers =
      BRANCH     => \&_branch_handler,
      MOVE       => \&_move_handler,
      RESTORE    => \&_restore_handler,
+     RESTOREDPROJECT    => \&_restore_handler,
      DELETE     => \&_delete_handler,
      RECOVER    => \&_recover_handler,
      PIN        => \&_pin_handler,

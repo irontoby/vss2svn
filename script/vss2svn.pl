@@ -533,7 +533,7 @@ sub GetChildRecs {
     # parent rows. There's no definitive way to find matching rows, but joining
     # on physname, actiontype, timestamp, and author gets us close. The problem
     # is that the "two" actions may not have happened in the exact same second,
-    # so we need to also look for any that are up to two seconds apart and hope
+    # so we need to also look for any that are some time apart and hope
     # we don't get the wrong row.
 
     $parentdata = 0 unless defined $parentdata;
@@ -547,16 +547,13 @@ WHERE
     parentdata = ?
     AND physname = ?
     AND actiontype = ?
-    AND (ABS(? - timestamp) < 21600)
     AND author = ?
 ORDER BY
-    timestamp
+    ABS(? - timestamp)
 EOSQL
 
-    # timestamp test is within 21600 seconds equals 6 hours (allows for
-    # really bad Windows clocks, timezones, and WAN delays)
     my $sth = $gCfg{dbh}->prepare($sql);
-    $sth->execute( $parentdata, @{ $parentrec }{qw(physname actiontype timestamp author)} );
+    $sth->execute( $parentdata, @{ $parentrec }{qw(physname actiontype author timestamp)} );
 
     return $sth->fetchall_arrayref( {} );
 }  #  End GetChildRecs
@@ -1303,10 +1300,14 @@ sub SetupActionTypes {
     # RollBack is the item view on the activity and BranchFile is the parent side
     # ==> map RollBack to BRANCH, so that we can join the two actions in the
     # MergeParentData step
-
+    # RestoredProject seems to act like CreatedProject, except that the
+    # project was recreated from an archive file, and its timestamp is
+    # the time of restoration. Timestamps of the child files retain
+    # their original values.
     %gActionType = (
         CreatedProject => {type => 1, action => 'ADD'},
         AddedProject => {type => 1, action => 'ADD'},
+        RestoredProject => {type => 1, action => 'RESTOREDPROJECT'},
         RenamedProject => {type => 1, action => 'RENAME'},
         MovedProjectTo => {type => 1, action => 'MOVE'},
         MovedProjectFrom => {type => 1, action => 'MOVE_FROM'},
