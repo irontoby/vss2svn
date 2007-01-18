@@ -59,7 +59,7 @@ public:
 class CFormatterFactory
 {
 public:
-  static std::auto_ptr<CFormatter>  MakeFormatter (eStyle style, po::variables_map const& vm);
+  static std::auto_ptr<CFormatter>  MakeFormatter (eStyle style, std::string encoding, po::variables_map const& vm);
   static std::auto_ptr<CFormatter>  MakeFormatter (po::variables_map const& vm);
   static po::options_description    GetOptionsDescription ();
 };

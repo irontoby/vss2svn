@@ -50,11 +50,11 @@ protected:
 class CXMLFormatter : public CFormatter
 {
 public:
-  CXMLFormatter ()
+  CXMLFormatter (std::string encoding)
     : m_pCurrentFileNode (NULL)
   {
     // patch this line to match your VSS DB's locale
-    TiXmlDeclaration decl ("1.0", "windows-1252", "");
+    TiXmlDeclaration decl ("1.0", encoding, "");
     m_Document.InsertEndChild (decl);
   }
   ~CXMLFormatter ()
@@ -301,12 +301,12 @@ void CVssFormatter::Apply (const SSNameObject& object, const ISSContext* pCtx)
 }
 
 //////////////////////////////////////////////////////////////////////
-std::auto_ptr<CFormatter> CFormatterFactory::MakeFormatter (eStyle style, po::variables_map const& vm)
+std::auto_ptr<CFormatter> CFormatterFactory::MakeFormatter (eStyle style, std::string encoding, po::variables_map const& vm)
 {
   if (style == eBinary)
     return std::auto_ptr<CFormatter> (new CBinaryFormatter (/*value*/));
   if (style == eXML)
-    return std::auto_ptr<CFormatter> (new CXMLFormatter ());
+    return std::auto_ptr<CFormatter> (new CXMLFormatter (encoding));
   if (style == eVSS)
     return std::auto_ptr<CFormatter> (new CVssFormatter ());
   if (style == eDump)
@@ -324,7 +324,7 @@ std::auto_ptr<CFormatter> CFormatterFactory::MakeFormatter (po::variables_map co
   if (style == "binary")
     return std::auto_ptr<CFormatter> (new CBinaryFormatter (/*value*/));
   if (style == "xml")
-    return std::auto_ptr<CFormatter> (new CXMLFormatter ());
+    return std::auto_ptr<CFormatter> (new CXMLFormatter (options["encoding"].as<std::string>()));
   if (style == "vss")
     return std::auto_ptr<CFormatter> (new CVssFormatter ());
   if (style == "dump")
@@ -339,6 +339,8 @@ po::options_description CFormatterFactory::GetOptionsDescription ()
   po::options_description descr ("Formatter options");
   descr.add_options ()
     ("style,s", po::value<std::string>()->default_value("XML"), "output style {XML|binary|vss|dump}");
+  descr.add_options ()
+    ("encoding,e", po::value<std::string>()->default_value("windows-1252"), "VSS text encoding for the XML output style");
   return descr;
 }
 

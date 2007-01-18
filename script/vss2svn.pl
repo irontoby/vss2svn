@@ -106,7 +106,7 @@ sub RunConversion {
 #  LoadVssNames
 ###############################################################################
 sub LoadVssNames {
-    &DoSsCmd("info \"$gCfg{vssdatadir}/names.dat\"");
+    &DoSsCmd("info -e$gCfg{encoding} \"$gCfg{vssdatadir}/names.dat\"");
 
     my $xs = XML::Simple->new(KeyAttr => [],
                               ForceArray => [qw(NameCacheEntry Entry)],);
@@ -246,7 +246,7 @@ sub GetVssPhysInfo {
         return;
     }
 
-    &DoSsCmd("info \"$filesegment[0]/$filesegment[1]/$filesegment[2]\"");
+    &DoSsCmd("info -e$gCfg{encoding} \"$filesegment[0]/$filesegment[1]/$filesegment[2]\"");
 
     my $xml = $xs->XMLin($gSysOut);
     my $parentphys;
@@ -917,7 +917,7 @@ sub ExportVssPhysFile {
     }
 
     if (! -e "$exportdir/$physname.$version" ) {
-        &DoSsCmd("get -b -v$version --force-overwrite \"$physpath\" $exportdir/$physname");
+        &DoSsCmd("get -b -v$version --force-overwrite -e$gCfg{encoding} \"$physpath\" $exportdir/$physname");
     }
 
     return $exportdir;
@@ -941,6 +941,7 @@ Start Time   : $starttime
 VSS Dir      : $gCfg{vssdir}
 Temp Dir     : $gCfg{tempdir}
 Dumpfile     : $gCfg{dumpfile}
+VSS Encoding : $gCfg{encoding}
 
 SSPHYS exe   : $gCfg{ssphys}
 SSPHYS ver   : $ssversion
@@ -1552,7 +1553,7 @@ FIELD:
 ###############################################################################
 sub Initialize {
     GetOptions(\%gCfg,'vssdir=s','tempdir=s','dumpfile=s','resume','verbose',
-               'debug','timing+','task=s','revtimerange=i', 'ssphys=s');
+               'debug','timing+','task=s','revtimerange=i','ssphys=s','encoding=s');
 
     &GiveHelp("Must specify --vssdir") if !defined($gCfg{vssdir});
     $gCfg{tempdir} = './_vss2svn' if !defined($gCfg{tempdir});
@@ -1562,6 +1563,7 @@ sub Initialize {
 
     # XML output from ssphysout placed here.
     $gCfg{ssphysout} = "$gCfg{tempdir}/ssphysout";
+    $gCfg{encoding} = 'windows-1252' if !defined($gCfg{encoding});
 
     # Commit messages for SVN placed here.
     $gCfg{svncomment} = "$gCfg{tempdir}/svncomment.tmp.txt";
@@ -1691,6 +1693,8 @@ OPTIONAL PARAMETERS:
     --verbose         : Print more info about the items being processed
     --debug           : Print lots of debugging info.
     --timing          : Show timing information during various steps
+    --encoding        : Specify the encoding used in VSS;
+                        Default is windows-1252
 EOTXT
 
     exit(1);
