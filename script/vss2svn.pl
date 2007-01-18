@@ -949,6 +949,12 @@ XML Parser   : $gCfg{xmlParser}
 
 EOTXT
 
+    my @version = split '\.', $ssversion;
+    # we need at least ssphys 0.22
+    if ($version[0] == 0 && $version[1] < 22) {
+        &ThrowError("The conversion needs at least ssphys version 0.22");
+    }
+
 }  #  End ShowHeader
 
 ###############################################################################
@@ -1125,9 +1131,17 @@ sub DoSysCmd {
 ###############################################################################
 sub GetSsVersion {
     my $out = `\"$gCfg{ssphys}\" --version 2>&1`;
-    $out =~ m/^(ssphys .*?)[:\n]/m;
+    # Build numbers look like:
+    #  a.) ssphys 0.20.0, Build 123
+    #  b.) ssphys 0.20.0, Build 123:150 
+    #  c.) ssphys 0.20.0, Build 123:150 (locally modified)
+    $out =~ m/^ssphys (.*?), Build (.*?)[ \n]/m; 
 
-    return $1 || 'unknown';
+    # turn it into
+    #  a.) 0.20.0.123
+    #  b.) 0.20.0.123:150
+    #  c.) 0.20.0.123:150
+    return $1 . "." . $2 || 'unknown';
 }  #  End GetSsVersion
 
 ###############################################################################
@@ -1315,7 +1329,8 @@ sub SetupActionTypes {
         DeletedProject => {type => 1, action => 'DELETE'},
         DestroyedProject => {type => 1, action => 'DELETE'},
         RecoveredProject => {type => 1, action => 'RECOVER'},
-        Restore => {type => 1, action => 'RESTORE'},
+        ArchiveProject => {type => 1, action => 'DELETE'},
+        RestoredProject => {type => 1, action => 'RESTORE'},
         CheckedIn => {type => 2, action => 'COMMIT'},
         CreatedFile => {type => 2, action => 'ADD'},
         AddedFile => {type => 2, action => 'ADD'},
@@ -1323,6 +1338,9 @@ sub SetupActionTypes {
         DeletedFile => {type => 2, action => 'DELETE'},
         DestroyedFile => {type => 2, action => 'DELETE'},
         RecoveredFile => {type => 2, action => 'RECOVER'},
+        ArchiveVersionsofFile => {type => 2, action => 'RESTORE'},
+        ArchiveFile => {type => 2, action => 'DELETE'},
+        RestoredFile => {type => 2, action => 'RESTORE'},
         SharedFile => {type => 2, action => 'SHARE'},
         BranchFile => {type => 2, action => 'BRANCH'},
         PinnedFile => {type => 2, action => 'PIN'},
