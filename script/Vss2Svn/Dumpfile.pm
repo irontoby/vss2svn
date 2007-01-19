@@ -545,8 +545,9 @@ sub _label_handler {
     # the version->revision mapping, since the version could have been used
     # as a valid share source.
     if (defined ($label)) {
-        $itempath =~ s/^$main::gCfg{trunkdir}//;
-        my $labelpath = "$main::gCfg{labeldir}/$label$itempath";
+        my $vssitempath = $itempath;
+        $vssitempath =~ s/^$main::gCfg{trunkdir}//;
+        my $labelpath = "$main::gCfg{labeldir}/$label$vssitempath";
 
         $self->_create_svn_path ($nodes, $labelpath);
 
