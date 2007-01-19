@@ -39,6 +39,7 @@ sub new {
          recursed => 0,
          physname_seen => '',
          verbose => 0,
+         trunkdir => '',
         };
 
     return bless($self, $class);
@@ -714,7 +715,7 @@ sub _get_parent_path {
     if ($physname eq 'AAAAAAAA') {
         # End of recursion; all items must go back to 'AAAAAAAA', which was so
         # named because that's what most VSS users yell after using it much. :-)
-        return '/';
+        return $self->{trunkdir} . '/';
     }
 
     if ($physname =~ m/^_.*/) {
@@ -847,7 +848,7 @@ sub _get_item_paths {
     if ($physname eq 'AAAAAAAA') {
         # End of recursion; all items must go back to 'AAAAAAAA', which was so
         # named because that's what most VSS users yell after using it much. :-)
-        return ['/'];
+        return [$self->{trunkdir} . '/'];
     }
 
     if ($physname =~ m/^_.*/) {

@@ -538,14 +538,15 @@ sub _label_handler {
     }
 
     my $label = $data->{info};
-    
+    $label = Encode::decode_utf8( $label );
+
     # It is possible that the label was deleted later, so we see here a label
     # action, but no label was assigned. In this case, we only need to track
     # the version->revision mapping, since the version could have been used
     # as a valid share source.
     if (defined ($label)) {
-        my $uniquepath = join('.', @$data{ qw(physname version) });
-        my $labelpath = "$main::gCfg{labeldir}/$data->{info}$itempath";
+        $itempath =~ s/^$main::gCfg{trunkdir}//;
+        my $labelpath = "$main::gCfg{labeldir}/$label$itempath";
 
         $self->_create_svn_path ($nodes, $labelpath);
 
