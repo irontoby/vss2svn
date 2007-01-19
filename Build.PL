@@ -20,6 +20,7 @@ Module::Build->new
 		    'script/Vss2Svn/Dumpfile.pm' =>  'lib/Vss2Svn/Dumpfile.pm',
 		    'script/Vss2Svn/SvnRevHandler.pm' =>  'lib/Vss2Svn/SvnRevHandler.pm',
 		    'script/Vss2Svn/Dumpfile/Node.pm' =>  'lib/Vss2Svn/Dumpfile/Node.pm',
+		    'script/Vss2Svn/Dumpfile/SanityChecker.pm' =>  'lib/Vss2Svn/Dumpfile/SanityChecker.pm',
 		    },
       PL_files => { 'ssphys/ssphys.PL' => 'bin/ssphys' },
       )->create_build_script;
