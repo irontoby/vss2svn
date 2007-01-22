@@ -2,7 +2,6 @@ package Vss2Svn::Dumpfile;
 
 use Vss2Svn::Dumpfile::Node;
 use Vss2Svn::Dumpfile::SanityChecker;
-require Encode;
 
 use warnings;
 use strict;
@@ -86,9 +85,6 @@ sub begin_revision {
     $comment = '' if !defined($comment);
     $author = '' if !defined($author);
 
-    $comment = Encode::decode_utf8( $comment );
-    $author = Encode::decode_utf8( $author );
-
     if ($revision > 0) {
         push @$props, ['svn:log', $comment];
         push @$props, ['svn:author', $author];
@@ -129,7 +125,7 @@ sub do_action {
 #        if (!defined ($this_action)) {
 #            return 0;
 #        }
-            
+
         $handler = $gHandlers{$this_action};
 
         my $thisnodes = [];
@@ -538,7 +534,6 @@ sub _label_handler {
     }
 
     my $label = $data->{info};
-    $label = Encode::decode_utf8( $label );
 
     # It is possible that the label was deleted later, so we see here a label
     # action, but no label was assigned. In this case, we only need to track

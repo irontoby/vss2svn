@@ -712,7 +712,11 @@ ROW:
                         . "'$row->{itemtype}' unexpected");
         }
 
-	$row->{itemname} = Encode::decode_utf8( $row->{itemname} );
+        $row->{itemname} = Encode::decode_utf8( $row->{itemname} );
+        $row->{info} = Encode::decode_utf8( $row->{info} );
+        $row->{comment} = Encode::decode_utf8( $row->{comment} );
+        $row->{author} = Encode::decode_utf8( $row->{author} );
+        $row->{label} = Encode::decode_utf8( $row->{label} );
 
         # The handler's job is to keep track of physical-to-real name mappings
         # and return the full item paths corresponding to the physical item. In
