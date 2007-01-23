@@ -2,6 +2,7 @@ package Vss2Svn::Dumpfile;
 
 use Vss2Svn::Dumpfile::Node;
 use Vss2Svn::Dumpfile::SanityChecker;
+require Time::Local;
 
 use warnings;
 use strict;
@@ -763,7 +764,12 @@ sub svn_timestamp {
 sub SvnTimestamp {
     my($vss_timestamp) = @_;
 
+    # set the correct time: VSS stores the local time as the timestamp, but subversion
+    # needs a gmtime. So we need to reverse adjust the timestamp in order to turn back
+    # the clock.
     my($sec, $min, $hour, $day, $mon, $year) = gmtime($vss_timestamp);
+    my($faketime) = Time::Local::timelocal ($sec, $min, $hour, $day, $mon, $year);
+    ($sec, $min, $hour, $day, $mon, $year) = gmtime($faketime);
 
     $year += 1900;
     $mon += 1;
