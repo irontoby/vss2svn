@@ -2,6 +2,8 @@ package Vss2Svn::Dumpfile;
 
 use Vss2Svn::Dumpfile::Node;
 use Vss2Svn::Dumpfile::SanityChecker;
+use Vss2Svn::Dumpfile::AutoProps;
+
 require Time::Local;
 
 use warnings;
@@ -32,7 +34,7 @@ our %gVersion = ();
 #  new
 ###############################################################################
 sub new {
-    my($class, $fh) = @_;
+    my($class, $fh, $autoprops) = @_;
 
     my $self =
         {
@@ -42,6 +44,7 @@ sub new {
          deleted_cache => {},
          version_cache => [],
          repository => Vss2Svn::Dumpfile::SanityChecker->new(),
+         auto_props => $autoprops,
         };
 
     # prevent perl from doing line-ending conversions
@@ -201,6 +204,10 @@ sub _add_handler {
     
     my $node = Vss2Svn::Dumpfile::Node->new();
     $node->set_initial_props($itempath, $data);
+    if (defined $self->{auto_props}) {
+        $node->add_props ($self->{auto_props}->get_props ($itempath));
+    }
+    
     $node->{action} = 'add';
 
     if ($data->{itemtype} == 2) {
@@ -724,8 +731,13 @@ sub output_content {
     if (defined($props)) {
         foreach my $prop (@$props) {
             ($key, $value) = @$prop;
-            $propout .= 'K ' . length($key) . "\n$key\nV " . length($value)
-                . "\n$value\n";
+            $propout .= 'K ' . length($key) . "\n$key\n";
+            if (defined $value) {
+                $propout .= 'V ' . length($value) . "\n$value\n";
+            }
+            else {
+                $propout .= "V 0\n\n";
+            }
         }
 
         $propout .= "PROPS-END\n";

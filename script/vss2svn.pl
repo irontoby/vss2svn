@@ -833,7 +833,8 @@ EOSQL
 
     $action_sth = $gCfg{dbh}->prepare($sql);
 
-    my $dumpfile = Vss2Svn::Dumpfile->new($fh);
+    my $autoprops = Vss2Svn::Dumpfile::AutoProps->new() if $gCfg{auto_props};
+    my $dumpfile = Vss2Svn::Dumpfile->new($fh, $autoprops);
 
 REVISION:
     while(defined($row = $sth->fetchrow_hashref() )) {
@@ -1121,7 +1122,7 @@ sub DoSysCmd {
 
         $rv = 0;
     } elsif ($?) {
-        &ThrowWarning(sprintf "FAILED with non-zero exit status %d", $? >> 8);
+        &ThrowWarning(sprintf "FAILED with non-zero exit status %d (cmd: %s)", $? >> 8, $cmd);
         die unless $allowfail;
 
         $rv = 0;
@@ -1576,7 +1577,8 @@ FIELD:
 ###############################################################################
 sub Initialize {
     GetOptions(\%gCfg,'vssdir=s','tempdir=s','dumpfile=s','resume','verbose',
-               'debug','timing+','task=s','revtimerange=i','ssphys=s','encoding=s','trunkdir=s');
+               'debug','timing+','task=s','revtimerange=i','ssphys=s','encoding=s',
+               'trunkdir=s', 'auto_props=s');
 
     &GiveHelp("Must specify --vssdir") if !defined($gCfg{vssdir});
     $gCfg{tempdir} = './_vss2svn' if !defined($gCfg{tempdir});
@@ -1725,6 +1727,8 @@ OPTIONAL PARAMETERS:
                         Default is windows-1252
     --trunkdir        : Specify where to map the VSS Project Root in the
                         converted repository (default = "/")
+    --auto_props      : Specify an autoprops ini file to use, e.g.
+                        --auto_props="c:/Dokumente und Einstellungen/user/Anwendungsdaten/Subversion/config" 
 EOTXT
 
     exit(1);

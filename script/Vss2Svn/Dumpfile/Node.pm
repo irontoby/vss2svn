@@ -30,7 +30,7 @@ sub new {
          action => undef,
          copyrev => undef,
          copypath => undef,
-         props => [],
+         props => undef,
          hideprops => 0,
          text => undef,
         };
@@ -62,6 +62,14 @@ sub add_prop {
     my($self, $key, $value) = @_;
     push @{ $self->{props} }, [$key, $value];
 }  #  End add_prop
+
+###############################################################################
+#  add_props
+###############################################################################
+sub add_props {
+    my($self, @props) = @_;
+    push @{ $self->{props} }, @props;
+}  #  End add_props
 
 ###############################################################################
 #  get_headers
