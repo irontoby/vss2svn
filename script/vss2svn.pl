@@ -833,7 +833,7 @@ EOSQL
 
     $action_sth = $gCfg{dbh}->prepare($sql);
 
-    my $autoprops = Vss2Svn::Dumpfile::AutoProps->new() if $gCfg{auto_props};
+    my $autoprops = Vss2Svn::Dumpfile::AutoProps->new($gCfg{auto_props}) if $gCfg{auto_props};
     my $dumpfile = Vss2Svn::Dumpfile->new($fh, $autoprops);
 
 REVISION:
