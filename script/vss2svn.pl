@@ -23,7 +23,7 @@ require Encode;
 
 our(%gCfg, %gSth, %gErr, %gFh, $gSysOut, %gActionType, %gNameLookup, %gId);
 
-our $VERSION = '0.10';
+our $VERSION = '0.11.0-nightly.$LastChangedRevision$';
 
 &Initialize;
 &ConnectDatabase;
@@ -949,6 +949,7 @@ Temp Dir     : $gCfg{tempdir}
 Dumpfile     : $gCfg{dumpfile}
 VSS Encoding : $gCfg{encoding}
 
+VSS2SVN ver  : $VERSION
 SSPHYS exe   : $gCfg{ssphys}
 SSPHYS ver   : $ssversion
 XML Parser   : $gCfg{xmlParser}
