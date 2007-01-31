@@ -24,6 +24,7 @@ require Encode;
 our(%gCfg, %gSth, %gErr, %gFh, $gSysOut, %gActionType, %gNameLookup, %gId);
 
 our $VERSION = '0.11.0-nightly.$LastChangedRevision$';
+$VERSION =~ s/\$.*?(\d+).*\$/$1/; # get only the number out of the svn revision
 
 &Initialize;
 &ConnectDatabase;
