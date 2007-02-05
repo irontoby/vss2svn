@@ -709,8 +709,9 @@ ROW:
         $physinfo = $handler->physinfo();
 
         if (defined($physinfo) && $physinfo->{type} != $row->{itemtype} ) {
-            &ThrowError("Inconsistent item type for '$row->{physname}'; "
+            &ThrowWarning("Inconsistent item type for '$row->{physname}'; "
                         . "'$row->{itemtype}' unexpected");
+            next ROW;
         }
 
         $row->{itemname} = Encode::decode_utf8( $row->{itemname} );
