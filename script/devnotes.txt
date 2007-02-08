@@ -10,6 +10,8 @@ REQUIRED PERL MODULES
 DBI
 DBD::SQLite2
 Time::CTime (Time-modules)
+Config::Ini
+Text::Glob
 
 SQLITE SCHEMA
 
