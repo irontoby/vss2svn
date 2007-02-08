@@ -542,6 +542,7 @@ sub _label_handler {
     }
 
     my $label = $data->{info};
+    $label =~ s:/:_:g;
 
     # It is possible that the label was deleted later, so we see here a label
     # action, but no label was assigned. In this case, we only need to track

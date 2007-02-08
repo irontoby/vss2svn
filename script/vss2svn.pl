@@ -1579,9 +1579,11 @@ FIELD:
 #  Initialize
 ###############################################################################
 sub Initialize {
+    $| = 1;
+    
     GetOptions(\%gCfg,'vssdir=s','tempdir=s','dumpfile=s','resume','verbose',
-               'debug','timing+','task=s','revtimerange=i','ssphys=s','encoding=s',
-               'trunkdir=s', 'auto_props=s');
+               'debug','timing+','task=s','revtimerange=i','ssphys=s',
+               'encoding=s','trunkdir=s','auto_props=s');
 
     &GiveHelp("Must specify --vssdir") if !defined($gCfg{vssdir});
     $gCfg{tempdir} = './_vss2svn' if !defined($gCfg{tempdir});
