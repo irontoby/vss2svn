@@ -575,7 +575,7 @@ sub _recover_handler {
 
     # recover this item within the current parent
     my $parentinfo = $physinfo->{parents}->{$row->{parentphys}};
-    if (undef $parentinfo->{deleted}) {
+    if (!defined $parentinfo->{deleted}) {
         $self->{errmsg} .= "Attempt to recover an active item '$physname':\n"
             . "$self->{physname_seen}\n";
 
