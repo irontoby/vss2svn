@@ -126,6 +126,7 @@ sub _add_handler {
 #         parentphys => $row->{parentphys},
 #         sharedphys => [],
          parents    => {},
+         first_version => $version,
          last_version => $version,
          orphaned   => $orphaned,
          was_binary => $row->{is_binary},
@@ -373,7 +374,17 @@ sub _branch_handler {
     }
 
     # Now treat the new entry as a new addition
-    return $self->_add_handler();
+    my $result = $self->_add_handler();
+    
+    # remember the ancestor of this item, we need it, when we later whant to refer to versions prior
+    # to the branch, e.g in PIN situations.
+    if ($result) {
+        $gPhysInfo{ $row->{physname} }->{ancestor} = $oldphysname;
+    }
+    $self->{info} = $oldphysname;
+
+    return $result;
+
 
 #    # Now create a new entry for this branched item
 #    $gPhysInfo{$physname} =
@@ -1119,6 +1130,14 @@ PARENT:
 ###############################################################################
 sub _get_valid_path {
     my($self, $physname, $parentphys, $version) = @_;
+    
+    # 0.) If the version we are looking for is prior to the first version of this
+    #     item (e.g in a branch / Pin situation), we need to check the ancestor
+    my $physinfo = $gPhysInfo{$physname};
+    if (defined $physinfo &&
+        $version < $physinfo->{first_version}) {
+        return $self->_get_valid_path ($physinfo->{ancestor}, $parentphys, $version);
+    }
     
     # 1.) We first check for non-deleted contexts, even though these item pathes 
     #     are valid. A deleted context means, that an item existed in this context 

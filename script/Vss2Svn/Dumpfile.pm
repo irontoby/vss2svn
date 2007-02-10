@@ -363,6 +363,12 @@ sub _branch_handler {
     my($self, $itempath, $nodes, $data, $expdir) = @_;
 
     # branching is a no-op in SVN
+    
+    # since it is possible, that we refer to version prior to the branch later, we
+    # need to copy all internal information about the ancestor to the child.
+    if (defined $data->{info}) {
+        $gVersion{$data->{physname}} = $gVersion{$data->{info}};
+    }
 
 #    # if the file is copied later, we need to track, the revision of this branch
 #    # see the shareBranchShareModify Test
