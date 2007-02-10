@@ -1167,8 +1167,15 @@ sub _add_parent {
 
     my $physinfo = $gPhysInfo{$physname};
     if (defined $physinfo) {
-        $physinfo->{parents}->{$parentphys} = {};
-        push @{ $physinfo->{order} }, $parentphys;
+        # check wether this parent was previously deleted
+        if (defined $physinfo->{parents}->{$parentphys} &&
+            defined $physinfo->{parents}->{$parentphys}->{deleted}) {
+            undef $physinfo->{parents}->{$parentphys}->{deleted};
+        }
+        else {
+            $physinfo->{parents}->{$parentphys} = {};
+            push @{ $physinfo->{order} }, $parentphys;
+        }
     }
 }  #  End _add_parent
 
