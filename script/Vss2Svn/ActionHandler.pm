@@ -1111,14 +1111,35 @@ PARENT:
 ###############################################################################
 #  _get_valid_path
 # This function returns an itempath for the physical file, that was valid in
-# the previous version. Since all activities that create a new version of a file
-# must be done on at least one active path, there should be at least one valid
-# item path for the version.
+# the previous version. Since all activities that create new versions of a file
+# must be done on an active path, there should be at least one valid item path
+# for the version.
 # If we can't find any valid itempath, we can not perform a "copy from" revision
 # In this case, we need to recheckin the current content of the item
 ###############################################################################
 sub _get_valid_path {
     my($self, $physname, $parentphys, $version) = @_;
+    
+    # 1.) We first check for non-deleted contexts, even though these item pathes 
+    #     are valid. A deleted context means, that an item existed in this context 
+    #     in a specific version, but was later deleted from that context. So it is
+    #     normally not possible to perform any further action on this item. Therefore
+    #     we prefer non-deleted contexts.
+    my $path = $self->_get_valid_path2 ($physname, $parentphys, $version, 0);
+    return $path if defined $path;
+
+    # 2.) now we also check for deleted contexts
+    $path = $self->_get_valid_path2 ($physname, $parentphys, $version, 1);
+    return $path;
+} # End _get_valid_path
+
+###############################################################################
+#  _get_valid_path2
+# This function is an internal helper: It will check for active and inactive,
+# but valid item pathes, depending on the $deleted flag, see also _get_valid_path
+###############################################################################
+sub _get_valid_path2 {
+    my($self, $physname, $parentphys, $version, $deleted) = @_;
 
     my $physinfo = $gPhysInfo{$physname};
     if (!defined $physinfo) {
@@ -1130,10 +1151,10 @@ sub _get_valid_path {
     }
     
     # 1. check the parent requested, if there was an item name for this version
-    # we can use this item name, since it was valid in that time
+    #    we can use this item name, since it was valid in that time
     my $parent = $physinfo->{parents}->{$parentphys};
     if (defined $parent &&
-#        $parentphys ne '99999999' &&
+        (!defined $parent->{deleted} || $deleted == 1) &&
         $parent->{versions}->[$version]) {
         return $parent->{versions}->[$version];
     }
@@ -1146,14 +1167,14 @@ PARENT:
 
         $parent = $physinfo->{parents}->{$parentphys};
         if (defined $parent &&
-#            $parentphys ne '99999999' &&
+            (!defined $parent->{deleted} || $deleted == 1) &&
             $parent->{versions}->[$version]) {
             return $parent->{versions}->[$version];
         }
     }
     
     return undef;
-}  #  End _get_valid_path
+}  #  End _get_valid_path2
 
 ###############################################################################
 #  _add_parent
