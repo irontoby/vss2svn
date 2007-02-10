@@ -49,9 +49,9 @@ sub set_initial_props {
     $self->{kind} = ($data->{itemtype} == 1)? 'dir' : 'file';
     $self->{path} = $itempath;
 
-    if ($data->{is_binary}) {
-        $self->add_prop('svn:mime-type', 'application/octet-stream');
-    }
+#    if ($data->{is_binary}) {
+#        $self->add_prop('svn:mime-type', 'application/octet-stream');
+#    }
 
 }  #  End set_initial_props
 
@@ -60,15 +60,17 @@ sub set_initial_props {
 ###############################################################################
 sub add_prop {
     my($self, $key, $value) = @_;
-    push @{ $self->{props} }, [$key, $value];
+    $self->{props}->{$key} = $value;
 }  #  End add_prop
 
 ###############################################################################
 #  add_props
 ###############################################################################
 sub add_props {
-    my($self, @props) = @_;
-    push @{ $self->{props} }, @props;
+    my($self, %props) = @_;
+    foreach my $prop (keys %props) {
+        $self->{props}->{$prop} = $props{$prop};
+    }
 }  #  End add_props
 
 ###############################################################################

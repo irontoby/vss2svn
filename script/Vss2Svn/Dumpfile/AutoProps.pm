@@ -33,7 +33,7 @@ sub new {
 sub get_props {
     my($self, $path) = @_;
 
-    my (@newprops);
+    my (%newprops);
 
     $path =~ s:^/::;
     my @subdirs = split '/', $path;
@@ -41,21 +41,21 @@ sub get_props {
 
     my ($glob, $autoprops);
     while (($glob, $autoprops) = each %{ $self->{autoprops} }) {
-        print $glob, $item, "\n";
+#        print $glob, $item, "\n";
         if (Text::Glob::match_glob($glob, $item)) {
             foreach my $autoprop (@$autoprops)
             {
                 my @props = split ';', $autoprop;
                 foreach my $prop (@props)
                 {
-                    my @keyvalue = split '=', $prop;
-                    push @newprops, [@keyvalue];
+                    my ($key, $value) = split '=', $prop;
+                    $newprops{$key} = $value;
                 }
             }
         }
     }
     
-    return @newprops;
+    return %newprops;
 }
 
 

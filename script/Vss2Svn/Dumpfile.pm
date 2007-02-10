@@ -81,7 +81,7 @@ sub begin_revision {
     my($revision, $author, $timestamp, $comment) =
         @{ $data }{qw(revision_id author timestamp comment)};
 
-    my $props = [];
+    my $props = undef;
     my $fh = $self->{fh};
 
     print $fh "\nRevision-number: $revision\n";
@@ -90,11 +90,12 @@ sub begin_revision {
     $author = '' if !defined($author);
 
     if ($revision > 0) {
-        push @$props, ['svn:log', $comment];
-        push @$props, ['svn:author', $author];
+        $props = { 'svn:log' => $comment,
+                   'svn:author' => $author,
+                 };
     }
 
-    push @$props, ['svn:date', $self->svn_timestamp($timestamp)];
+    $props->{'svn:date'} = $self->svn_timestamp($timestamp);
 
     $self->output_content($props);
     $self->{revision} = $revision;
@@ -204,10 +205,13 @@ sub _add_handler {
     
     my $node = Vss2Svn::Dumpfile::Node->new();
     $node->set_initial_props($itempath, $data);
+    if ($data->{is_binary}) {
+        $node->add_prop('svn:mime-type', 'application/octet-stream');
+    }
     if (defined $self->{auto_props}) {
         $node->add_props ($self->{auto_props}->get_props ($itempath));
     }
-    
+
     $node->{action} = 'add';
 
     if ($data->{itemtype} == 2) {
@@ -727,11 +731,9 @@ sub output_content {
     my $textlen = 0;
     my($propout, $textout) = ('') x 2;
 
-    my($key, $value);
-
     if (defined($props)) {
-        foreach my $prop (@$props) {
-            ($key, $value) = @$prop;
+        foreach my $key (keys %$props) {
+            my $value = $props->{$key};
             $propout .= 'K ' . length($key) . "\n$key\n";
             if (defined $value) {
                 $propout .= 'V ' . length($value) . "\n$value\n";
