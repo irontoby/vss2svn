@@ -1131,9 +1131,17 @@ PARENT:
 sub _get_valid_path {
     my($self, $physname, $parentphys, $version) = @_;
     
+    my $physinfo = $gPhysInfo{$physname};
+    if (!defined $physinfo) {
+        return undef;
+    }
+
+    if (!defined $version) {
+        $version = $physinfo->{last_version};
+    }
+
     # 0.) If the version we are looking for is prior to the first version of this
     #     item (e.g in a branch / Pin situation), we need to check the ancestor
-    my $physinfo = $gPhysInfo{$physname};
     if (defined $physinfo &&
         $version < $physinfo->{first_version}) {
         return $self->_get_valid_path ($physinfo->{ancestor}, $parentphys, $version);
@@ -1164,11 +1172,6 @@ sub _get_valid_path2 {
     if (!defined $physinfo) {
         return undef;
     }
-
-    if (!defined $version) {
-        $version = $physinfo->{last_version};
-    }
-    
     # 1. check the parent requested, if there was an item name for this version
     #    we can use this item name, since it was valid in that time
     my $parent = $physinfo->{parents}->{$parentphys};
