@@ -367,8 +367,15 @@ sub _branch_handler {
     # since it is possible, that we refer to version prior to the branch later, we
     # need to copy all internal information about the ancestor to the child.
     if (defined $data->{info}) {
-        $gVersion{$data->{physname}} = $gVersion{$data->{info}};
-    }
+        # only copy versions, that are common between the branch source and the branch.
+        my $copy_version=$data->{version};
+        while(--$copy_version > 0) {
+            if (defined $gVersion{$data->{info}}->[$copy_version]) {
+                $gVersion{$data->{physname}}->[$copy_version] =
+                   $gVersion{$data->{info}}->[$copy_version];
+           }
+       }
+   }
 
 #    # if the file is copied later, we need to track, the revision of this branch
 #    # see the shareBranchShareModify Test
