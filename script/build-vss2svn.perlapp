@@ -16,6 +16,7 @@ Bind: iso-8859-7.enc[file=C:\Perl\site\lib\XML\Parser\Encodings\iso-8859-7.enc,e
 Bind: iso-8859-8.enc[file=C:\Perl\site\lib\XML\Parser\Encodings\iso-8859-8.enc,extract,mode=666]
 Bind: iso-8859-9.enc[file=C:\Perl\site\lib\XML\Parser\Encodings\iso-8859-9.enc,extract,mode=666]
 Bind: koi8-r.enc[file=encodings\koi8-r.enc,extract,mode=666]
+Bind: SAX/ParserDetails.ini[file=C:\Perl\site\lib\XML\SAX\ParserDetails.ini,extract,mode=666]
 Bind: windows-1250.enc[file=C:\Perl\site\lib\XML\Parser\Encodings\windows-1250.enc,extract,mode=666]
 Bind: windows-1251.enc[file=encodings\windows-1251.enc,extract,mode=666]
 Bind: windows-1252.enc[file=C:\Perl\site\lib\XML\Parser\Encodings\windows-1252.enc,extract,mode=666]

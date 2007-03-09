@@ -1625,6 +1625,11 @@ sub Initialize {
     $gCfg{labeldir} = '/labels';
 
     $gCfg{errortasks} = [];
+    
+    {
+        no warnings 'once';
+        $gCfg{usingExe} = (defined($PerlApp::TOOL));
+    }
 
     &ConfigureXmlParser();
 
@@ -1657,11 +1662,16 @@ sub ConfigureXmlParser {
     $gCfg{xmlParser} = 'XML::Simple';
 
     eval { require XML::SAX; };
+
     if($@) {
         # no XML::SAX; let XML::Simple use its own parser
         return 1;
     }
-
+    elsif($gCfg{usingExe}) {
+        # Prevent the ParserDetails.ini error message when running from .exe
+        XML::SAX->load_parsers($INC[1]);
+    }
+    
     $gCfg{xmlParser} = 'XML::SAX::Expat';
     $XML::SAX::ParserPackage = $gCfg{xmlParser};
 
