@@ -1,0 +1,61 @@
+<encmap name='ibm866' expat='yes'>
+  <range byte='x80' len='48' uni='x0410'/>
+  <range byte='xb0' len='3' uni='x2591'/>
+  <ch byte='xb3' uni='x2502'/>
+  <ch byte='xb4' uni='x2524'/>
+  <range byte='xb5' len='2' uni='x2561'/>
+  <ch byte='xb7' uni='x2556'/>
+  <ch byte='xb8' uni='x2555'/>
+  <ch byte='xb9' uni='x2563'/>
+  <ch byte='xba' uni='x2551'/>
+  <ch byte='xbb' uni='x2557'/>
+  <ch byte='xbc' uni='x255d'/>
+  <ch byte='xbd' uni='x255c'/>
+  <ch byte='xbe' uni='x255b'/>
+  <ch byte='xbf' uni='x2510'/>
+  <ch byte='xc0' uni='x2514'/>
+  <ch byte='xc1' uni='x2534'/>
+  <ch byte='xc2' uni='x252c'/>
+  <ch byte='xc3' uni='x251c'/>
+  <ch byte='xc4' uni='x2500'/>
+  <ch byte='xc5' uni='x253c'/>
+  <range byte='xc6' len='2' uni='x255e'/>
+  <ch byte='xc8' uni='x255a'/>
+  <ch byte='xc9' uni='x2554'/>
+  <ch byte='xca' uni='x2569'/>
+  <ch byte='xcb' uni='x2566'/>
+  <ch byte='xcc' uni='x2560'/>
+  <ch byte='xcd' uni='x2550'/>
+  <ch byte='xce' uni='x256c'/>
+  <range byte='xcf' len='2' uni='x2567'/>
+  <range byte='xd1' len='2' uni='x2564'/>
+  <ch byte='xd3' uni='x2559'/>
+  <ch byte='xd4' uni='x2558'/>
+  <range byte='xd5' len='2' uni='x2552'/>
+  <ch byte='xd7' uni='x256b'/>
+  <ch byte='xd8' uni='x256a'/>
+  <ch byte='xd9' uni='x2518'/>
+  <ch byte='xda' uni='x250c'/>
+  <ch byte='xdb' uni='x2588'/>
+  <ch byte='xdc' uni='x2584'/>
+  <ch byte='xdd' uni='x258c'/>
+  <ch byte='xde' uni='x2590'/>
+  <ch byte='xdf' uni='x2580'/>
+  <range byte='xe0' len='16' uni='x0440'/>
+  <ch byte='xf0' uni='x0401'/>
+  <ch byte='xf1' uni='x0451'/>
+  <ch byte='xf2' uni='x0404'/>
+  <ch byte='xf3' uni='x0454'/>
+  <ch byte='xf4' uni='x0407'/>
+  <ch byte='xf5' uni='x0457'/>
+  <ch byte='xf6' uni='x040e'/>
+  <ch byte='xf7' uni='x045e'/>
+  <ch byte='xf8' uni='x00b0'/>
+  <ch byte='xf9' uni='x2219'/>
+  <ch byte='xfa' uni='x00b7'/>
+  <ch byte='xfb' uni='x221a'/>
+  <ch byte='xfc' uni='x2116'/>
+  <ch byte='xfd' uni='x00a4'/>
+  <ch byte='xfe' uni='x25a0'/>
+  <ch byte='xff' uni='x00a0'/>
+</encmap>
