@@ -1684,7 +1684,18 @@ sub ConfigureXmlParser {
 
         # for exe version, XML::Parser::Expat needs help finding its encmaps
         no warnings 'once';
-        push(@XML::Parser::Expat::Encoding_Path, @INC);
+
+        my $encdir;
+        foreach my $dir (@INC) {
+            $encdir = "$dir/encodings";
+            $encdir =~ s:\\:/:g;
+            $encdir =~ s://:/:g;
+            if(-d $encdir) {
+                print "Adding '$encdir' to encodings file path\n";
+                push(@XML::Parser::Expat::Encoding_Path, $encdir);
+            }
+        }
+
         return 1;
     }
 
