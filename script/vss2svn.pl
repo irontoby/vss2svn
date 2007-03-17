@@ -611,48 +611,60 @@ sub MergeMoveData {
     $rows = $sth->fetchall_arrayref( {} );
 
     my($childrecs, $child, $id);
-    my @delchild = ();
 
     foreach $row (@$rows) {
-        $row->{actiontype} = 'MOVE';
+        $row->{actiontype} = 'MOVE_TO';
         $childrecs = &GetChildRecs($row, 1);
 
+        my $source = undef;
+        my $target = $row->{parentphys};
+
         if (scalar @$childrecs > 1) {
-            &ThrowWarning("Multiple chidl recs for parent MOVE rec "
+            &ThrowWarning("Multiple child recs for parent MOVE rec "
                           . "'$row->{action_id}'");
         }
 
-        foreach $child (@$childrecs) {
-            my $update;
-            $update = $gCfg{dbh}->prepare('UPDATE PhysicalAction SET info = ?'
-                                          . 'WHERE action_id = ?');
-            
-            $update->execute( $row->{parentphys}, $child->{action_id} );
+        if (scalar @$childrecs >= 1) {
+            # only merge MOVE records that have the same timestamp
+            if ($row->{timestamp} == @$childrecs[0]->{timestamp}) {
+                $source = @$childrecs[0]->{parentphys};
+                &DeleteChildRec(@$childrecs[0]->{action_id});
+            }
         }
-
-        if (scalar @$childrecs == 0) {
-            my $sql = <<"EOSQL";
+        
+        my $sql = <<"EOSQL";
 UPDATE
     PhysicalAction
 SET
-    parentphys = ?,
     actiontype = 'MOVE',
+    parentphys = ?,
     info = ?
 WHERE
     action_id = ?
 EOSQL
-            my $update;
-            $update = $gCfg{dbh}->prepare($sql);
-            $update->execute( undef, $row->{parentphys},
-            $row->{action_id});
-        } else {
-            push(@delchild, $row->{action_id});
-        }
+        my $update;
+        $update = $gCfg{dbh}->prepare($sql);
+        
+        $update->execute( $target, $source, $row->{action_id});
     }
 
-    foreach $id (@delchild) {
-        &DeleteChildRec($id);
+
+    # change all remaining MOVE_TO records into MOVE records and swap the src and target
+    $sth = $gCfg{dbh}->prepare('SELECT * FROM PhysicalAction '
+                               . 'WHERE actiontype = "MOVE_TO"');
+    $sth->execute();
+    $rows = $sth->fetchall_arrayref( {} );
+
+    foreach $row (@$rows) {
+        my $update;
+        $update = $gCfg{dbh}->prepare('UPDATE PhysicalAction SET '
+                                      . 'actiontype = "MOVE", '
+                                      . 'parentphys = ?, '
+                                      . 'info = ? '
+                                      . 'WHERE action_id = ?');
+        $update->execute($row->{info}, $row->{parentphys}, $row->{action_id});
     }
+
 
     1;
 
@@ -764,7 +776,7 @@ ROW:
         # May contain add'l info for the action depending on type:
         # RENAME: the new name (without path)
         # SHARE: the source path which was shared
-        # MOVE: the new path
+        # MOVE: the old path
         # PIN: the path of the version that was pinned      
         # LABEL: the name of the label
         $row->{info} = $handler->{info};
@@ -1333,7 +1345,7 @@ sub SetupActionTypes {
         AddedProject => {type => 1, action => 'ADD'},
         RestoredProject => {type => 1, action => 'RESTOREDPROJECT'},
         RenamedProject => {type => 1, action => 'RENAME'},
-        MovedProjectTo => {type => 1, action => 'MOVE'},
+        MovedProjectTo => {type => 1, action => 'MOVE_TO'},
         MovedProjectFrom => {type => 1, action => 'MOVE_FROM'},
         DeletedProject => {type => 1, action => 'DELETE'},
         DestroyedProject => {type => 1, action => 'DELETE'},

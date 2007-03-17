@@ -251,13 +251,6 @@ sub _share_handler {
         return 0;
     }
 
-#    # if this is not a share+pin action, then add this item to the sharedphys
-#    # list. Otherwise, this item is pinned to a specific version and does not
-#    # participate in shared actions
-#    if (!defined $row->{version}) {
-#        push @{ $physinfo->{sharedphys} }, $row->{parentphys};
-#    }
-    
     my $version = $row->{version};
     $version = $physinfo->{last_version} if (!defined $version);
 
@@ -283,13 +276,23 @@ sub _share_handler {
 #        return $self->_add_handler();
     }
 
+    # if this is a share from orphan, and not a share+pin action either, we can treat it as a move
+    elsif (!defined $row->{version} &&        # share+pin?
+           defined $physinfo->{orphaned}      # orphaned?
+#          scalar @{$physinfo->{order}} == 1  # only one parent?
+       ) {
+        $physinfo->{parents}->{'_' . $row->{physname}}->{deleted} = 1;
+        undef $physinfo->{orphaned};
+        $self->{action} = 'MOVE';
+    }
+    
     # track the addition of the new parent
     $self->_add_parent ($physname, $row->{parentphys});
     
     # if this is a share+pin action, then remember the pin version
     if (defined $row->{version}) {
         $physinfo->{parents}->{$row->{parentphys}}->{pinned} = $row->{version};
-    } 
+    }
 
     $self->{itempaths} = [$itempath];
     $self->{info} = $sourceinfo;
@@ -410,8 +413,6 @@ sub _move_handler {
     my($self) = @_;
     my $row = $self->{row};
 
-    # Get the existing paths before the move; parent sub will get the new
-    # name
     my $physname = $row->{physname};
     my $physinfo = $gPhysInfo{$physname};
   
@@ -422,58 +423,61 @@ sub _move_handler {
         return 0;
     }
 
-    if (!defined $row->{parentphys}) {
+    # row->{info} contains the source parent
+    # row->{parentphys} contains the target parent
+
+    # check the source path    
+    if (!defined $row->{info}) {
       # Check if this is an orphaned item
-      if (scalar @{$physinfo->{order}} == 1) {
-        $row->{parentphys} = $physinfo->{order}[0];
+      if (defined $physinfo->{orphaned}) {
+        $row->{info} = '_' . $physname;
+        undef $physinfo->{orphaned};
       } else {
         # Don't know from where to move. Share it there instead
-        $row->{parentphys} = $row->{info};
-        $row->{info} = undef;
         $self->{action} = 'SHARE';
         return $self->_share_handler();
       }
     }
 
     # '$sourceinfo' is the path for the old location (the move source);
-    my $parentpath = $self->_get_current_parent_path ();
-    my $sourceinfo = $parentpath . $physinfo->{name}; # $row->{itemname};
+    my $sourceparent = $self->_get_parent_path ($row->{info});
+    my $sourceinfo = $sourceparent . $row->{itemname};
 
-    if (!defined ($row->{info})) {
+
+    # check the target path
+    if (!defined ($row->{parentphys})) {
         # the target directory was destroyed, so there is no apropriate move
         # target information. Fall back to a move to the orphaned cache
-        $row->{info} = '_' . $row->{physname};
+        $physinfo->{orphaned} = 1;
+        $row->{parentphys} = '_' . $row->{physname};
     }
 
     # '$itempath' contains the move target path
-    my $itempath = $self->_get_parent_path ($row->{info}) . $row->{itemname};
+    my $parentpath = $self->_get_current_parent_path ();
+    my $itempath = $parentpath . $physinfo->{name}; # $row->{itemname};
 
-    if (!defined($parentpath)) {
+
+    if (!defined($sourceparent)) {
         # We can't figure out the path for the parent that this move came from,
         # so it was either destroyed or corrupted. That means that this isn't
         # a move anymore; it's a new add.
 
         $self->{action} = 'ADD';
-#        $self->{version} = $version;
-#        return $self->_add_handler();
-        
-        # we need to swap the source and the target path
-        $sourceinfo = $itempath;
-        undef $itempath;
+        undef $sourceinfo;
     }
     else {
         # set the old parent inactive
-        $physinfo->{parents}->{$row->{parentphys}}->{deleted} = 1;
+        $physinfo->{parents}->{$row->{info}}->{deleted} = 1;
     }
 
     # if the item mysteriously changed name during the move
     $physinfo->{name} = $row->{itemname};
 
     # track the addition of the new parent
-    $self->_add_parent ($physname, $row->{info});
+    $self->_add_parent ($physname, $row->{parentphys});
     
-    $self->{itempaths} = [$sourceinfo];
-    $self->{info} = $itempath;
+    $self->{itempaths} = [$itempath];
+    $self->{info} = $sourceinfo;
 
     # the move target is now also a valid "copy from" itempath
     $self->_track_item_path ($physname, $row->{parentphys}, $physinfo->{last_version}, $itempath);
@@ -745,11 +749,6 @@ sub _get_parent_path {
         return undef;
     }
 
-    #todo: make the behavoir of orphaned file tracking configurable
-#    if ($physinfo->{orphaned}) {
-#        return undef;
-#    }
-
     $self->{physname_seen} .= "$physname, ";
 
     # In a move szenario, we can have one deleted and one active parent. We
@@ -877,12 +876,6 @@ sub _get_item_paths {
 
         return undef;
     }
-
-    #todo: make the behavoir of orphaned file tracking configurable
-#    if ($physinfo->{orphaned})
-#    {
-#        return undef;
-#       }
 
     $self->{physname_seen} .= "$physname, ";
 
@@ -1169,9 +1162,7 @@ sub _get_valid_path2 {
     my($self, $physname, $parentphys, $version, $deleted) = @_;
 
     my $physinfo = $gPhysInfo{$physname};
-    if (!defined $physinfo) {
-        return undef;
-    }
+ 
     # 1. check the parent requested, if there was an item name for this version
     #    we can use this item name, since it was valid in that time
     my $parent = $physinfo->{parents}->{$parentphys};

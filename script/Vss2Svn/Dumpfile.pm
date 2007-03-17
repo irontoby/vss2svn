@@ -392,43 +392,49 @@ sub _move_handler {
 
     # moving in SVN is the same as renaming; add the new and delete the old
 
-    my $newpath = $data->{info};
+    my $oldpath = $data->{info};
 
-    if ($self->{repository}->exists ($newpath)) {
-        $self->add_error("Attempt to move item '$itempath' to '$newpath' at "
+    if ($self->{repository}->exists ($itempath)) {
+        $self->add_error("Attempt to move item '$oldpath' to '$itempath' at "
             . "revision $data->{revision_id}, but destination already exists: possibly "
             . "missing delete; skipping");
         return 0;
     }
 
-    if (!$self->{repository}->exists ($itempath)) {
-        $self->add_error("Attempt to move item '$itempath' to '$newpath' at "
+    if (!$self->{repository}->exists ($oldpath)) {
+        $self->add_error("Attempt to move item '$oldpath' to '$itempath' at "
             . "revision $data->{revision_id}, but source doesn't exists: possibly "
             . "missing recover; skipping");
         return 0;
     }
     
     my $node = Vss2Svn::Dumpfile::Node->new();
-    $node->set_initial_props($newpath, $data);
+    $node->set_initial_props($itempath, $data);
     $node->{action} = 'add';
 
     my($copyrev, $copypath);
 
     $copyrev = $data->{revision_id} - 1;
-    $copypath = $itempath;
+    $copypath = $oldpath;
 
     $node->{copyrev} = $copyrev;
     $node->{copypath} = $copypath;
 
     push @$nodes, $node;
 
-#    $self->track_modified($data->{physname}, $data->{revision_id}, $newpath);
-#    $self->track_version ($data->{physname}, $data->{version}, $newpath);
+    # the new move target is a valid path.
+    $self->track_version ($data->{physname}, $data->{version}, $itempath);
 
     $node = Vss2Svn::Dumpfile::Node->new();
-    $node->set_initial_props($itempath, $data);
+    $node->set_initial_props($oldpath, $data);
     $node->{action} = 'delete';
     $node->{hideprops} = 1;
+
+#   Deleted tracking is only necessary to be able to recover the item. But a move
+#   does not set a recover point, so we don't need to track the delete here. Additionally
+#   we do not have enough information for this operation.
+#   $self->track_deleted($data->{oldparentphys}, $data->{physname},
+#                        $data->{revision_id}, $oldpath);
 
     push @$nodes, $node;
 
@@ -566,7 +572,7 @@ sub _label_handler {
     # as a valid share source.
     if (defined ($label)) {
         $label =~ s:/:_:g;
-    
+        
         my $vssitempath = $itempath;
         $vssitempath =~ s/^$main::gCfg{trunkdir}//;
         my $labelpath = "$main::gCfg{labeldir}/$label$vssitempath";
