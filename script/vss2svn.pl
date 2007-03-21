@@ -297,14 +297,15 @@ sub GetVssItemVersions {
     my($parentdata, $version, $vernum, $action, $name, $actionid, $actiontype,
        $tphysname, $itemname, $itemtype, $parent, $user, $timestamp, $comment,
        $is_binary, $info, $priority, $sortkey, $label, $cachename);
-
+    
+    my $last_timestamp = 0;
+    
 VERSION:
     foreach $version (@{ $xml->{Version} }) {
         $action = $version->{Action};
         $name = $action->{SSName};
         $tphysname = $action->{Physical} || $physname;
         $user = $version->{UserName};
-        $timestamp = $version->{Date};
 
         $itemname = &GetItemName($name);
 
@@ -312,10 +313,23 @@ VERSION:
         $info = $gActionType{$actionid};
 
         if (!$info) {
-            warn "\nWARNING: Unknown action '$actionid'\n";
+            &ThrowWarning ("'$physname': Unknown action '$actionid'\n");
             next VERSION;
         }
 
+        # check the linear order of timestamps. It could be done better, for
+        # example checking the next version and calculate the middle time stamp
+        # but regardless of what we do here, the result is erroneous, since it
+        # will mess up the labeling.
+        $timestamp = $version->{Date};
+        if ($timestamp < $last_timestamp) {
+            $timestamp = $last_timestamp + 1;
+            &ThrowWarning ("'$physname': wrong timestamp at version "
+                           . "'$version->{VersionNumber}'; setting timestamp to "
+                           . "'$timestamp'");
+        }
+        $last_timestamp = $timestamp;
+        
         $itemtype = $info->{type};
         $actiontype = $info->{action};
 
@@ -345,7 +359,7 @@ VERSION:
         # we can have label actions and labes attached to versions
         if (defined $action->{Label} && !ref($action->{Label})) {
             $label = $action->{Label};
-            
+
             # append the label comment to a possible version comment
             if ($action->{LabelComment} && !ref($action->{LabelComment})) {
                 if (defined $comment) {
@@ -436,6 +450,18 @@ VERSION:
                     $itemtype, $timestamp, $user, $is_binary, $info, $priority,
                     $sortkey, $parentdata, $label, $comment);
 
+        # Handle version comments as a secondary action for the same 
+#        if (defined $version->{Label} && !ref($version->{Label})) {
+#            my ($labelComment);
+#            
+#            if ($version->{LabelComment} && !ref($version->{LabelComment})) {
+#                $labelComment = $version->{LabelComment};
+#            }
+#            $cache->add($tphysname, $vernum, $parentphys, 'LABEL', $itemname,
+#                        $itemtype, $timestamp, $user, $is_binary, $info, 5,
+#                        $sortkey, $parentdata, $version->{Label}, $labelComment);
+#        }
+        
     }
 
 }  #  End GetVssItemVersions
