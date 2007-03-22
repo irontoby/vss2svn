@@ -450,18 +450,25 @@ VERSION:
                     $itemtype, $timestamp, $user, $is_binary, $info, $priority,
                     $sortkey, $parentdata, $label, $comment);
 
-        # Handle version comments as a secondary action for the same 
-#        if (defined $version->{Label} && !ref($version->{Label})) {
-#            my ($labelComment);
-#            
-#            if ($version->{LabelComment} && !ref($version->{LabelComment})) {
-#                $labelComment = $version->{LabelComment};
-#            }
-#            $cache->add($tphysname, $vernum, $parentphys, 'LABEL', $itemname,
-#                        $itemtype, $timestamp, $user, $is_binary, $info, 5,
-#                        $sortkey, $parentdata, $version->{Label}, $labelComment);
-#        }
-        
+        # Handle version labels as a secondary action for the same version
+        # version labels and label action use the same location to store the
+        # label. Therefore it is not possible to assign a version label to
+        # version where the actiontype was LABEL. But ssphys will report the
+        # same label twice. Therefore filter the Labeling versions here.
+        if (defined $version->{Label} && !ref($version->{Label})
+            && $actiontype ne 'LABEL') {
+            my ($labelComment);
+            
+            if ($version->{LabelComment} && !ref($version->{LabelComment})) {
+                $labelComment = $version->{LabelComment};
+            }
+            else {
+                $labelComment = "assigned label '$version->{Label}' to version $vernum of physical file '$tphysname'";
+            }
+            $cache->add($tphysname, $vernum, $parentphys, 'LABEL', $itemname,
+                        $itemtype, $timestamp, $user, $is_binary, $info, 5,
+                        $sortkey, $parentdata, $version->{Label}, $labelComment);
+        }
     }
 
 }  #  End GetVssItemVersions
@@ -894,17 +901,26 @@ ACTION:
             $physname = $action->{physname};
             $itemtype = $action->{itemtype};
 
-            if (!exists $exported{$physname}) {
-                if ($itemtype == 2) {
-                    $exported{$physname} = &ExportVssPhysFile($physname, $action->{version});
+#            if (!exists $exported{$physname}) {
+                my $version = $action->{version};
+                if (   !defined $version
+                    && (   $action->{action} eq 'ADD'
+                        || $action->{action} eq 'COMMIT')) {
+                    &ThrowWarning("'$physname': no version specified for retrieval");
+            
+                    # fall through and try with version 1.
+                    $version = 1;
+                }
+            
+                if ($itemtype == 2 && defined $version) {
+                    $exported{$physname} = &ExportVssPhysFile($physname, $version);
                 } else {
                     $exported{$physname} = undef;
                 }
-            }
+#            }
 
             # do_action needs to know the revision_id, so paste it on
             $action->{revision_id} = $revision;
-
             $dumpfile->do_action($action, $exported{$physname});
         }
         print "revision $revision: ", timestr(timediff(new Benchmark, $t0)),"\n"
@@ -1653,7 +1669,7 @@ sub Initialize {
 
     $gCfg{starttime} = scalar localtime($^T);
 
-    # trunkdir should (must?) be without leading slash
+    # trunkdir should (must?) be without trailing slash
     $gCfg{trunkdir} = '' unless defined $gCfg{trunkdir};
     $gCfg{trunkdir} =~ s:\\:/:g;
     $gCfg{trunkdir} =~ s:/$::;
