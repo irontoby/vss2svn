@@ -571,7 +571,7 @@ sub _label_handler {
     # the version->revision mapping, since the version could have been used
     # as a valid share source.
     if (defined ($label)) {
-        $label =~ s:/:_:g;
+        $label =~ s![\\/:*?"<>|]!_!g;
         
         my $vssitempath = $itempath;
         $vssitempath =~ s/^$main::gCfg{trunkdir}//;
