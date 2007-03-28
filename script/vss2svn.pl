@@ -1641,7 +1641,7 @@ sub Initialize {
 
     &GiveHelp("Must specify --vssdir") if !defined($gCfg{vssdir});
     $gCfg{tempdir} = './_vss2svn' if !defined($gCfg{tempdir});
-    $gCfg{dumpfile} = 'vss2svn-dumpfile.txt' if !defined($gCfg{dumpfile});
+    $gCfg{dumpfile} = 'vss2svn-dumpfile.dat' if !defined($gCfg{dumpfile});
 
     $gCfg{sqlitedb} = "$gCfg{tempdir}/vss_data.db";
 
@@ -1790,7 +1790,7 @@ OPTIONAL PARAMETERS:
     --tempdir <dir>   : Temp directory to use during conversion;
                         default is ./_vss2svn
     --dumpfile <file> : specify the subversion dumpfile to be created;
-                        default is ./vss2svn-dumpfile.txt
+                        default is ./vss2svn-dumpfile.dat
     --revtimerange <sec> : specify the difference between two ss actions
                            that are treated as one subversion revision;
                            default is 3600 seconds (== 1hour)
