@@ -408,17 +408,17 @@ sub _move_handler {
         return 0;
     }
 
-    my $success = $self->{repository}->exists_parent ($newpath);
+    my $success = $self->{repository}->exists_parent($itempath);
     if(!defined($success)) {
-        $self->add_error("Attempt to move item '$itempath' to '$newpath' at "
+        $self->add_error("Attempt to move item '$oldpath' to '$itempath' at "
             . "revision $data->{revision_id}, but path consistency failure at dest");
         return 0;
     }
     elsif ($success == 0) {
         $self->add_error("Parent path missing while trying to move "
-            . "item '$itempath' to '$newpath' at "
+            . "item '$oldpath' to '$itempath' at "
             . "revision $data->{revision_id}: adding missing parents");
-        $self->_create_svn_path ($nodes, $newpath);
+        $self->_create_svn_path ($nodes, $itempath);
     }
 
     my $node = Vss2Svn::Dumpfile::Node->new();
