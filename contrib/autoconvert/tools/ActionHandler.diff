@@ -1,0 +1,68 @@
+Index: ActionHandler.pm
+===================================================================
+--- ActionHandler.pm	(revision 309)
++++ ActionHandler.pm	(working copy)
+@@ -19,6 +19,17 @@
+      LABEL      => \&_label_handler,
+     );
+ 
++our %orphanedReplace =
++	(
++"_NJAAAAAA" => "/p13-database/",
++"_ZFGAAAAA" => "/documents/test/",
++"_MVPAAAAA" => "/high-hopes/src/de/test/webapps/control/requesthandler/",
++"_JLBAAAAA" => "/high-hopes/docs/",
++"_ZKBAAAAA" => "/high-hopes/docs/",
++"_GJBAAAAA" => "/",
++"_PADBAAAA" => "/search engines/test/",
++	);
++    
+ our(%gPhysInfo);
+ our(%gOrphanedInfo);
+ 
+@@ -695,7 +706,7 @@
+ #  _get_parent_path
+ ###############################################################################
+ sub _get_parent_path {
+-    my($self, $physname) = @_;
++    my($self, $physname, $replacementPath) = @_;
+ 
+     # Uses recursion to determine the current full paths for an item based on
+     # the name of its physical file. We can't cache this information because
+@@ -737,7 +748,12 @@
+         # End of recursion; this is the orphaned node
+         # return the name of the orphaned directory + the name of the orphaned
+         # file in order to make the path unique
+-        return '/orphaned/' . $physname . '/';
++	$replacementPath = $orphanedReplace{$physname};
++	if ($replacementPath) {
++		return $replacementPath;
++	} else {
++        	return '/orphaned/' . $physname . '/';
++	}
+     }
+ 
+     my $physinfo = $gPhysInfo{$physname};
+@@ -833,7 +849,7 @@
+ #  _get_item_paths
+ ###############################################################################
+ sub _get_item_paths {
+-    my($self, $physname, @parents) = @_;
++    my($self, $physname, @parents, $replacementPath) = @_;
+ 
+     # Uses recursion to determine the current full paths for an item based on
+     # the name of its physical file. We can't cache this information because
+@@ -865,7 +881,12 @@
+         # End of recursion; this is the orphaned node
+         # return the name of the orphaned directory + the name of the orphaned
+         # file in order to make the path unique
+-        return '/orphaned/' . $physname . '/';
++	$replacementPath = $orphanedReplace{$physname};
++	if ($replacementPath) {
++		return $replacementPath;
++	} else {
++        	return '/orphaned/' . $physname . '/';
++	}
+     }
+ 
+     my $physinfo = $gPhysInfo{$physname};
