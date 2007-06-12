@@ -526,13 +526,13 @@ sub MergeParentData {
 
     my($sth, $rows, $row);
     $sth = $gCfg{dbh}->prepare('SELECT * FROM PhysicalAction '
-                               . 'WHERE parentdata = 1');
+                               . 'WHERE parentdata > 0');
     $sth->execute();
 
     # need to pull in all recs at once, since we'll be updating/deleting data
     $rows = $sth->fetchall_arrayref( {} );
 
-    my($childrecs, $child, $id);
+    my($childrecs, $child, $id, $depth);
     my @delchild = ();
 
     foreach $row (@$rows) {
@@ -542,6 +542,8 @@ sub MergeParentData {
             &ThrowWarning("Multiple child recs for parent rec "
                           . "'$row->{action_id}'");
         }
+
+        $depth = &GetPathDepth($row);
 
         foreach $child (@$childrecs) {
             &UpdateParentRec($row, $child);
@@ -556,6 +558,72 @@ sub MergeParentData {
     1;
 
 }  #  End MergeParentData
+
+###############################################################################
+#  GetPathDepth
+###############################################################################
+sub GetPathDepth {
+    my($row) = @_;
+
+    # If we've already worked out the depth of this row, return it immediately
+    if ($row->{parentdata} > 1) {
+        return $row->{parentdata};
+    }
+
+    my($maxParentDepth, $depth, $parents, $parent);
+
+    # Get the row(s) corresponding to the parent(s) of this row, and work out
+    # the maximum depth
+    
+    my $sql = <<"EOSQL";
+SELECT
+    *
+FROM
+    PhysicalAction
+WHERE
+    parentdata > 0
+    AND physname = ?
+    AND actiontype = ?
+EOSQL
+
+    my $sth = $gCfg{dbh}->prepare($sql);
+    $sth->execute( @{ $row }{qw(parentphys actiontype)} );
+
+    $parents =  $sth->fetchall_arrayref( {} );
+    $maxParentDepth = 0;
+    foreach $parent (@$parents) {
+        $depth = &GetPathDepth($parent);
+        $maxParentDepth = ($depth > $maxParentDepth) ? $depth : $maxParentDepth;
+    }
+
+    # Depth of this path becomes one more than the maximum parent depth
+    $depth = $maxParentDepth + 1;
+
+    # Update the row for this record
+    &UpdateDepth($row, $depth);
+
+    return $depth;
+}  #  End GetPathDepth
+
+###############################################################################
+#  UpdateDepth
+###############################################################################
+sub UpdateDepth {
+    my($row, $depth) = @_;
+
+    my $sql = <<"EOSQL";
+UPDATE
+    PhysicalAction
+SET
+    parentdata = ?
+WHERE
+    action_id = ?
+EOSQL
+
+    my $sth = $gCfg{dbh}->prepare($sql);
+    $sth->execute( $depth, $row->{action_id} );
+
+}  #  End UpdateParentRec
 
 ###############################################################################
 #  GetChildRecs
@@ -739,7 +807,7 @@ sub BuildVssActionHistory {
     my($sth, $row, $action, $handler, $physinfo, $itempaths, $allitempaths);
 
     my $sql = 'SELECT * FROM PhysicalAction ORDER BY timestamp ASC, '
-            . 'itemtype ASC, priority ASC, sortkey ASC, action_id ASC';
+            . 'itemtype ASC, priority ASC, parentdata ASC, sortkey ASC, action_id ASC';
 
     $sth = $gCfg{dbh}->prepare($sql);
     $sth->execute();
