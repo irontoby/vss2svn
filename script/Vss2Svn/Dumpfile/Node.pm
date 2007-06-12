@@ -32,6 +32,7 @@ sub new {
          copypath => undef,
          props => undef,
          hideprops => 0,
+         file => undef,
          text => undef,
         };
 

@@ -9,6 +9,8 @@ require Time::Local;
 use warnings;
 use strict;
 
+use File::Copy;
+
 our %gHandlers =
     (
      ADD        => \&_add_handler,
@@ -215,7 +217,7 @@ sub _add_handler {
     $node->{action} = 'add';
 
     if ($data->{itemtype} == 2) {
-        $self->get_export_contents($node, $data, $expdir);
+        $self->get_export_file($node, $data, $expdir);
     }
 
 #    $self->track_modified($data->{physname}, $data->{revision_id}, $itempath);
@@ -243,7 +245,7 @@ sub _commit_handler {
     $node->{action} = 'change';
 
     if ($data->{itemtype} == 2) {
-        $self->get_export_contents($node, $data, $expdir);
+        $self->get_export_file($node, $data, $expdir);
     }
 
 #    $self->track_modified($data->{physname}, $data->{revision_id}, $itempath);
@@ -706,9 +708,9 @@ sub last_deleted_rev_path {
 }  #  End last_deleted_rev_path
 
 ###############################################################################
-#  get_export_contents
+#  get_export_file
 ###############################################################################
-sub get_export_contents {
+sub get_export_file {
     my($self, $node, $data, $expdir) = @_;
 
     if (!defined($expdir)) {
@@ -719,23 +721,10 @@ sub get_export_contents {
         return 0;
     }
 
-    my $file = "$expdir/$data->{physname}.$data->{version}";
-
-    if (!open EXP, "$file") {
-        $self->add_error("Could not open export file '$file'");
-        return 0;
-    }
-
-    binmode(EXP);
-
-#   $node->{text} = join('', <EXP>);
-    $node->{text} = do { local( $/ ) ; <EXP> } ;
-
-    close EXP;
-
+    $node->{file} = "$expdir/$data->{physname}.$data->{version}";
     return 1;
 
-}  #  End get_export_contents
+}  #  End get_export_file
 
 ###############################################################################
 #  output_node
@@ -747,18 +736,18 @@ sub output_node {
     my $string = $node->get_headers();
     print $fh $string;
     $self->output_content($node->{hideprops}? undef : $node->{props},
-                          $node->{text});
+                          $node->{text}, $node->{file});
 }  #  End output_node
 
 ###############################################################################
 #  output_content
 ###############################################################################
 sub output_content {
-    my($self, $props, $text) = @_;
+    my($self, $props, $text, $file) = @_;
 
     my $fh = $self->{fh};
 
-    $text = '' unless defined $text;
+    $text = '' unless defined $text || defined $file;
 
     my $proplen = 0;
     my $textlen = 0;
@@ -780,7 +769,11 @@ sub output_content {
         $proplen = length($propout);
     }
 
-    $textlen = length($text);
+    if(!defined $text && defined $file) {
+        $textlen = -s $file;
+    } else {
+        $textlen = length($text);
+    }
     return if ($textlen + $proplen == 0);
 
     if ($proplen > 0) {
@@ -792,7 +785,14 @@ sub output_content {
     }
 
     print $fh "Content-length: " . ($proplen + $textlen)
-        . "\n\n$propout$text\n";
+        . "\n\n$propout";
+
+    if(!defined $text && defined $file) {
+        copy($file, $fh);
+        print $fh "\n";
+    } else {
+        print $fh "$text\n";
+    }
 
 }  #  End output_content
 
