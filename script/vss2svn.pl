@@ -675,7 +675,8 @@ sub UpdateParentRec {
     {
         no warnings 'uninitialized';
         $comment = "$row->{comment}\n$child->{comment}";
-        $comment =~ s/\n$//;
+        $comment =~ s/^\n+//;
+        $comment =~ s/\n+$//;
     }
 
     my $sql = <<"EOSQL";
