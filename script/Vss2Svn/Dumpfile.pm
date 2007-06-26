@@ -10,6 +10,8 @@ use warnings;
 use strict;
 
 use File::Copy;
+use Digest::MD5;
+use Data::UUID;
 
 our %gHandlers =
     (
@@ -31,12 +33,22 @@ our %gHandlers =
 #our %gModified = ();
 our %gDeleted = ();
 our %gVersion = ();
+our $gTmpDir;
+
+###############################################################################
+#  SetTempDir
+###############################################################################
+sub SetTempDir {
+    my($class, $dir) = @_;
+
+    $gTmpDir = $dir;
+}  #  End SetTempDir
 
 ###############################################################################
 #  new
 ###############################################################################
 sub new {
-    my($class, $fh, $autoprops) = @_;
+    my($class, $fh, $autoprops, $md5) = @_;
 
     my $self =
         {
@@ -47,6 +59,7 @@ sub new {
          version_cache => [],
          repository => Vss2Svn::Dumpfile::SanityChecker->new(),
          auto_props => $autoprops,
+         do_md5 => $md5,
         };
 
     # prevent perl from doing line-ending conversions
@@ -57,6 +70,11 @@ sub new {
     select($old);
 
     print $fh "SVN-fs-dump-format-version: 2\n\n";
+    
+    my $ug    = new Data::UUID;
+    my $uuid = $ug->to_string( $ug->create() );
+    
+    print $fh "UUID: $uuid\n\n";
 
     $self = bless($self, $class);
     return $self;
@@ -769,6 +787,41 @@ sub output_content {
         $proplen = length($propout);
     }
 
+    my $md5;
+    $md5 = Digest::MD5->new if $self->{do_md5};
+
+    # convert CRLF -> LF before calculating the size and compute the md5
+    if(!defined $text && defined $file) {
+   	my ($input, $output);
+        my $style = $props->{'svn:eol-style'};
+        if (defined $style && $style eq 'native') {
+            open ($input, "<:crlf", $file);
+            my $tmpFile = "$gTmpDir/crlf_to_lf.tmp.txt";
+            open ($output, ">", $tmpFile);
+            binmode ($output);
+
+            while(<$input>) {
+                $md5->add($_) if $self->{do_md5};
+                print $output $_;
+            }
+            
+            close $input;
+            close $output;
+            $file = $tmpFile;
+        }
+        else {
+            open ($input, "<", $file);
+            binmode ($input);
+            $md5->addfile($input) if $self->{do_md5};
+            close $input;            
+        }
+    } else {
+        $md5->add($text) if $self->{do_md5};
+    }       
+    
+    my $digest = $md5->hexdigest if $self->{do_md5};
+#    print "digest: $digest\n";
+
     if(!defined $text && defined $file) {
         $textlen = -s $file;
     } else {
@@ -782,6 +835,7 @@ sub output_content {
 
     if ($textlen > 0) {
         print $fh "Text-content-length: $textlen\n";
+        print $fh "Text-content-md5: $digest\n" if $self->{do_md5};
     }
 
     print $fh "Content-length: " . ($proplen + $textlen)

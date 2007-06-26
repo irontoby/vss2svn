@@ -12,6 +12,8 @@ DBD::SQLite2
 Time::CTime (Time-modules)
 Config::Ini
 Text::Glob
+Digest::MD5
+Data::UUID
 
 SQLITE SCHEMA
 

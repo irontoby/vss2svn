@@ -70,7 +70,15 @@ sub RunConversion {
 
             # Merge data from move actions 
             MERGEMOVEDATA => {handler => \&MergeMoveData,
-                                next    => 'BUILDACTIONHIST'},
+                                next    => 'REMOVETMPCHECKIN'},
+
+            # Remove temporary check ins
+            REMOVETMPCHECKIN => {handler => \&RemoveTemporaryCheckIns,
+                                 next    => 'MERGEUNPINPIN'},
+
+            # Remove unnecessary Unpin/pin activities
+            MERGEUNPINPIN => {handler => \&MergeUnpinPinData,
+                                 next    => 'BUILDACTIONHIST'},
 
             # Take the history of physical actions and convert them to VSS
             # file actions
@@ -773,6 +781,88 @@ EOSQL
 }  #  End MergeMoveData
 
 ###############################################################################
+# RemoveTemporaryCheckIns
+# remove temporary checkins that where create to detect MS VSS capabilities
+###############################################################################
+sub RemoveTemporaryCheckIns {
+    my($sth, $rows, $row);
+    $sth = $gCfg{dbh}->prepare('SELECT * FROM PhysicalAction '
+                               . 'WHERE comment = "Temporary file created by Visual Studio .NET to detect Microsoft Visual SourceSafe capabilities."'
+                               . '      AND actiontype = "ADD"'
+                               . '      AND itemtype = 2');		# only delete files, not projects
+    $sth->execute();
+
+    # need to pull in all recs at once, since we'll be updating/deleting data
+    $rows = $sth->fetchall_arrayref( {} );
+
+    foreach $row (@$rows) {
+        my $physname = $row->{physname};
+        
+        my $sql = 'SELECT * FROM PhysicalAction WHERE physname = ?';
+        my $update = $gCfg{dbh}->prepare($sql);
+        
+        $update->execute( $physname );
+
+		    # need to pull in all recs at once, since we'll be updating/deleting data
+		    my $recs = $update->fetchall_arrayref( {} );
+		
+		    foreach my $rec (@$recs) {
+          print "Remove action_id $rec->{action_id}, $rec->{physname}, $rec->{actiontype}, $rec->{itemname}\n";
+          print "       $rec->{comment}\n" if defined ($rec->{comment});
+          &DeleteChildRec($rec->{action_id});
+        }
+		}
+
+    1;
+}
+
+###############################################################################
+#  MergeUnpinPinData
+###############################################################################
+sub MergeUnpinPinData {
+    my($sth, $rows, $row, $r, $next_row);
+    my $sql = 'SELECT * FROM PhysicalAction ORDER BY timestamp ASC, '
+                . 'itemtype ASC, priority ASC, parentdata ASC, sortkey ASC, action_id ASC';
+    $sth = $gCfg{dbh}->prepare($sql);
+    $sth->execute();
+ 
+    # need to pull in all recs at once, since we'll be updating/deleting data
+    $rows = $sth->fetchall_arrayref( {} );
+ 
+    return if ($rows == -1);
+    return if (@$rows < 2);
+ 
+    my @delchild = ();
+ 
+    for $r (0 .. @$rows-2) {
+        $row = $rows->[$r];
+        $next_row = $rows->[$r+1];
+        
+        if ($row->{actiontype} eq 'PIN' 
+            && !defined $row->{version}    # UNPIN
+            && $next_row->{actiontype} eq 'PIN' 
+            && defined $next_row->{version}   # PIN
+            && $row->{physname} eq $next_row->{physname}
+            && $row->{parentphys} eq $next_row->{parentphys}
+            && $next_row->{timestamp} - $row->{timestamp} < 60
+            && $next_row->{action_id} - $row->{action_id} == 1) {
+                print "found UNPIN/PIN combination for $row->{parentphys}/$row->{physname}"
+                    . "($row->{itemname}) @ ID $row->{action_id}\n"  if $gCfg{verbose};
+                push (@delchild, $row->{action_id});
+            }
+         
+    }
+ 
+    my $id;
+    foreach $id (@delchild) {
+        &DeleteChildRec($id);
+    }
+ 
+    1;
+ 
+}  #  End MergeUnpinPinData
+
+###############################################################################
 #  DeleteChildRec
 ###############################################################################
 sub DeleteChildRec {
@@ -950,7 +1040,8 @@ EOSQL
     $action_sth = $gCfg{dbh}->prepare($sql);
 
     my $autoprops = Vss2Svn::Dumpfile::AutoProps->new($gCfg{auto_props}) if $gCfg{auto_props};
-    my $dumpfile = Vss2Svn::Dumpfile->new($fh, $autoprops);
+    my $dumpfile = Vss2Svn::Dumpfile->new($fh, $autoprops, $gCfg{do_md5});
+    Vss2Svn::Dumpfile->SetTempDir($gCfg{tempdir});
 
 REVISION:
     while(defined($row = $sth->fetchrow_hashref() )) {
@@ -1073,6 +1164,8 @@ VSS Dir      : $gCfg{vssdir}
 Temp Dir     : $gCfg{tempdir}
 Dumpfile     : $gCfg{dumpfile}
 VSS Encoding : $gCfg{encoding}
+Auto Props   : $gCfg{auto_props}
+
 
 VSS2SVN ver  : $VERSION
 SSPHYS exe   : $gCfg{ssphys}
@@ -1706,7 +1799,7 @@ sub Initialize {
     
     GetOptions(\%gCfg,'vssdir=s','tempdir=s','dumpfile=s','resume','verbose',
                'debug','timing+','task=s','revtimerange=i','ssphys=s',
-               'encoding=s','trunkdir=s','auto_props=s');
+               'encoding=s','trunkdir=s','auto_props=s', 'md5');
 
     &GiveHelp("Must specify --vssdir") if !defined($gCfg{vssdir});
     $gCfg{tempdir} = './_vss2svn' if !defined($gCfg{tempdir});
@@ -1867,7 +1960,8 @@ OPTIONAL PARAMETERS:
     --resume          : Resume a failed or aborted previous run
     --task <task>     : specify the task to resume; task is one of the following
                         INIT, LOADVSSNAMES, FINDDBFILES, GETPHYSHIST,
-                        MERGEPARENTDATA, BUILDACTIONHIST, IMPORTSVN
+                        MERGEPARENTDATA, MERGEMOVEDATA, REMOVETMPCHECKIN, 
+                        MERGEUNPINPIN, BUILDACTIONHIST, IMPORTSVN
 
     --verbose         : Print more info about the items being processed
     --debug           : Print lots of debugging info.
@@ -1877,7 +1971,8 @@ OPTIONAL PARAMETERS:
     --trunkdir        : Specify where to map the VSS Project Root in the
                         converted repository (default = "/")
     --auto_props      : Specify an autoprops ini file to use, e.g.
-                        --auto_props="c:/Dokumente und Einstellungen/user/Anwendungsdaten/Subversion/config" 
+                        --auto_props="c:/Dokumente und Einstellungen/user/Anwendungsdaten/Subversion/config"
+    --md5             : generate md5 checksums
 EOTXT
 
     exit(1);
