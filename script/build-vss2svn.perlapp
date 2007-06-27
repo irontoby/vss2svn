@@ -2,7 +2,9 @@
 PAP-Version: 1.0
 Packer: C:\Program Files\ActiveState Perl Dev Kit 6.0\bin\perlapp.exe
 Script: vss2svn.pl
+Add: Data::UUID
 Add: DBD::SQLite2
+Add: Digest::MD5
 Add: XML::SAX::Expat
 Add: integer
 Bind: encodings/big5.enc[file=C:\Perl\site\lib\XML\Parser\Encodings\big5.enc,extract,mode=666]
