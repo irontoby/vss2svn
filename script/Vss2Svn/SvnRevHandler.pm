@@ -45,7 +45,9 @@ sub _init {
     $self->{timestamp} = undef;
     $self->{author} = undef;
     $self->{comment} = undef;
+    $self->{lastcommentaction} = undef;
     $self->{seen} = {};
+    $self->{last_action} = {};
 
 }  #  End _init
 
@@ -57,8 +59,8 @@ sub check {
 
     my($physname, $itemtype, $actiontype, $timestamp, $author, $comment) =
         @{ $data }{qw( physname itemtype actiontype timestamp author comment )};
-    my($prevtimestamp, $prevauthor, $prevcomment) =
-        @{ $self }{qw( timestamp author comment )};
+    my($prevtimestamp, $prevauthor, $prevcomment, $prevaction) =
+        @{ $self }{qw( timestamp author comment actiontype)};
 
     # Any of the following cause a new SVN revision:
     #   * same file touched more than once
@@ -67,8 +69,25 @@ sub check {
     #   * any action on a directory other than add
 
     my $wasseen = $self->{seen}->{$physname};
+    my $last_action = $self->{last_action}->{$physname};
 
-
+    # in case the current action is the same as the last action
+    if ($actiontype eq 'SHARE' && $wasseen && $last_action eq $actiontype) {
+        $wasseen = 0;
+    }
+    
+    # if an add is followed by a share we omit the check for the comment. In most
+    # cases this is a bulk share started with a project. But the comment is
+    # only recorded for the project ADDs and not for the files SHARES
+    if ($actiontype eq 'SHARE' && !defined $comment
+        && defined $self->{lastcommentaction}
+        && $self->{lastcommentaction} eq 'ADD') {
+        $comment = $prevcomment;
+    }
+    else {
+        $self->{lastcommentaction} = $actiontype;
+    }
+    
     no warnings 'uninitialized';
     if(($author ne $prevauthor) || ($comment ne $prevcomment) || $wasseen ||
        ($timestamp - $prevtimestamp > $gCfg{revtimerange}) ||
@@ -90,9 +109,10 @@ sub check {
     $self->{commitPending} = ($itemtype == 1 && $actiontype ne 'ADD') || ($self->{revnum} == 0);
     
     $self->{seen}->{$physname}++;
+    $self->{last_action}->{$physname} = $actiontype;;
 
-    @{ $self }{qw( timestamp author comment)} =
-        ($timestamp, $author, $comment);
+    @{ $self }{qw( timestamp author comment actiontype)} =
+        ($timestamp, $author, $comment, $actiontype);
 
 }  #  End check
 
@@ -105,6 +125,7 @@ sub new_revision {
     $self->{svncache}->add( @{ $data }{qw(timestamp author comment)} );
     $self->{revnum} = $self->{svncache}->{pkey};
     $self->{seen} = {};
+    $self->{last_action} = {};
     $self->{commitPending} = undef;
 
 }  #  End new_revision
