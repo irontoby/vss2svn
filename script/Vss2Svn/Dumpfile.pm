@@ -3,6 +3,7 @@ package Vss2Svn::Dumpfile;
 use Vss2Svn::Dumpfile::Node;
 use Vss2Svn::Dumpfile::SanityChecker;
 use Vss2Svn::Dumpfile::AutoProps;
+use Vss2Svn::Dumpfile::LabelMapper;
 
 require Time::Local;
 
@@ -48,7 +49,7 @@ sub SetTempDir {
 #  new
 ###############################################################################
 sub new {
-    my($class, $fh, $autoprops, $md5) = @_;
+    my($class, $fh, $autoprops, $md5, $labelmapper) = @_;
 
     my $self =
         {
@@ -60,6 +61,7 @@ sub new {
          repository => Vss2Svn::Dumpfile::SanityChecker->new(),
          auto_props => $autoprops,
          do_md5 => $md5,
+         label_mapper => $labelmapper,
         };
 
     # prevent perl from doing line-ending conversions
@@ -567,9 +569,12 @@ sub _pin_handler {
     
     # if one of the necessary copy from attributes are unavailable we fall back
     # to a complete checkin
-    if (!defined $copyrev || !defined $copypath) {
-        return $self->_commit_handler ($itempath, $nodes, $data, $expdir);
+    if (defined $copyrev && defined $copypath) {
+        $data->{comment} = "ported from $copypath r$copyrev";
     }
+#    if (!defined $copyrev || !defined $copypath) {
+        return $self->_commit_handler ($itempath, $nodes, $data, $expdir);
+#    }
     
     my $node = Vss2Svn::Dumpfile::Node->new();
     $node->set_initial_props($itempath, $data);
@@ -604,11 +609,19 @@ sub _label_handler {
     # the version->revision mapping, since the version could have been used
     # as a valid share source.
     if (defined ($label)) {
+        my $labeldir = $main::gCfg{labeldir};
+        
+        if (defined $self->{label_mapper}) {
+            $labeldir = $self->{label_mapper}->remap ($main::gCfg{labeldir}, $label);
+        }
+        $labeldir =~ s:\\:/:g;
+        $labeldir =~ s:/$::;
+        
         $label =~ s![\\/:*?"<>|]!_!g;
         
         my $vssitempath = $itempath;
         $vssitempath =~ s/^$main::gCfg{trunkdir}//;
-        my $labelpath = "$main::gCfg{labeldir}/$label$vssitempath";
+        my $labelpath = "$labeldir/$label$vssitempath";
 
         $self->_create_svn_path ($nodes, $labelpath);
 

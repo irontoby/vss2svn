@@ -78,6 +78,10 @@ sub RunConversion {
 
             # Remove unnecessary Unpin/pin activities
             MERGEUNPINPIN => {handler => \&MergeUnpinPinData,
+                                 next    => 'BUILDCOMMENTS'},
+
+            # Rebuild possible missing comments
+            BUILDCOMMENTS => {handler => \&BuildComments,
                                  next    => 'BUILDACTIONHIST'},
 
             # Take the history of physical actions and convert them to VSS
@@ -445,6 +449,9 @@ VERSION:
             $vernum = $action->{PinnedToVersion} if (defined $action->{PinnedToVersion});
 #        }
 
+        # for unpin actions also remeber the unpinned version
+        $info = $action->{UnpinnedFromVersion} if (defined $action->{UnpinnedFromVersion});
+
         $priority -= 4 if $actiontype eq 'ADD'; # Adds are always first
         $priority -= 3 if $actiontype eq 'SHARE';
         $priority -= 3 if $actiontype eq 'PIN';
@@ -631,7 +638,7 @@ EOSQL
     my $sth = $gCfg{dbh}->prepare($sql);
     $sth->execute( $depth, $row->{action_id} );
 
-}  #  End UpdateParentRec
+}  #  End UpdateDepth
 
 ###############################################################################
 #  GetChildRecs
@@ -836,21 +843,39 @@ sub MergeUnpinPinData {
  
     for $r (0 .. @$rows-2) {
         $row = $rows->[$r];
-        $next_row = $rows->[$r+1];
         
-        if ($row->{actiontype} eq 'PIN' 
-            && !defined $row->{version}    # UNPIN
-            && $next_row->{actiontype} eq 'PIN' 
-            && defined $next_row->{version}   # PIN
-            && $row->{physname} eq $next_row->{physname}
-            && $row->{parentphys} eq $next_row->{parentphys}
-            && $next_row->{timestamp} - $row->{timestamp} < 60
-            && $next_row->{action_id} - $row->{action_id} == 1) {
-                print "found UNPIN/PIN combination for $row->{parentphys}/$row->{physname}"
-                    . "($row->{itemname}) @ ID $row->{action_id}\n"  if $gCfg{verbose};
-                push (@delchild, $row->{action_id});
+        if ($row->{actiontype} eq 'PIN' && !defined $row->{version}) # UNPIN
+        { 
+            # Search for a matching pin action
+            my $u;
+            for ($u = $r+1; $u <= @$rows-2; $u++) {
+                $next_row = $rows->[$u];
+
+                if (   $next_row->{actiontype} eq 'PIN' 
+                    && defined $next_row->{version}   # PIN
+                    && $row->{physname} eq $next_row->{physname}
+                    && $row->{parentphys} eq $next_row->{parentphys}
+#                    && $next_row->{timestamp} - $row->{timestamp} < 60
+#                    && $next_row->{action_id} - $row->{action_id} == 1
+                    ) {
+                        print "found UNPIN/PIN combination for $row->{parentphys}/$row->{physname}"
+                            . "($row->{itemname}) @ ID $row->{action_id}\n"  if $gCfg{verbose};
+                        
+                        # if we have a unpinFromVersion number copy this one to the PIN handler
+                        if (defined $row->{info})
+                        {
+                            my $sql2 = "UPDATE PhysicalAction SET info = ? WHERE action_id = ?";
+                            my $sth2 = $gCfg{dbh}->prepare($sql2);
+                            $sth2->execute($row->{info}, $next_row->{action_id});
+                        }
+                        
+                        push (@delchild, $row->{action_id});
+                    }
+
+                # if the next action is anything else than a pin stop the search
+                $u = @$rows if ($next_row->{actiontype} ne 'PIN' );
             }
-         
+        }
     }
  
     my $id;
@@ -861,6 +886,97 @@ sub MergeUnpinPinData {
     1;
  
 }  #  End MergeUnpinPinData
+
+###############################################################################
+#  BuildComments
+###############################################################################
+sub BuildComments {
+    my($sth, $rows, $row, $r, $next_row);
+    my $sql = 'SELECT * FROM PhysicalAction WHERE actiontype="PIN" AND itemtype=2 ORDER BY physname ASC';
+    $sth = $gCfg{dbh}->prepare($sql);
+    $sth->execute();
+ 
+    # need to pull in all recs at once, since we'll be updating/deleting data
+    $rows = $sth->fetchall_arrayref( {} );
+ 
+    foreach $row (@$rows) {
+
+        # technically we have the following situations:
+        # PIN only: we come from the younger version and PIN to a older one: the
+        #     younger version is the currenty version of the timestamp of the PIN action
+        # UNPIN only: we unpin from a older version to the current version, the
+        #     timestamp of the action will again define the younger version
+        # UNPIN/PIN with known UNPIN version: we merge from UNPIN version to PIN version
+        # UNPIN/PIN with unknown UNPIN version: we are lost in this case and we
+        #     can not distinguish this case from the PIN only case.
+        
+        my $sql2;
+
+        # PIN only
+        if (    defined $row->{version}     # PIN version number
+            && !defined $row->{info}) {     # no UNPIN version number
+            $sql2 = 'SELECT * FROM PhysicalAction'
+                    . ' WHERE physname="' . $row->{physname} . '"'
+                    . '      AND parentphys ISNULL'
+                    . '      AND itemtype=2'
+                    . '      AND version>=' . $row->{version}
+                    . '      AND timestamp<=' . $row->{timestamp}
+                    . ' ORDER BY version DESC';
+        }
+        
+        # UNPIN only
+        if (   !defined $row->{version}     # no PIN version number
+            &&  defined $row->{info}) {     # UNPIN version number
+            $sql2 = 'SELECT * FROM PhysicalAction'
+                    . ' WHERE physname="' .  $row->{physname} . '"'
+                    . '      AND parentphys ISNULL'
+                    . '      AND itemtype=2'
+                    . '      AND timestamp<=' . $row->{timestamp}
+                    . '      AND version>' . $row->{info}
+                    . ' ORDER BY version ASC';
+        }
+
+        # PIN/UNPIN 
+        if (    defined $row->{version}     # no PIN version number
+            &&  defined $row->{info}) {     # UNPIN version number
+            $sql2 = 'SELECT * FROM PhysicalAction'
+                    . ' WHERE physname="' . $row->{physname} . '"'
+                    . '      AND parentphys ISNULL'
+                    . '      AND itemtype=2'
+                    . '      AND version>' . $row->{info}
+                    . '      AND version<=' . $row->{version}
+                    . ' ORDER BY version ASC';
+        }
+
+        next if !defined $sql2;
+        
+        my $sth2 = $gCfg{dbh}->prepare($sql2);
+        $sth2->execute();
+
+        my $comments = $sth2->fetchall_arrayref( {} );
+        my $comment;     
+        print "merging comments for $row->{physname}" if $gCfg{verbose};
+        print " from $row->{info}" if ($gCfg{verbose} && defined $row->{info});
+        print " to $row->{version}" if ($gCfg{verbose} && defined $row->{version});
+        print "\n" if $gCfg{verbose};
+        
+        foreach my $c(@$comments) {
+            print " $c->{version}: $c->{comment}\n" if $gCfg{verbose};
+            $comment .= $c->{comment} . "\n";
+            $comment =~ s/^\n+//;
+            $comment =~ s/\n+$//;
+        }
+        
+        if (defined $comment && !defined $row->{comment}) {
+            $comment =~ s/"/""/g;
+            my $sql3 = 'UPDATE PhysicalAction SET comment="' . $comment . '" WHERE action_id = ' . $row->{action_id};
+            my $sth3 = $gCfg{dbh}->prepare($sql3);
+            $sth3->execute();
+        }
+    }
+    1;
+ 
+}  #  End BuildComments
 
 ###############################################################################
 #  DeleteChildRec
@@ -1040,7 +1156,8 @@ EOSQL
     $action_sth = $gCfg{dbh}->prepare($sql);
 
     my $autoprops = Vss2Svn::Dumpfile::AutoProps->new($gCfg{auto_props}) if $gCfg{auto_props};
-    my $dumpfile = Vss2Svn::Dumpfile->new($fh, $autoprops, $gCfg{do_md5});
+    my $labelmapper = Vss2Svn::Dumpfile::LabelMapper->new($gCfg{label_mapper}) if $gCfg{label_mapper};
+    my $dumpfile = Vss2Svn::Dumpfile->new($fh, $autoprops, $gCfg{do_md5}, $labelmapper);
     Vss2Svn::Dumpfile->SetTempDir($gCfg{tempdir});
 
 REVISION:
@@ -1165,7 +1282,9 @@ Temp Dir     : $gCfg{tempdir}
 Dumpfile     : $gCfg{dumpfile}
 VSS Encoding : $gCfg{encoding}
 Auto Props   : $gCfg{auto_props}
-
+trunk dirk   : $gCfg{trunkdir}
+label dir    : $gCfg{labeldir}
+label mapper : $gCfg{labelmapper}
 
 VSS2SVN ver  : $VERSION
 SSPHYS exe   : $gCfg{ssphys}
@@ -1563,7 +1682,8 @@ sub SetupActionTypes {
         DeletedFile => {type => 2, action => 'DELETE'},
         DestroyedFile => {type => 2, action => 'DELETE'},
         RecoveredFile => {type => 2, action => 'RECOVER'},
-        ArchiveVersionsofFile => {type => 2, action => 'RESTORE'},
+        ArchiveVersionsofFile => {type => 2, action => 'ADD'},
+	ArchiveVersionsofProject => {type => 1, action => 'ADD'},
         ArchiveFile => {type => 2, action => 'DELETE'},
         RestoredFile => {type => 2, action => 'RESTORE'},
         SharedFile => {type => 2, action => 'SHARE'},
@@ -1799,7 +1919,7 @@ sub Initialize {
     
     GetOptions(\%gCfg,'vssdir=s','tempdir=s','dumpfile=s','resume','verbose',
                'debug','timing+','task=s','revtimerange=i','ssphys=s',
-               'encoding=s','trunkdir=s','auto_props=s', 'md5');
+               'encoding=s','trunkdir=s','auto_props=s', 'label_mapper=s', 'md5');
 
     &GiveHelp("Must specify --vssdir") if !defined($gCfg{vssdir});
     $gCfg{tempdir} = './_vss2svn' if !defined($gCfg{tempdir});
@@ -1973,6 +2093,7 @@ OPTIONAL PARAMETERS:
     --auto_props      : Specify an autoprops ini file to use, e.g.
                         --auto_props="c:/Dokumente und Einstellungen/user/Anwendungsdaten/Subversion/config"
     --md5             : generate md5 checksums
+    --label_mapper    : INI style file to map labels to different locataions
 EOTXT
 
     exit(1);

@@ -641,13 +641,29 @@ sub _pin_handler {
 
     my $parentinfo = \%{$physinfo->{parents}->{$row->{parentphys}}};
 
+    # depending on the version number of the PIN/UNPIN action, we don't have
+    # to convert this action into a real commit. In this case we only have to
+    # track, the state.
+    my $change_action = 1;
+    
     my $version = $row->{version};
     if (!defined $row->{version}) {
         # this is the unpin handler
+	
+	# is this the unpin version and the last version identically?
+	$change_action = 0 if (defined $parentinfo->{pinned}
+	    && $parentinfo->{pinned} == $physinfo->{last_version} );
+	
         undef $parentinfo->{pinned};
         $version = $physinfo->{last_version};
     }
     else {
+	# is this the pin version and the last version identically?
+	# since the UNPIN/PIN merge, it is possible, that the item can still be
+	# in a pinned state:
+	$change_action = 0 if ($row->{version} == $physinfo->{last_version}
+			       && !defined $parentinfo->{pinned});
+	
         $parentinfo->{pinned} = $row->{version};
     }
     
@@ -659,7 +675,7 @@ sub _pin_handler {
     # the unpinned target is now also a valid "copy from" itempath
     $self->_track_item_path ($physname, $row->{parentphys}, $version, $itempath);
 
-    return 1;
+    return $change_action;
 }  #  End _pin_handler
 
 ###############################################################################
