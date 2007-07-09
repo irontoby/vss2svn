@@ -911,6 +911,7 @@ sub BuildComments {
         #     can not distinguish this case from the PIN only case.
         
         my $sql2;
+        my $prefix;
 
         # PIN only
         if (    defined $row->{version}     # PIN version number
@@ -922,6 +923,7 @@ sub BuildComments {
                     . '      AND version>=' . $row->{version}
                     . '      AND timestamp<=' . $row->{timestamp}
                     . ' ORDER BY version DESC';
+            $prefix = "reverted changes for: \n";
         }
         
         # UNPIN only
@@ -936,8 +938,8 @@ sub BuildComments {
                     . ' ORDER BY version ASC';
         }
 
-        # PIN/UNPIN 
-        if (    defined $row->{version}     # no PIN version number
+        # UNPIN/PIN 
+        if (    defined $row->{version}     # PIN version number
             &&  defined $row->{info}) {     # UNPIN version number
             $sql2 = 'SELECT * FROM PhysicalAction'
                     . ' WHERE physname="' . $row->{physname} . '"'
@@ -945,7 +947,16 @@ sub BuildComments {
                     . '      AND itemtype=2'
                     . '      AND version>' . $row->{info}
                     . '      AND version<=' . $row->{version}
-                    . ' ORDER BY version ASC';
+                    . ' ORDER BY version ';
+                    
+            if ($row->{info} > $row->{version}) {
+                $sql2 .= "DESC";
+                $prefix = "reverted changes for: \n";
+            }
+            else {
+                $sql2 .= "ASC";
+            }
+
         }
 
         next if !defined $sql2;
@@ -968,6 +979,7 @@ sub BuildComments {
         }
         
         if (defined $comment && !defined $row->{comment}) {
+            $comment = $prefix . $comment if defined $prefix;
             $comment =~ s/"/""/g;
             my $sql3 = 'UPDATE PhysicalAction SET comment="' . $comment . '" WHERE action_id = ' . $row->{action_id};
             my $sth3 = $gCfg{dbh}->prepare($sql3);
@@ -1284,7 +1296,7 @@ VSS Encoding : $gCfg{encoding}
 Auto Props   : $gCfg{auto_props}
 trunk dirk   : $gCfg{trunkdir}
 label dir    : $gCfg{labeldir}
-label mapper : $gCfg{labelmapper}
+label mapper : $gCfg{labelmapper} if defined $gCfg{labelmapper}
 
 VSS2SVN ver  : $VERSION
 SSPHYS exe   : $gCfg{ssphys}
