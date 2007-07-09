@@ -1169,7 +1169,7 @@ EOSQL
 
     my $autoprops = Vss2Svn::Dumpfile::AutoProps->new($gCfg{auto_props}) if $gCfg{auto_props};
     my $labelmapper = Vss2Svn::Dumpfile::LabelMapper->new($gCfg{label_mapper}) if $gCfg{label_mapper};
-    my $dumpfile = Vss2Svn::Dumpfile->new($fh, $autoprops, $gCfg{do_md5}, $labelmapper);
+    my $dumpfile = Vss2Svn::Dumpfile->new($fh, $autoprops, $gCfg{md5}, $labelmapper);
     Vss2Svn::Dumpfile->SetTempDir($gCfg{tempdir});
 
 REVISION:
@@ -1295,8 +1295,9 @@ Dumpfile     : $gCfg{dumpfile}
 VSS Encoding : $gCfg{encoding}
 Auto Props   : $gCfg{auto_props}
 trunk dirk   : $gCfg{trunkdir}
+md5          : $gCfg{md5}
 label dir    : $gCfg{labeldir}
-label mapper : $gCfg{labelmapper} if defined $gCfg{labelmapper}
+label mapper : $gCfg{label_mapper}
 
 VSS2SVN ver  : $VERSION
 SSPHYS exe   : $gCfg{ssphys}
