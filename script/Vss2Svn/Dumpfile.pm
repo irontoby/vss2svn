@@ -308,6 +308,10 @@ sub _rename_handler {
 
     my $node = Vss2Svn::Dumpfile::Node->new();
     $node->set_initial_props($newpath, $data);
+    # change the properties according to the new name
+    if (defined $self->{auto_props}) {
+        $node->add_props ($self->{auto_props}->get_props ($newpath));
+    }
     $node->{action} = 'add';
 
     my($copyrev, $copypath);
@@ -764,17 +768,27 @@ sub output_node {
     my($self, $node) = @_;
     my $fh = $self->{fh};
 
+    # only in an add or rename action the propery array is set. So we have
+    # to lookup the eol-style flag again. The best thing is to query the
+    # property always temporarirly
+    my %tmpProps = ();
+    if (defined $self->{auto_props}) {
+        %tmpProps = $self->{auto_props}->get_props ($node->{path});
+    }
+    my $eolStyle = %tmpProps->{'svn:eol-style'};
+    my $isNative = (defined $eolStyle && $eolStyle eq 'native') ? 1 : 0;
+
     my $string = $node->get_headers();
     print $fh $string;
     $self->output_content($node->{hideprops}? undef : $node->{props},
-                          $node->{text}, $node->{file});
+                          $node->{text}, $node->{file}, $isNative);
 }  #  End output_node
 
 ###############################################################################
 #  output_content
 ###############################################################################
 sub output_content {
-    my($self, $props, $text, $file) = @_;
+    my($self, $props, $text, $file, $isNative) = @_;
 
     my $fh = $self->{fh};
 
@@ -803,11 +817,16 @@ sub output_content {
     my $md5;
     $md5 = Digest::MD5->new if $self->{do_md5};
 
+    # prevent errors due to non existing files
+    if(!defined $text && defined $file && !-e $file) {
+        $text = "";
+    }
+
     # convert CRLF -> LF before calculating the size and compute the md5
     if(!defined $text && defined $file) {
-   	my ($input, $output);
-        my $style = $props->{'svn:eol-style'};
-        if (defined $style && $style eq 'native') {
+            
+        my ($input, $output);
+        if (defined $isNative) {
             open ($input, "<:crlf", $file);
             my $tmpFile = "$gTmpDir/crlf_to_lf.tmp.txt";
             open ($output, ">", $tmpFile);
