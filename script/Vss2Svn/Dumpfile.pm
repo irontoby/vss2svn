@@ -826,7 +826,7 @@ sub output_content {
     if(!defined $text && defined $file) {
             
         my ($input, $output);
-        if (defined $isNative) {
+        if (defined $isNative && $isNative) {
             open ($input, "<:crlf", $file);
             my $tmpFile = "$gTmpDir/crlf_to_lf.tmp.txt";
             open ($output, ">", $tmpFile);
