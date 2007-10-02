@@ -775,7 +775,7 @@ sub output_node {
     if (defined $self->{auto_props}) {
         %tmpProps = $self->{auto_props}->get_props ($node->{path});
     }
-    my $eolStyle = %tmpProps->{'svn:eol-style'};
+    my $eolStyle = $tmpProps{'svn:eol-style'};
     my $isNative = (defined $eolStyle && $eolStyle eq 'native') ? 1 : 0;
 
     my $string = $node->get_headers();
