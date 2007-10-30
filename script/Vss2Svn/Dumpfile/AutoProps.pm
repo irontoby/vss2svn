@@ -11,15 +11,27 @@ use Text::Glob;
 sub new {
     my($class, $conf) = @_;
 
-    my $self =
-        {
-         config => new Config::Ini( $conf, -commentdelim => "#" ),
-        };
+    my $config = new Config::Ini( $conf, -commentdelim => "#" );
 
-    my ($enabled) = $self->{config}->get (['miscellany', 'enable-auto-props']);
+    my $self = ();
+    $self->{entries} = ();
+
+    my ($enabled) = $config->get (['miscellany', 'enable-auto-props']);
     if (defined $enabled && $enabled eq "yes")
     {
-        $self->{autoprops} = $self->{config}->get (['auto-props']);
+        my $autoprops_list = $config->get (['auto-props']);
+
+	# see http://subversion.tigris.org/servlets/ReadMsg?list=svn&msgNo=29642
+	# matches are performed in a case-insensitive manner
+
+	my ($glob, $autoprops);
+	while (($glob, $autoprops) = each %{ $autoprops_list }) {
+	    my $entry = ();
+	    my $regex = Text::Glob::glob_to_regex_string($glob);
+	    $entry->{glob} = qr/$regex/i;
+	    $entry->{props} = $autoprops;
+	    push @{$self->{entries}}, $entry; 
+	}
     }
    
     $self = bless($self, $class);
@@ -39,11 +51,9 @@ sub get_props {
     my @subdirs = split '/', $path;
     my $item = pop(@subdirs);
 
-    my ($glob, $autoprops);
-    while (($glob, $autoprops) = each %{ $self->{autoprops} }) {
-#        print $glob, $item, "\n";
-        if (Text::Glob::match_glob($glob, $item)) {
-            foreach my $autoprop (@$autoprops)
+    foreach my $entry (@{$self->{entries}}) {
+        if ($item =~ /$entry->{glob}/) {
+            foreach my $autoprop (@{$entry->{props}})
             {
                 my @props = split ';', $autoprop;
                 foreach my $prop (@props)
