@@ -1940,6 +1940,14 @@ sub Initialize {
     $gCfg{tempdir} = './_vss2svn' if !defined($gCfg{tempdir});
     $gCfg{dumpfile} = 'vss2svn-dumpfile.dat' if !defined($gCfg{dumpfile});
 
+    if (defined($gCfg{auto_props}) && ! -r $gCfg{auto_props}) {
+        die "auto_props file '$gCfg{auto_props}' is not readable";
+    }
+
+    if (defined($gCfg{label_mapper}) && ! -r $gCfg{label_mapper}) {
+        die "label_mapper file '$gCfg{label_mapper}' is not readable";
+    }
+
     $gCfg{sqlitedb} = "$gCfg{tempdir}/vss_data.db";
 
     # XML output from ssphysout placed here.
