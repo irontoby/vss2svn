@@ -74,7 +74,7 @@ SSObject* SSObject::MakeObject (SSRecordPtr pRecord)
   default:
     {
       std::ostringstream ost;
-      ost << "unknwon record type \"" << pRecord->GetRecordType() << "\" detected ";
+      ost << "unknown record type \"" << pRecord->GetType() << "\" detected ";
       ost << "(offset 0x" << std::hex << pRecord->GetOffset() << std::dec << ")";
       throw SSRecordException (ost.str());
     }
