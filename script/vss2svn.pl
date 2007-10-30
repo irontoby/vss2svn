@@ -1283,6 +1283,8 @@ sub ShowHeader {
     my $starttime = ctime($^T);
 
     my $ssversion = &GetSsVersion();
+    my $auto_props = (!defined $gCfg{auto_props}) ? "" : $gCfg{auto_props};
+    my $label_mapper = (!defined $gCfg{label_mapper}) ? "" : $gCfg{label_mapper};
 
     print <<"EOTXT";
 ======== VSS2SVN ========
@@ -1293,11 +1295,11 @@ VSS Dir      : $gCfg{vssdir}
 Temp Dir     : $gCfg{tempdir}
 Dumpfile     : $gCfg{dumpfile}
 VSS Encoding : $gCfg{encoding}
-Auto Props   : $gCfg{auto_props}
-trunk dirk   : $gCfg{trunkdir}
+Auto Props   : $auto_props
+trunk dir    : $gCfg{trunkdir}
 md5          : $gCfg{md5}
 label dir    : $gCfg{labeldir}
-label mapper : $gCfg{label_mapper}
+label mapper : $label_mapper
 
 VSS2SVN ver  : $VERSION
 SSPHYS exe   : $gCfg{ssphys}
