@@ -27,9 +27,7 @@ sub remap {
     my($self, $labeldir, $label) = @_;
 
 
-    my $retval = ();
-    $retval->{is_labeldir} = 1;
-    $retval->{replacement} = $labeldir;
+    my $retval = $labeldir;
 
     # we need to reset the following each enumeration if we aborted the
     # previous one with a premature return
@@ -38,8 +36,8 @@ sub remap {
     my ($label_path, $remap);
     while (($label_path, $remap) = each %{ $self->{labels} }) {
         if ( $label =~ /$label_path/) {
-            $retval->{replacement} = $remap->[0];
-            $retval->{is_labeldir} = ($remap->[0] =~ m:^/:);
+            # N.B. This might be the root project, so $labeldir might need to be be present?
+            $retval = ($remap->[0] =~ m:^/:) ? $remap->[0] : ($labeldir . "/" . $remap->[0]);
             last;
         }
     }
