@@ -616,7 +616,9 @@ sub _label_handler {
         my $labeldir = $main::gCfg{labeldir};
         
         if (defined $self->{label_mapper}) {
-            $labeldir = $self->{label_mapper}->remap ($main::gCfg{labeldir}, $label);
+            my $mapping = $self->{label_mapper}->remap ($main::gCfg{labeldir}, $label);
+            $labeldir = $mapping->{replacement} if $mapping->{is_labeldir};
+            $label = $mapping->{replacement} unless $mapping->{is_labeldir};
         }
         $labeldir =~ s:\\:/:g;
         $labeldir =~ s:/$::;
