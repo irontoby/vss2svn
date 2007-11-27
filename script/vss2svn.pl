@@ -1971,6 +1971,7 @@ sub Initialize {
         $gCfg{verbose} = 1;
     }
     $gCfg{timing} = 0 unless defined $gCfg{timing};
+    $gCfg{md5} = 0 unless defined $gCfg{md5};
 
     $gCfg{starttime} = scalar localtime($^T);
 
