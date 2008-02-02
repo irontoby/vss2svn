@@ -859,13 +859,13 @@ sub output_content {
     } else {
         $textlen = length($text);
     }
-    return if ($textlen + $proplen == 0);
+    return if ($textlen + $proplen == 0 && !defined $file);
 
     if ($proplen > 0) {
         print $fh "Prop-content-length: $proplen\n";
     }
 
-    if ($textlen > 0) {
+    if (defined $file || $textlen > 0) {
         print $fh "Text-content-length: $textlen\n";
         print $fh "Text-content-md5: $digest\n" if $self->{do_md5};
     }
