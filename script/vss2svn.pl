@@ -599,10 +599,11 @@ WHERE
     parentdata > 0
     AND physname = ?
     AND actiontype = ?
+    AND timestamp <= ?
 EOSQL
 
     my $sth = $gCfg{dbh}->prepare($sql);
-    $sth->execute( @{ $row }{qw(parentphys actiontype)} );
+    $sth->execute( @{ $row }{qw(parentphys actiontype timestamp)} );
 
     $parents =  $sth->fetchall_arrayref( {} );
     $maxParentDepth = 0;
