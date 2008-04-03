@@ -655,6 +655,7 @@ sub GetChildRecs {
     # we don't get the wrong row.
 
     $parentdata = 0 unless defined $parentdata;
+    $parentdata = 1 if $parentdata != 0;
     
     my $sql = <<"EOSQL";
 SELECT
@@ -662,7 +663,7 @@ SELECT
 FROM
     PhysicalAction
 WHERE
-    parentdata = ?
+    MIN(parentdata, 1) = ?
     AND physname = ?
     AND actiontype = ?
     AND author = ?

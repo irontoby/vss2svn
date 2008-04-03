@@ -369,6 +369,7 @@ sub _add_svn_struct_item {
 
     if(defined($ref->{$item})) {
         # item already exists; can't add it
+        $ref->{$item} = $newref if defined($newref);
         return 0;
     }
 
