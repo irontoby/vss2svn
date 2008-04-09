@@ -2,6 +2,7 @@
 //
 //////////////////////////////////////////////////////////////////////
 
+#include <cstring>
 #include "StdAfx.h"
 #include "SSRecord.h"
 #include "SSFiles.h"
