@@ -113,7 +113,7 @@ sub _add_handler {
     # number here. So we don't need to add the item anyway.
     if (!defined $version ) {
         $self->{errmsg} .= "Attempt to add entry '$row->{physname}' with "
-            . "unknown version number (probably destroyed)\n";
+            . "unknown version number (probably destroyed) parent: $row->{parentphys} itemtype: $row->{itemtype}\n";
         
         $gOrphanedInfo {$row->{physname} } = 1;
         return 0;
@@ -263,6 +263,10 @@ sub _share_handler {
     my $parentpath = $self->_get_current_parent_path ();
     my $itempath = $parentpath . $row->{itemname};
 
+    # a SHARE *can* rename a file if the parent is no longer present.
+    $row->{info} = $row->{itemname};
+    $self->_rename_handler();
+
     # 'sourceinfo' contains the source path
     my $sourceinfo = $self->_get_valid_path ($physname, $row->{parentphys}, $version);
 
@@ -272,20 +276,8 @@ sub _share_handler {
         # a share anymore; it's a new add.
 
         $self->{action} = 'ADD';
-#        $self->{version} = $version;
-#        return $self->_add_handler();
     }
 
-    # if this is a share from orphan, and not a share+pin action either, we can treat it as a move
-    elsif (!defined $row->{version} &&        # share+pin?
-           defined $physinfo->{orphaned}      # orphaned?
-#          scalar @{$physinfo->{order}} == 1  # only one parent?
-       ) {
-        $physinfo->{parents}->{'_' . $row->{physname}}->{deleted} = 1;
-        undef $physinfo->{orphaned};
-        $self->{action} = 'MOVE';
-    }
-    
     # track the addition of the new parent
     $self->_add_parent ($physname, $row->{parentphys});
     
@@ -329,21 +321,6 @@ sub _branch_handler {
         return 0;
     }
     
-#    # First delete this parentphys from the old shared object; see
-#    # _delete_handler for details
-#    if ($oldphysinfo->{parentphys} eq $row->{parentphys}) {
-#        $oldphysinfo->{parentphys} = shift( @{ $oldphysinfo->{sharedphys} } );
-#    } else {
-#        my $sharedphys = [];
-#
-#        foreach my $oldparent (@{ $oldphysinfo->{sharedphys} }) {
-#            push @$sharedphys, $oldparent
-#                unless $oldparent eq $row->{parentphys};
-#        }
-#
-#        $oldphysinfo->{sharedphys} = $sharedphys;
-#    }
-
     my $version = defined $row->{version} ? $row->{version}
                     : $self->{version};
 
@@ -388,29 +365,13 @@ sub _branch_handler {
 
     return $result;
 
-
-#    # Now create a new entry for this branched item
-#    $gPhysInfo{$physname} =
-#        {
-#         type       => $row->{itemtype},
-#         name       => $row->{itemname},
-##         parentphys => $row->{parentphys},
-##         sharedphys => [],
-#         parents    => {},
-#        };
-
-#    $self->_add_parent ($physname, $row->{parentphys});
-#    $self->{itempaths} = $self->_get_current_item_paths(1);
-
-#    return 1;
-
 }  #  End _branch_handler
 
 ###############################################################################
 #  _move_handler
 ###############################################################################
 sub _move_handler {
-    my($self) = @_;
+    my($self, $oldName) = @_;
     my $row = $self->{row};
 
     my $physname = $row->{physname};
@@ -439,17 +400,24 @@ sub _move_handler {
       }
     }
 
-    # '$sourceinfo' is the path for the old location (the move source);
-    my $sourceparent = $self->_get_parent_path ($row->{info});
-    my $sourceinfo = $sourceparent . $row->{itemname};
-
-
     # check the target path
     if (!defined ($row->{parentphys})) {
         # the target directory was destroyed, so there is no apropriate move
         # target information. Fall back to a move to the orphaned cache
         $physinfo->{orphaned} = 1;
         $row->{parentphys} = '_' . $row->{physname};
+    }
+
+    # '$sourceinfo' is the path for the old location (the move source);
+    my $sourceparent = $self->_get_parent_path ($row->{info});
+    my $sourceinfo;
+    if (defined $oldName)
+    {
+    	$sourceinfo = $sourceparent . $oldName;
+    }
+    else
+    {
+        $sourceinfo = $sourceparent . $row->{itemname};
     }
 
     # '$itempath' contains the move target path
@@ -494,9 +462,25 @@ sub _restore_handler {
     
     $self->{action} = 'MOVE';
     $row->{actiontype} = 'MOVE';
-    $row->{info} = $row->{parentphys};
-    $row->{parentphys} = '_' . $row->{physname};
-    return $self->_move_handler ();
+#    $row->{info} = $row->{parentphys};
+#    $row->{parentphys} = '_' . $row->{physname};
+    
+    $gPhysInfo{ $row->{physname} } =
+        {
+         type       => $row->{itemtype},
+         name       => $row->{itemname},
+         parents    => {},
+         first_version => 1,
+         last_version => 1,
+         orphaned   => 1,
+         was_binary => $row->{is_binary},
+    };
+    
+    my $newName = $row->{info};
+    
+    undef $row->{info};
+
+    return $self->_move_handler ($newName);
 }
 
 ###############################################################################
@@ -522,25 +506,6 @@ sub _delete_handler {
 
     my $parentpath = $self->_get_current_parent_path ();
     my $itempaths = [$parentpath . $physinfo->{name}];
-
-#    if ($physinfo->{parentphys} eq $row->{parentphys}) {
-#        # Deleting from the "main" parent; find a new one by shifting off the
-#        # first shared path, if any; if none exists this will leave a null
-#        # parent entry. We could probably just delete the whole node at this
-#        # point.
-#
-#        $physinfo->{parentphys} = shift( @{ $physinfo->{sharedphys} } );
-#
-#    } else {
-#        my $sharedphys = [];
-#
-#        foreach my $parent (@{ $physinfo->{sharedphys} }) {
-#            push @$sharedphys, $parent
-#                unless $parent eq $row->{parentphys};
-#        }
-#
-#        $physinfo->{sharedphys} = $sharedphys;
-#    }
 
     # protect for delete/purge cycles: if the parentphys isn't in the shares
     # anymore, the file was already deleted from the parent and is now purged
@@ -576,17 +541,6 @@ sub _recover_handler {
         
         return 0;
     }
-
-#    if (defined $physinfo->{parentphys}) {
-#        # Item still has other shares, so recover it by pushing this parent
-#        # onto its shared list
-#
-#        push( @{ $physinfo->{sharedphys} }, $row->{parentphys} );
-#
-#    } else {
-#        # Recovering its only location; set the main parent back to this
-#        $physinfo->{parentphys} = $row->{parentphys};
-#    }
 
     # recover this item within the current parent
     my $parentinfo = $physinfo->{parents}->{$row->{parentphys}};
@@ -895,15 +849,10 @@ sub _get_item_paths {
 
     $self->{physname_seen} .= "$physname, ";
 
-#    my @pathstoget =
-#        ($physinfo->{parentphys}, @{ $physinfo->{sharedphys} } );
     my @pathstoget = @parents;
     
     my $paths;
     my $result;
-#    if (defined $physinfo->{parents}->{$row->{parentphys}}->{deleted}) {
-#        return 0;
-#    }
 
 PARENT:
     foreach my $parent (@pathstoget) {
@@ -963,25 +912,6 @@ PARENT:
 
             $self->_track_item_path ($row->{physname}, $parent, $row->{version}, $result);
 
-#            my $versions = \@{$physinfo->{parents}->{$parent}->{versions}};
-#            
-#            # in the case of pinning and sharing with pinning, the version number
-#            # denotes a version in the past. So if there is already an entry for
-#            # this version number skip this parent.
-#            if (exists $versions->[$row->{version}]) {
-#                next PARENT;
-#            }
-            
-#            # remember the last version, in which the file was modified
-#            $physinfo->{last_version} = $row->{version};
-            
-#            $result = $self->_get_parent_path ($parent) . $physinfo->{name};
-    
-#            if(!defined($result)) {
-#                next PARENT;
-#            }
-    
-#            $versions->[$row->{version}] = $result;
         }
     }
 }  #  End _track_item_paths

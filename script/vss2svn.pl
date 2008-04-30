@@ -68,7 +68,7 @@ sub RunConversion {
             MERGEPARENTDATA => {handler => \&MergeParentData,
                                 next    => 'MERGEMOVEDATA'},
 
-            # Merge data from move actions 
+            # Merge data from move actions
             MERGEMOVEDATA => {handler => \&MergeMoveData,
                                 next    => 'REMOVETMPCHECKIN'},
 
@@ -252,7 +252,7 @@ sub GetVssPhysInfo {
     print "physdir: \"$filesegment[0]\", physfolder: \"$filesegment[1]\" physname: \"$filesegment[2]\"\n" if $gCfg{debug};
 
     if (!defined $filesegment[0] || !defined $filesegment[1]
-	|| !defined $filesegment[2]) {
+    || !defined $filesegment[2]) {
         # physical file doesn't exist; it must have been destroyed later
         &ThrowWarning("Can't retrieve info from physical file "
                       . "'$physname'; it was either destroyed or corrupted");
@@ -309,9 +309,9 @@ sub GetVssItemVersions {
     my($parentdata, $version, $vernum, $action, $name, $actionid, $actiontype,
        $tphysname, $itemname, $itemtype, $parent, $user, $timestamp, $comment,
        $is_binary, $info, $priority, $sortkey, $label, $cachename);
-    
+
     my $last_timestamp = 0;
-    
+
 VERSION:
     foreach $version (@{ $xml->{Version} }) {
         $action = $version->{Action};
@@ -341,7 +341,7 @@ VERSION:
                            . "'$timestamp'");
         }
         $last_timestamp = $timestamp;
-        
+
         $itemtype = $info->{type};
         $actiontype = $info->{action};
 
@@ -355,7 +355,7 @@ VERSION:
         $parentdata = 0;
         $priority = 5;
         $label = undef;
-        
+
         if ($version->{Comment} && !ref($version->{Comment})) {
             $comment = $version->{Comment} || undef;
         }
@@ -379,7 +379,7 @@ VERSION:
                         . "'$tphysname;$version->{VersionNumber}'\n"; # if $gCfg{verbose};
                     $comment .= "\n";
                 }
-  
+
                 $comment .= $action->{LabelComment} || undef;
             }
         }
@@ -438,7 +438,7 @@ VERSION:
             }
         } elsif ($actiontype eq 'BRANCH') {
             $info = $action->{Parent};
-        } 
+        }
 
         $vernum = ($parentdata)? undef : $version->{VersionNumber};
 
@@ -473,7 +473,7 @@ VERSION:
         if (defined $version->{Label} && !ref($version->{Label})
             && $actiontype ne 'LABEL') {
             my ($labelComment);
-            
+
             if ($version->{LabelComment} && !ref($version->{LabelComment})) {
                 $labelComment = $version->{LabelComment};
             }
@@ -589,7 +589,7 @@ sub GetPathDepth {
 
     # Get the row(s) corresponding to the parent(s) of this row, and work out
     # the maximum depth
-    
+
     my $sql = <<"EOSQL";
 SELECT
     *
@@ -656,7 +656,7 @@ sub GetChildRecs {
 
     $parentdata = 0 unless defined $parentdata;
     $parentdata = 1 if $parentdata != 0;
-    
+
     my $sql = <<"EOSQL";
 SELECT
     *
@@ -722,6 +722,7 @@ sub MergeMoveData {
     # the MergeParentData function can not deal with this specific problem
 
     my($sth, $rows, $row);
+
     $sth = $gCfg{dbh}->prepare('SELECT * FROM PhysicalAction '
                                . 'WHERE actiontype = "MOVE_FROM"');
     $sth->execute();
@@ -738,20 +739,23 @@ sub MergeMoveData {
         my $source = undef;
         my $target = $row->{parentphys};
 
-        if (scalar @$childrecs > 1) {
-            &ThrowWarning("Multiple child recs for parent MOVE rec "
-                          . "'$row->{action_id}'");
-        }
+        my $chosenChildRecord;
+        my $childRecord;
 
-        if (scalar @$childrecs >= 1) {
-            # only merge MOVE records that have the same timestamp
-            if ($row->{timestamp} == @$childrecs[0]->{timestamp}) {
-                $source = @$childrecs[0]->{parentphys};
-                &DeleteChildRec(@$childrecs[0]->{action_id});
+        foreach $childRecord (@$childrecs) {
+            if (!(defined $chosenChildRecord)
+                && $childRecord->{timestamp} == $row->{timestamp}
+                && !($childRecord->{parentphys} eq $row->{parentphys})) {
+
+                $chosenChildRecord = $childRecord;
             }
         }
-        
-        my $sql = <<"EOSQL";
+
+        if (defined $chosenChildRecord) {
+            $source = $chosenChildRecord->{parentphys};
+            &DeleteChildRec($chosenChildRecord->{action_id});
+
+            my $sql = <<"EOSQL";
 UPDATE
     PhysicalAction
 SET
@@ -761,10 +765,27 @@ SET
 WHERE
     action_id = ?
 EOSQL
-        my $update;
-        $update = $gCfg{dbh}->prepare($sql);
-        
-        $update->execute( $target, $source, $row->{action_id});
+            my $update;
+            $update = $gCfg{dbh}->prepare($sql);
+
+            $update->execute( $target, $source, $row->{action_id});
+        } else {
+            #the record did not have a matching MOVE_TO. call it a RESTORE
+            print "Changing $row->{action_id} to a RESTORE\n";
+
+            my $sql = <<"EOSQL";
+UPDATE
+    PhysicalAction
+SET
+    actiontype = 'RESTORE'
+WHERE
+    action_id = ?
+EOSQL
+            my $update;
+            $update = $gCfg{dbh}->prepare($sql);
+
+            $update->execute( $row->{action_id});
+        }
     }
 
 
@@ -784,6 +805,25 @@ EOSQL
         $update->execute($row->{info}, $row->{parentphys}, $row->{action_id});
     }
 
+    $sth = $gCfg{dbh}->prepare('SELECT * FROM PhysicalAction WHERE actiontype = "RESTORE"');
+    $sth->execute();
+    $rows = $sth->fetchall_arrayref( {} );
+
+    foreach $row (@$rows) {
+        #calculate last name of this file. Store it in $info
+
+        my $sql = "SELECT * FROM PhysicalAction WHERE physname = ? AND timestamp < ? ORDER BY timestamp DESC";
+
+        $sth = $gCfg{dbh}->prepare($sql);
+        $sth->execute( $row->{physname}, $row->{timestamp} );
+
+        my $myOlderRecords = $sth->fetchall_arrayref( {} );
+
+        if (scalar @$myOlderRecords > 0) {
+            my $update = $gCfg{dbh}->prepare('UPDATE PhysicalAction SET info = ? WHERE action_id = ?');
+            $update->execute(@$myOlderRecords[0]->{itemname}, $row->{action_id});
+        }
+    }
 
     1;
 
@@ -806,21 +846,21 @@ sub RemoveTemporaryCheckIns {
 
     foreach $row (@$rows) {
         my $physname = $row->{physname};
-        
+
         my $sql = 'SELECT * FROM PhysicalAction WHERE physname = ?';
         my $update = $gCfg{dbh}->prepare($sql);
-        
+
         $update->execute( $physname );
 
-		    # need to pull in all recs at once, since we'll be updating/deleting data
-		    my $recs = $update->fetchall_arrayref( {} );
-		
-		    foreach my $rec (@$recs) {
-          print "Remove action_id $rec->{action_id}, $rec->{physname}, $rec->{actiontype}, $rec->{itemname}\n";
-          print "       $rec->{comment}\n" if defined ($rec->{comment});
-          &DeleteChildRec($rec->{action_id});
+        # need to pull in all recs at once, since we'll be updating/deleting data
+        my $recs = $update->fetchall_arrayref( {} );
+
+        foreach my $rec (@$recs) {
+            print "Remove action_id $rec->{action_id}, $rec->{physname}, $rec->{actiontype}, $rec->{itemname}\n";
+            print "       $rec->{comment}\n" if defined ($rec->{comment});
+            &DeleteChildRec($rec->{action_id});
         }
-		}
+    }
 
     1;
 }
@@ -834,26 +874,26 @@ sub MergeUnpinPinData {
                 . 'itemtype ASC, priority ASC, parentdata ASC, sortkey ASC, action_id ASC';
     $sth = $gCfg{dbh}->prepare($sql);
     $sth->execute();
- 
+
     # need to pull in all recs at once, since we'll be updating/deleting data
     $rows = $sth->fetchall_arrayref( {} );
- 
+
     return if ($rows == -1);
     return if (@$rows < 2);
- 
+
     my @delchild = ();
- 
+
     for $r (0 .. @$rows-2) {
         $row = $rows->[$r];
-        
+
         if ($row->{actiontype} eq 'PIN' && !defined $row->{version}) # UNPIN
-        { 
+        {
             # Search for a matching pin action
             my $u;
             for ($u = $r+1; $u <= @$rows-2; $u++) {
                 $next_row = $rows->[$u];
 
-                if (   $next_row->{actiontype} eq 'PIN' 
+                if (   $next_row->{actiontype} eq 'PIN'
                     && defined $next_row->{version}   # PIN
                     && $row->{physname} eq $next_row->{physname}
                     && $row->{parentphys} eq $next_row->{parentphys}
@@ -862,7 +902,7 @@ sub MergeUnpinPinData {
                     ) {
                         print "found UNPIN/PIN combination for $row->{parentphys}/$row->{physname}"
                             . "($row->{itemname}) @ ID $row->{action_id}\n"  if $gCfg{verbose};
-                        
+
                         # if we have a unpinFromVersion number copy this one to the PIN handler
                         if (defined $row->{info})
                         {
@@ -870,7 +910,7 @@ sub MergeUnpinPinData {
                             my $sth2 = $gCfg{dbh}->prepare($sql2);
                             $sth2->execute($row->{info}, $next_row->{action_id});
                         }
-                        
+
                         push (@delchild, $row->{action_id});
                     }
 
@@ -879,14 +919,14 @@ sub MergeUnpinPinData {
             }
         }
     }
- 
+
     my $id;
     foreach $id (@delchild) {
         &DeleteChildRec($id);
     }
- 
+
     1;
- 
+
 }  #  End MergeUnpinPinData
 
 ###############################################################################
@@ -897,10 +937,10 @@ sub BuildComments {
     my $sql = 'SELECT * FROM PhysicalAction WHERE actiontype="PIN" AND itemtype=2 ORDER BY physname ASC';
     $sth = $gCfg{dbh}->prepare($sql);
     $sth->execute();
- 
+
     # need to pull in all recs at once, since we'll be updating/deleting data
     $rows = $sth->fetchall_arrayref( {} );
- 
+
     foreach $row (@$rows) {
 
         # technically we have the following situations:
@@ -911,7 +951,7 @@ sub BuildComments {
         # UNPIN/PIN with known UNPIN version: we merge from UNPIN version to PIN version
         # UNPIN/PIN with unknown UNPIN version: we are lost in this case and we
         #     can not distinguish this case from the PIN only case.
-        
+
         my $sql2;
         my $prefix;
 
@@ -927,7 +967,7 @@ sub BuildComments {
                     . ' ORDER BY version DESC';
             $prefix = "reverted changes for: \n";
         }
-        
+
         # UNPIN only
         if (   !defined $row->{version}     # no PIN version number
             &&  defined $row->{info}) {     # UNPIN version number
@@ -940,7 +980,7 @@ sub BuildComments {
                     . ' ORDER BY version ASC';
         }
 
-        # UNPIN/PIN 
+        # UNPIN/PIN
         if (    defined $row->{version}     # PIN version number
             &&  defined $row->{info}) {     # UNPIN version number
             $sql2 = 'SELECT * FROM PhysicalAction'
@@ -950,7 +990,7 @@ sub BuildComments {
                     . '      AND version>' . $row->{info}
                     . '      AND version<=' . $row->{version}
                     . ' ORDER BY version ';
-                    
+
             if ($row->{info} > $row->{version}) {
                 $sql2 .= "DESC";
                 $prefix = "reverted changes for: \n";
@@ -962,24 +1002,24 @@ sub BuildComments {
         }
 
         next if !defined $sql2;
-        
+
         my $sth2 = $gCfg{dbh}->prepare($sql2);
         $sth2->execute();
 
         my $comments = $sth2->fetchall_arrayref( {} );
-        my $comment;     
+        my $comment;
         print "merging comments for $row->{physname}" if $gCfg{verbose};
         print " from $row->{info}" if ($gCfg{verbose} && defined $row->{info});
         print " to $row->{version}" if ($gCfg{verbose} && defined $row->{version});
         print "\n" if $gCfg{verbose};
-        
+
         foreach my $c(@$comments) {
             print " $c->{version}: $c->{comment}\n" if $gCfg{verbose};
             $comment .= $c->{comment} . "\n";
             $comment =~ s/^\n+//;
             $comment =~ s/\n+$//;
         }
-        
+
         if (defined $comment && !defined $row->{comment}) {
             $comment = $prefix . $comment if defined $prefix;
             $comment =~ s/"/""/g;
@@ -989,7 +1029,7 @@ sub BuildComments {
         }
     }
     1;
- 
+
 }  #  End BuildComments
 
 ###############################################################################
@@ -1094,12 +1134,12 @@ ROW:
         # we need to check for the next rev number, after all pathes that can
         # prematurally call the next row. Otherwise, we get an empty revision.
         $svnrevs->check($row);
-        
+
         # May contain add'l info for the action depending on type:
         # RENAME: the new name (without path)
         # SHARE: the source path which was shared
         # MOVE: the old path
-        # PIN: the path of the version that was pinned      
+        # PIN: the path of the version that was pinned
         # LABEL: the name of the label
         $row->{info} = $handler->{info};
 
@@ -1107,14 +1147,14 @@ ROW:
         if (defined $handler->{version}) {
             $row->{version} = $handler->{version};
         }
-        
+
         $allitempaths = join("\t", @$itempaths);
         $row->{itempaths} = $allitempaths;
 
         $vsscache->add(@$row{ qw(parentphys physname version actiontype itempaths
                              itemtype is_binary info) });
         $joincache->add( $svnrevs->{revnum}, $vsscache->{pkey} );
-        
+
         if (defined $row->{label}) {
             $labelcache->add(@$row{ qw(physname version label itempaths) });
         }
@@ -1125,7 +1165,7 @@ ROW:
     $svnrevs->commit();
     $joincache->commit();
     $labelcache->commit();
-    
+
 }  #  End BuildVssActionHistory
 
 ###############################################################################
@@ -1198,11 +1238,11 @@ ACTION:
                     && (   $action->{action} eq 'ADD'
                         || $action->{action} eq 'COMMIT')) {
                     &ThrowWarning("'$physname': no version specified for retrieval");
-            
+
                     # fall through and try with version 1.
                     $version = 1;
                 }
-            
+
                 if ($itemtype == 2 && defined $version) {
                     $exported{$physname} = &ExportVssPhysFile($physname, $version);
                 } else {
@@ -1494,9 +1534,9 @@ sub GetSsVersion {
     my $out = `\"$gCfg{ssphys}\" --version 2>&1`;
     # Build numbers look like:
     #  a.) ssphys 0.20.0, Build 123
-    #  b.) ssphys 0.20.0, Build 123:150 
+    #  b.) ssphys 0.20.0, Build 123:150
     #  c.) ssphys 0.20.0, Build 123:150 (locally modified)
-    $out =~ m/^ssphys (.*?), Build (.*?)[ \n]/m; 
+    $out =~ m/^ssphys (.*?), Build (.*?)[ \n]/m;
 
     # turn it into
     #  a.) 0.20.0.123
@@ -1700,7 +1740,7 @@ sub SetupActionTypes {
         DestroyedFile => {type => 2, action => 'DELETE'},
         RecoveredFile => {type => 2, action => 'RECOVER'},
         ArchiveVersionsofFile => {type => 2, action => 'ADD'},
-	ArchiveVersionsofProject => {type => 1, action => 'ADD'},
+    ArchiveVersionsofProject => {type => 1, action => 'ADD'},
         ArchiveFile => {type => 2, action => 'DELETE'},
         RestoredFile => {type => 2, action => 'RESTORE'},
         SharedFile => {type => 2, action => 'SHARE'},
@@ -1933,7 +1973,7 @@ FIELD:
 ###############################################################################
 sub Initialize {
     $| = 1;
-    
+
     GetOptions(\%gCfg,'vssdir=s','tempdir=s','dumpfile=s','resume','verbose',
                'debug','timing+','task=s','revtimerange=i','ssphys=s',
                'encoding=s','trunkdir=s','auto_props=s', 'label_mapper=s', 'md5');
@@ -1987,7 +2027,7 @@ sub Initialize {
     $gCfg{labeldir} = '/labels';
 
     $gCfg{errortasks} = [];
-    
+
     {
         no warnings 'once';
         $gCfg{usingExe} = (defined($PerlApp::TOOL));
@@ -2033,7 +2073,7 @@ sub ConfigureXmlParser {
         # Prevent the ParserDetails.ini error message when running from .exe
         XML::SAX->load_parsers($INC[1]);
     }
-    
+
     $gCfg{xmlParser} = 'XML::SAX::Expat';
     $XML::SAX::ParserPackage = $gCfg{xmlParser};
 
@@ -2106,7 +2146,7 @@ OPTIONAL PARAMETERS:
     --resume          : Resume a failed or aborted previous run
     --task <task>     : specify the task to resume; task is one of the following
                         INIT, LOADVSSNAMES, FINDDBFILES, GETPHYSHIST,
-                        MERGEPARENTDATA, MERGEMOVEDATA, REMOVETMPCHECKIN, 
+                        MERGEPARENTDATA, MERGEMOVEDATA, REMOVETMPCHECKIN,
                         MERGEUNPINPIN, BUILDACTIONHIST, IMPORTSVN
 
     --verbose         : Print more info about the items being processed

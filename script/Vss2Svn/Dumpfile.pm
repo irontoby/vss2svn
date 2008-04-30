@@ -205,9 +205,13 @@ sub _add_handler {
             return $self->_commit_handler ($itempath, $nodes, $data, $expdir);
         }
         else {
-            $self->add_error("Attempt to re-add directory '$itempath' at "
-                . "revision $data->{revision_id}, skipping action: possibly "
-                . "missing delete");
+            #creating a new VSS database can cause a "ADD" for a "/" item which will fail.
+            if (!($itempath eq "/")) {
+        	$self->add_error("Attempt to re-add directory '$itempath' at "
+                    . "revision $data->{revision_id}, skipping action: possibly "
+                    . "missing delete");
+            }
+            
             return 0;
         }
     }
@@ -219,9 +223,12 @@ sub _add_handler {
         return 0;
     }
     elsif ($success == 0) {
-        $self->add_error("Parent path missing while trying to add "
-            . "item '$itempath' at revision $data->{revision_id}: adding missing "
-            . "parents");
+    	if (!($itempath =~ m/^\/orphaned\/_.*/))
+    	{
+	    $self->add_error("Parent path missing while trying to add "
+	        . "item '$itempath' at revision $data->{revision_id}: adding missing "
+	        . "parents");
+	}
         $self->_create_svn_path ($nodes, $itempath);
     }
     
