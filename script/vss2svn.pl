@@ -1056,12 +1056,11 @@ sub BuildComments {
     $sth = $gCfg{dbh}->prepare($sql);
     $sth->execute();
 
-    # need to pull in all recs at once, since we'll be updating/deleting data
-    $rows = $sth->fetchall_arrayref( {} );
+    my @updchild = ();
 
     init_progress 'Processing', $total_count;
     
-    foreach $row (@$rows) {
+    while ($row = $sth->fetchrow_hashref()) {
         advance if ($progress++ % 1000) == 0;
 
         # technically we have the following situations:
@@ -1135,19 +1134,31 @@ sub BuildComments {
         print "\n" if $gCfg{verbose};
 
         foreach my $c(@$comments) {
+            next unless $c->{comment};
+    	    
             print " $c->{version}: $c->{comment}\n" if $gCfg{verbose};
             $comment .= $c->{comment} . "\n";
-            $comment =~ s/^\n+//;
-            $comment =~ s/\n+$//;
+            $comment =~ s/\n+$/\n/;
         }
 
         if (defined $comment && !defined $row->{comment}) {
+            $comment =~ s/^\n+//;
+            $comment =~ s/\n+$//;
+
             $comment = $prefix . $comment if defined $prefix;
-            $comment =~ s/"/""/g;
-            my $sql3 = 'UPDATE PhysicalAction SET comment="' . $comment . '" WHERE action_id = ' . $row->{action_id};
-            my $sth3 = $gCfg{dbh}->prepare($sql3);
-            $sth3->execute();
+            push @updchild, [$comment, $row->{action_id}];
         }
+    }
+
+    init_progress 'Updating', @updchild;
+    
+    my $sql3 = 'UPDATE PhysicalAction SET comment = ? WHERE action_id = ?';
+    my $sth3 = $gCfg{dbh}->prepare($sql3);
+
+    foreach my $item (@updchild) {
+        advance if ($progress++ % 1000) == 0;
+
+        $sth3->execute(@$item);
     }
 
     end_progress;
