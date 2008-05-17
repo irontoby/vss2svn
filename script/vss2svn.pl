@@ -577,6 +577,29 @@ sub LoadNameLookup {
     }
 }  #  End LoadNameLookup
 
+##############################################################################
+#  Support for using array representation of PhysicalActions
+###############################################################################
+
+BEGIN {
+    our @phys_sql_fields = qw(
+            action_id physname version parentphys actiontype
+            itemname itemtype timestamp author is_binary
+            info priority sortkey parentdata label comment
+    );
+    our %phys_sql_map = map { 'PA_'.$phys_sql_fields[$_] => $_ } 0..$#phys_sql_fields;
+    our $phys_sql_fieldspec = join(',',@phys_sql_fields);
+}
+
+our (@phys_sql_fields, %phys_sql_map, $phys_sql_fieldspec);
+use constant \%phys_sql_map;
+
+# Expand an array into a hash
+sub expand_arr {
+    my $arr = shift @_;
+    return { map { $_[$_] => $arr->[$_] } (0..$#_) };
+}
+
 ###############################################################################
 #  MergeParentData
 ###############################################################################
@@ -592,19 +615,20 @@ sub MergeParentData {
     # then delete the separate child objects to avoid duplication.
 
     my($sth, $rows, $row);
-    $sth = $gCfg{dbh}->prepare('SELECT * FROM PhysicalAction '
+    $sth = $gCfg{dbh}->prepare('SELECT '.$phys_sql_fieldspec.' FROM PhysicalAction '
                                . 'WHERE parentdata > 0');
     $sth->execute();
 
     # need to pull in all recs at once, since we'll be updating/deleting data
-    $rows = $sth->fetchall_arrayref( {} );
+    $rows = $sth->fetchall_arrayref();
 
     my($childrecs, $child, $id, $depth);
     my @delchild = ();
 
     init_progress 'Processing', scalar(@$rows);
     
-    foreach $row (@$rows) {
+    foreach my $arow (@$rows) {
+        $row = expand_arr $arow, @phys_sql_fields;
         advance if ($progress++ % 1000) == 0;
     
         $childrecs = &GetChildRecs($row);
