@@ -7,6 +7,7 @@ use Getopt::Long;
 use DBI;
 use DBD::SQLite2;
 use XML::Simple;
+use XML::Parser;
 use File::Find;
 use File::Path;
 use Time::CTime;
@@ -152,35 +153,44 @@ sub LoadVssNames {
 
     &DoSsCmd("info -e$gCfg{encoding} \"$gCfg{vssdatadir}/names.dat\"");
 
-    my $xs = XML::Simple->new(KeyAttr => [],
-                              ForceArray => [qw(NameCacheEntry Entry)],);
-
-    my $xml = $xs->XMLin($gSysOut);
-
-    my $namesref = $xml->{NameCacheEntry} || return 1;
-
     my($entry, $count, $offset, $name);
 
-ENTRY:
-    foreach $entry (@$namesref) {
-        $count = $entry->{NrOfEntries};
-        $offset = $entry->{offset};
-
-        # The cache can contain 4 different entries:
-        #   id=1: abbreviated DOS 8.3 name for file items
-        #   id=2: full name for file items
-        #   id=3: abbreviated 27.3 name for file items
-        #   id=10: full name for project items
-        # Both ids 1 and 3 are not of any interest for us, since they only
-        # provide abbreviated names for different szenarios. We are only
-        # interested if we have id=2 for file items, or id=10 for project
-        # items.
-        foreach $name (@{$entry->{Entry}}) {
-            if ($name->{id} == 10 || $name->{id} == 2) {
-                $cache->add($offset, $name->{content});
+    my $parser = new XML::Parser(Handlers => {
+        Start => sub {
+            my ($exp, $tag, %attrs) = @_;
+            
+            if ($tag eq 'NameCacheEntry') {
+                $offset = $attrs{offset};
+            } elsif ($tag eq 'Entry') {
+                $entry = $attrs{id};
+                $name = '';
             }
-        }
-    }
+        },
+        Char => sub {
+            my ($exp, $str) = @_;
+            $name .= $str;
+        },
+        End => sub {
+            my ($exp, $tag) = @_;
+            
+            if ($tag eq 'Entry') {
+                # The cache can contain 4 different entries:
+                #   id=1: abbreviated DOS 8.3 name for file items
+                #   id=2: full name for file items
+                #   id=3: abbreviated 27.3 name for file items
+                #   id=10: full name for project items
+                # Both ids 1 and 3 are not of any interest for us, since they only
+                # provide abbreviated names for different szenarios. We are only
+                # interested if we have id=2 for file items, or id=10 for project
+                # items.
+                if ($entry == 10 || $entry == 2) {
+                    $cache->add($offset, $name);
+                }
+            }
+        },
+    });
+        
+    $parser->parse($gSysOut);
 
     $cache->commit();
 }  #  End LoadVssNames
