@@ -38,6 +38,29 @@ $VERSION =~ s/\$.*?(\d+).*\$/$1/; # get only the number out of the svn revision
 &DisconnectDatabase;
 
 ###############################################################################
+#  Progress tracking
+###############################################################################
+
+our ($progress, $total, $progress_title);
+
+sub init_progress($$) {
+    $progress = 0;
+    $progress_title = $_[0];
+    $total = $_[1] + 1;
+    print "\r$progress_title: 0% (0)                   ";
+}
+
+sub advance(;$) {
+    my $m = $_[0]||'';
+    print "\r$progress_title: ".int(100*$progress/$total)."% ($progress) $m         ";
+}
+
+sub end_progress() {
+    advance '(done)';
+    print "\n";
+}
+
+###############################################################################
 #  RunConversion
 ###############################################################################
 sub RunConversion {
@@ -218,14 +241,19 @@ sub GetPhysVssHistory {
 
     my $xs = XML::Simple->new(ForceArray => [qw(Version)]);
 
+    $progress = 0;
     while (defined($row = $sth->fetchrow_hashref() )) {
         $physname = $row->{physname};
+        
+        print "\r${physname}...   " if !$gCfg{debug} && ($progress++ % 1000) == 0;
 
         $physdir = "$gCfg{vssdir}/data";
         my $physfolder = substr($physname, 0, 1);
 
         &GetVssPhysInfo($cache, $physdir, $physfolder, $physname, $xs);
     }
+    
+    print "\rCommitting...   \n" unless $gCfg{debug};
 
     $cache->commit();
 
@@ -564,7 +592,11 @@ sub MergeParentData {
     my($childrecs, $child, $id, $depth);
     my @delchild = ();
 
+    init_progress 'Processing', scalar(@$rows);
+    
     foreach $row (@$rows) {
+        advance if ($progress++ % 1000) == 0;
+    
         $childrecs = &GetChildRecs($row);
 
         if (scalar @$childrecs > 1) {
@@ -580,10 +612,10 @@ sub MergeParentData {
         }
     }
 
-    foreach $id (@delchild) {
-        &DeleteChildRec($id);
-    }
+    &DeleteChildRecList(\@delchild);
 
+    end_progress;
+    
     1;
 
 }  #  End MergeParentData
@@ -884,6 +916,9 @@ sub RemoveTemporaryCheckIns {
 ###############################################################################
 sub MergeUnpinPinData {
     my($sth, $rows, $row, $r, $next_row);
+
+    my $total_count = $gCfg{dbh}->selectrow_array('SELECT COUNT(*) FROM PhysicalAction');
+
     my $sql = 'SELECT * FROM PhysicalAction ORDER BY timestamp ASC, '
                 . 'itemtype ASC, priority ASC, parentdata ASC, sortkey ASC, action_id ASC';
     $sth = $gCfg{dbh}->prepare($sql);
@@ -896,9 +931,13 @@ sub MergeUnpinPinData {
     return if (@$rows < 2);
 
     my @delchild = ();
+    
+    init_progress 'Processing', $total_count;
 
     for $r (0 .. @$rows-2) {
         $row = $rows->[$r];
+
+        advance if ($progress++ % 1000) == 0;
 
         if ($row->{actiontype} eq 'PIN' && !defined $row->{version}) # UNPIN
         {
@@ -934,11 +973,9 @@ sub MergeUnpinPinData {
         }
     }
 
-    my $id;
-    foreach $id (@delchild) {
-        &DeleteChildRec($id);
-    }
+    &DeleteChildRecList(\@delchild);
 
+    end_progress;
     1;
 
 }  #  End MergeUnpinPinData
@@ -948,6 +985,9 @@ sub MergeUnpinPinData {
 ###############################################################################
 sub BuildComments {
     my($sth, $rows, $row, $r, $next_row);
+
+    my $total_count = $gCfg{dbh}->selectrow_array('SELECT COUNT(*) FROM PhysicalAction');
+
     my $sql = 'SELECT * FROM PhysicalAction WHERE actiontype="PIN" AND itemtype=2 ORDER BY physname ASC';
     $sth = $gCfg{dbh}->prepare($sql);
     $sth->execute();
@@ -955,7 +995,10 @@ sub BuildComments {
     # need to pull in all recs at once, since we'll be updating/deleting data
     $rows = $sth->fetchall_arrayref( {} );
 
+    init_progress 'Processing', $total_count;
+    
     foreach $row (@$rows) {
+        advance if ($progress++ % 1000) == 0;
 
         # technically we have the following situations:
         # PIN only: we come from the younger version and PIN to a older one: the
@@ -1042,6 +1085,8 @@ sub BuildComments {
             $sth3->execute();
         }
     }
+
+    end_progress;
     1;
 
 }  #  End BuildComments
@@ -1057,6 +1102,23 @@ sub DeleteChildRec {
     my $sth = $gCfg{dbh}->prepare($sql);
     $sth->execute($id);
 }  #  End DeleteChildRec
+
+###############################################################################
+#  DeleteChildRecList
+###############################################################################
+sub DeleteChildRecList {
+    my($idlst) = @_;
+
+    my $sql = "DELETE FROM PhysicalAction WHERE action_id = ?";
+    my $sth = $gCfg{dbh}->prepare($sql);
+    
+    init_progress 'Deleting', scalar(@$idlst);
+    
+    for my $id (@$idlst) {
+        advance if ($progress++ % 1000) == 0;
+        $sth->execute($id);
+    }
+}  #  End DeleteChildRecList
 
 ###############################################################################
 #  BuildVssActionHistory
@@ -1081,14 +1143,20 @@ sub BuildVssActionHistory {
 
     my($sth, $row, $action, $handler, $physinfo, $itempaths, $allitempaths);
 
+    my $total_count = $gCfg{dbh}->selectrow_array('SELECT COUNT(*) FROM PhysicalAction');
+
     my $sql = 'SELECT * FROM PhysicalAction ORDER BY timestamp ASC, '
             . 'itemtype ASC, priority ASC, parentdata ASC, sortkey ASC, action_id ASC';
 
     $sth = $gCfg{dbh}->prepare($sql);
     $sth->execute();
 
+    init_progress 'Processing', $total_count;
+    
 ROW:
     while(defined($row = $sth->fetchrow_hashref() )) {
+        advance if ($progress++ % 1000) == 0;
+    
         $action = $row->{actiontype};
 
         $handler = Vss2Svn::ActionHandler->new($row);
@@ -1175,6 +1243,8 @@ ROW:
 
     }
 
+    end_progress;
+
     $vsscache->commit();
     $svnrevs->commit();
     $joincache->commit();
@@ -1207,6 +1277,7 @@ sub CreateSvnDumpfile {
     my($sql, $sth, $action_sth, $row, $revision, $actions, $action, $physname, $itemtype);
 
     my %exported = ();
+    my $total_count = $gCfg{dbh}->selectrow_array('SELECT COUNT(*) FROM SvnRevisionVssAction');
 
     $sql = 'SELECT * FROM SvnRevision ORDER BY revision_id ASC';
 
@@ -1228,9 +1299,10 @@ EOSQL
     my $dumpfile = Vss2Svn::Dumpfile->new($fh, $autoprops, $gCfg{md5}, $labelmapper);
     Vss2Svn::Dumpfile->SetTempDir($gCfg{tempdir});
 
+    init_progress 'Processing', $total_count;
+
 REVISION:
     while(defined($row = $sth->fetchrow_hashref() )) {
-
         my $t0 = new Benchmark;
 
         $revision = $row->{revision_id};
@@ -1243,6 +1315,8 @@ REVISION:
 
 ACTION:
         foreach $action(@$actions) {
+    	    advance if ($progress++ % 200) == 0;
+
             $physname = $action->{physname};
             $itemtype = $action->{itemtype};
 
@@ -1271,6 +1345,8 @@ ACTION:
         print "revision $revision: ", timestr(timediff(new Benchmark, $t0)),"\n"
             if $gCfg{timing};
     }
+
+    end_progress;
 
     my @err = @{ $dumpfile->{errors} };
 
