@@ -1432,7 +1432,7 @@ ROW:
 
         # we need to check for the next rev number, after all pathes that can
         # prematurally call the next row. Otherwise, we get an empty revision.
-        $svnrevs->check($row);
+        $svnrevs->check($row, $itempaths);
 
         # The version may have changed
         if (defined $handler->{version}) {

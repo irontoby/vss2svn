@@ -47,6 +47,7 @@ sub _init {
     $self->{comment} = undef;
     $self->{lastcommentaction} = undef;
     $self->{seen} = {};
+    $self->{seen_paths} = {};
     $self->{last_action} = {};
 
 }  #  End _init
@@ -55,7 +56,7 @@ sub _init {
 #  check
 ###############################################################################
 sub check {
-    my($self, $data) = @_;
+    my($self, $data, $itempaths) = @_;
 
     my($physname, $itemtype, $actiontype, $timestamp, $author, $comment) =
         @{ $data }{qw( physname itemtype actiontype timestamp author comment )};
@@ -72,7 +73,9 @@ sub check {
     my $last_action = $self->{last_action}->{$physname};
 
     # in case the current action is the same as the last action
-    if ($actiontype eq 'SHARE' && $wasseen && $last_action eq $actiontype) {
+    # (and this means that we are not resharing from a newly-shared path)
+    if ($actiontype eq 'SHARE' && $wasseen && $last_action eq $actiontype 
+	&& !$self->{seen_paths}{$data->{info}||''}) {
         $wasseen = 0;
     }
     
@@ -109,7 +112,8 @@ sub check {
     $self->{commitPending} = ($itemtype == 1 && $actiontype ne 'ADD') || ($self->{revnum} == 0);
     
     $self->{seen}->{$physname}++;
-    $self->{last_action}->{$physname} = $actiontype;;
+    $self->{seen_paths}->{$_}++ for grep { defined $_ } @$itempaths;
+    $self->{last_action}->{$physname} = $actiontype;
 
     @{ $self }{qw( timestamp author comment actiontype)} =
         ($timestamp, $author, $comment, $actiontype);
