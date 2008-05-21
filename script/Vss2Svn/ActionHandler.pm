@@ -474,13 +474,18 @@ sub _restore_handler {
          type       => $row->{itemtype},
          name       => $row->{itemname},
          parents    => {},
-         first_version => 1,
-         last_version => 1,
+         first_version => $gPhysInfo{ $row->{physname} }{first_version} || 1,
+         last_version => $gPhysInfo{ $row->{physname} }{last_version} || 1,
          orphaned   => 1,
          was_binary => $row->{is_binary},
     };
     
     my $newName = $row->{info};
+
+    if ($newName && $newName eq '/') {
+        print "Bad restore info name: '$newName'\n";
+        undef $newName;
+    }
     
     undef $row->{info};
 

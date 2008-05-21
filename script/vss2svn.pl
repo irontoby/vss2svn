@@ -894,7 +894,7 @@ EOSQL
     foreach $row (@$rows) {
         #calculate last name of this file. Store it in $info
 
-        my $sql = "SELECT * FROM PhysicalAction WHERE physname = ? AND timestamp < ? ORDER BY timestamp DESC";
+        my $sql = "SELECT * FROM PhysicalAction WHERE physname = ? AND timestamp < ? AND actiontype <> 'LABEL' ORDER BY timestamp DESC";
 
         $sth = $gCfg{dbh}->prepare($sql);
         $sth->execute( $row->{physname}, $row->{timestamp} );
