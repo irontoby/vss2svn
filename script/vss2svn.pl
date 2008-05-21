@@ -1196,9 +1196,109 @@ sub DeleteChildRecList {
 }  #  End DeleteChildRecList
 
 ###############################################################################
+#  FindForcedOrphans
+###############################################################################
+sub FindForcedOrphans {
+    my ($forced_orphans, $total_count) = @_;
+
+    my $sql = 'SELECT * FROM PhysicalAction ORDER BY timestamp ASC, '
+            . 'itemtype ASC, priority ASC, parentdata ASC, sortkey ASC, action_id ASC';
+
+    my $sth = $gCfg{dbh}->prepare($sql);
+
+    $sth->execute();
+    init_progress 'Collecting orphaned moves', $total_count;
+
+    my @moves;
+
+    ROW:
+    while(my $row = $sth->fetchrow_hashref()) {
+        advance if ($progress++ % 1000) == 0;
+
+        my $action = $row->{actiontype};
+
+        my $handler = Vss2Svn::ActionHandler->new($row);
+        $handler->{verbose} = $gCfg{verbose};
+        $handler->{trunkdir} = $gCfg{trunkdir};
+        my $physinfo = $handler->physinfo();
+
+        if (defined($physinfo) && $physinfo->{type} != $row->{itemtype} ) {
+            next ROW;
+        }
+
+        $row->{itemname} = Encode::decode_utf8( $row->{itemname} );
+        $row->{info} = Encode::decode_utf8( $row->{info} );
+        $row->{comment} = Encode::decode_utf8( $row->{comment} );
+        $row->{author} = Encode::decode_utf8( $row->{author} );
+        $row->{label} = Encode::decode_utf8( $row->{label} );
+
+        if (!$handler->handle($action)) {
+            next ROW;
+        }
+
+        next ROW unless $handler->{action} eq 'MOVE';
+
+        my $itempaths = $handler->{itempaths};
+        my $info = $handler->{info};
+
+        my $src_id;
+        if ($info =~ /^\/orphaned\/_([A-Z]{8})/) {
+            $src_id = $1;
+        }
+
+        my $tgt_id;
+        if ($itempaths->[0] =~ /^\/orphaned\/_([A-Z]{8})/) {
+            $tgt_id = $1;
+        }
+
+        if ($src_id || $tgt_id) {
+            push @moves, [ $src_id, $info, $tgt_id, $itempaths->[0] ];
+        }
+    }
+
+    end_progress;
+
+    Vss2Svn::ActionHandler::ResetState();
+
+    my @queue;
+    for my $move (@moves) {
+        print "Moved orphans $move->[1] to $move->[3]\n";
+
+        push @queue, $move->[0]
+            if defined $move->[0] && !defined $move->[2];
+    }
+
+    while (@queue) {
+        my $id = shift @queue;
+        next if $forced_orphans->{$id};
+
+        print "Forcing inclusion of $id\n";
+        $forced_orphans->{$id} = 1;
+
+        for my $move (@moves) {
+            push @queue, $move->[0]
+                if defined $move->[0] && defined $move->[2] && $move->[2] eq $id;
+        }
+    }
+}
+
+###############################################################################
 #  BuildVssActionHistory
 ###############################################################################
 sub BuildVssActionHistory {
+    my $total_count = $gCfg{dbh}->selectrow_array('SELECT COUNT(*) FROM PhysicalAction');
+
+    my %forced_orphans;
+    if ($gCfg{no_orphaned}) {
+        FindForcedOrphans(\%forced_orphans, $total_count);
+
+        if ($gCfg{prompt}) {
+            print "Press ENTER to continue...\n";
+            my $temp = <STDIN>;
+            die if $temp =~ m/^quit/i;
+        }
+    }
+
     my $vsscache = Vss2Svn::DataCache->new('VssAction', 1)
         || &ThrowError("Could not create cache 'VssAction'");
 
@@ -1217,8 +1317,6 @@ sub BuildVssActionHistory {
     $svnrevs->{verbose} = $gCfg{verbose};
 
     my($sth, $row, $action, $handler, $physinfo, $itempaths, $allitempaths);
-
-    my $total_count = $gCfg{dbh}->selectrow_array('SELECT COUNT(*) FROM PhysicalAction');
 
     my $sql = 'SELECT * FROM PhysicalAction ORDER BY timestamp ASC, '
             . 'itemtype ASC, priority ASC, parentdata ASC, sortkey ASC, action_id ASC';
@@ -1288,10 +1386,6 @@ ROW:
             }
         }
 
-        # we need to check for the next rev number, after all pathes that can
-        # prematurally call the next row. Otherwise, we get an empty revision.
-        $svnrevs->check($row);
-
         # May contain add'l info for the action depending on type:
         # RENAME: the new name (without path)
         # SHARE: the source path which was shared
@@ -1299,6 +1393,46 @@ ROW:
         # PIN: the path of the version that was pinned
         # LABEL: the name of the label
         $row->{info} = $handler->{info};
+
+        # Drop labels if requested
+        next ROW if $row->{actiontype} eq 'LABEL' && $gCfg{no_labels};
+
+        # Drop orphaned files if requested
+        if ($gCfg{no_orphaned} && @$itempaths) {
+            $itempaths = [ grep { !($_ && /^\/orphaned\/_([A-Z]{8})/ && !$forced_orphans{$1}) } @$itempaths ];
+
+            if ($row->{actiontype} =~ /^(ADD|COMMIT|RENAME|BRANCH|DELETE|RECOVER|LABEL)$/) {
+                ;
+            } elsif ($row->{actiontype} eq 'SHARE') {
+                if ($row->{info} && $row->{info} =~ /^\/orphaned\/_([A-Z]{8})/ && !$forced_orphans{$1}) {
+                    $row->{actiontype} = 'ADD';
+                    undef $row->{info};
+                }
+            } elsif ($row->{actiontype} eq 'PIN') {
+                if ($row->{info} && $row->{info} =~ /^\/orphaned\/_([A-Z]{8})/ && !$forced_orphans{$1}) {
+                    $row->{actiontype} = 'COMMIT';
+                    undef $row->{info};
+                }
+            } elsif ($row->{actiontype} eq 'MOVE') {
+                if ($row->{info} && $row->{info} =~ /^\/orphaned\/_([A-Z]{8})/ && !$forced_orphans{$1}) {
+                    print "WARNING: Converting orphaned MOVE into ADD - possible data loss.\n" if @$itempaths;
+                    $row->{actiontype} = 'ADD';
+                    undef $row->{info};
+                } elsif (!@$itempaths) {
+                    $row->{actiontype} = 'DELETE';
+                    $itempaths = [ $row->{info} ];
+                    undef $row->{info};
+                }
+            } else {
+                die "Unknown action type $row->{actiontype}";
+            }
+
+            next ROW unless @$itempaths;
+        }
+
+        # we need to check for the next rev number, after all pathes that can
+        # prematurally call the next row. Otherwise, we get an empty revision.
+        $svnrevs->check($row);
 
         # The version may have changed
         if (defined $handler->{version}) {
@@ -1319,6 +1453,8 @@ ROW:
     }
 
     end_progress;
+
+    Vss2Svn::ActionHandler::ResetState();
 
     $vsscache->commit();
     $svnrevs->commit();
@@ -2139,7 +2275,8 @@ FIELD:
 sub Initialize {
     $| = 1;
 
-    GetOptions(\%gCfg,'vssdir=s','tempdir=s','dumpfile=s','resume','verbose','reuse_cache','prompt',
+    GetOptions(\%gCfg,'vssdir=s','tempdir=s','dumpfile=s','resume','verbose',
+               'reuse_cache','prompt','no_orphaned','no_labels',
                'debug','timing+','task=s','revtimerange=i','ssphys=s',
                'encoding=s','trunkdir=s','auto_props=s', 'label_mapper=s', 'md5');
 
@@ -2329,6 +2466,8 @@ OPTIONAL PARAMETERS:
                         --auto_props="c:/Dokumente und Einstellungen/user/Anwendungsdaten/Subversion/config"
     --md5             : generate md5 checksums
     --label_mapper    : INI style file to map labels to different locataions
+    --no_orphaned     : Do not generate the orphaned cache
+    --no_labels       : Do not convert labels
 EOTXT
 
     exit(1);
