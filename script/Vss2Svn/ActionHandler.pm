@@ -317,16 +317,23 @@ sub _branch_handler {
     my $oldphysname = $row->{info};
 
     my $oldphysinfo = $gPhysInfo{$oldphysname};
-
-    if (!defined $oldphysinfo) {
-        $self->{errmsg} .= "Attempt to branch unknown item '$oldphysname':\n"
-            . "$self->{physname_seen}\n";
-
-        return 0;
-    }
     
     my $version = defined $row->{version} ? $row->{version}
                     : $self->{version};
+
+    if (!defined $oldphysinfo) {
+        if (!defined $version) {
+            $self->{errmsg} .= "Attempt to branch unknown item '$oldphysname':\n"
+                . "$self->{physname_seen}\n";
+
+            return 0;
+        } else {
+            # Add the file - probably it's previous history was corrupted
+
+            $self->{action} = 'ADD';
+            return $self->_add_handler();
+        }
+    }
 
     # if we branch into a destroyed object, delete is the logical choice
     if (!defined $version ) {
