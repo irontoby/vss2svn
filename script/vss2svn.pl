@@ -119,6 +119,14 @@ sub RunConversion {
 #  LoadVssNames
 ###############################################################################
 sub LoadVssNames {
+    my $cache = Vss2Svn::DataCache->new('NameLookup', 0, -reuse_data => $gCfg{reuse_cache})
+        || &ThrowError("Could not create cache 'NameLookup'");
+
+    if ($cache->{reused}) {
+        $cache->commit();
+        return;
+    }
+
     &DoSsCmd("info -e$gCfg{encoding} \"$gCfg{vssdatadir}/names.dat\"");
 
     my $xs = XML::Simple->new(KeyAttr => [],
@@ -129,9 +137,6 @@ sub LoadVssNames {
     my $namesref = $xml->{NameCacheEntry} || return 1;
 
     my($entry, $count, $offset, $name);
-
-    my $cache = Vss2Svn::DataCache->new('NameLookup')
-        || &ThrowError("Could not create cache 'NameLookup'");
 
 ENTRY:
     foreach $entry (@$namesref) {
@@ -161,9 +166,13 @@ ENTRY:
 #  FindPhysDbFiles
 ###############################################################################
 sub FindPhysDbFiles {
-
-    my $cache = Vss2Svn::DataCache->new('Physical')
+    my $cache = Vss2Svn::DataCache->new('Physical', 0, -reuse_data => $gCfg{reuse_cache})
         || &ThrowError("Could not create cache 'Physical'");
+
+    if ($cache->{reused}) {
+        $cache->commit();
+        return;
+    }
 
     find(sub{ &FoundSsFile($cache) }, $gCfg{vssdatadir});
 
@@ -195,10 +204,15 @@ sub GetPhysVssHistory {
     my($sql, $sth, $row, $physname, $physdir);
 
     &LoadNameLookup;
-    my $cache = Vss2Svn::DataCache->new('PhysicalAction', 1)
+    my $cache = Vss2Svn::DataCache->new('PhysicalAction', 1, -reuse_data => $gCfg{reuse_cache})
         || &ThrowError("Could not create cache 'PhysicalAction'");
 
-    $sql = "SELECT * FROM Physical";
+    if ($cache->{reused}) {
+        $cache->commit();
+        return;
+    }
+
+    $sql = "SELECT * FROM Physical ORDER BY physname";
     $sth = $gCfg{dbh}->prepare($sql);
     $sth->execute();
 
@@ -1974,7 +1988,7 @@ FIELD:
 sub Initialize {
     $| = 1;
 
-    GetOptions(\%gCfg,'vssdir=s','tempdir=s','dumpfile=s','resume','verbose',
+    GetOptions(\%gCfg,'vssdir=s','tempdir=s','dumpfile=s','resume','verbose','reuse_cache','prompt',
                'debug','timing+','task=s','revtimerange=i','ssphys=s',
                'encoding=s','trunkdir=s','auto_props=s', 'label_mapper=s', 'md5');
 
@@ -2040,7 +2054,7 @@ sub Initialize {
         return 1;
     }
 
-    rmtree($gCfg{vssdata}) if (-e $gCfg{vssdata});
+    rmtree($gCfg{vssdata}) if (-e $gCfg{vssdata} && !$gCfg{reuse_cache});
     mkdir $gCfg{vssdata};
 
     $gCfg{ssphys} ||= 'ssphys';
@@ -2148,6 +2162,10 @@ OPTIONAL PARAMETERS:
                         INIT, LOADVSSNAMES, FINDDBFILES, GETPHYSHIST,
                         MERGEPARENTDATA, MERGEMOVEDATA, REMOVETMPCHECKIN,
                         MERGEUNPINPIN, BUILDACTIONHIST, IMPORTSVN
+    --reuse_cache     : Rebuild the database, but reuse text temporary files.
+                        May be useful if the database becomes corrupt due to 
+                        an unexpected power failure. Make sure to remove any
+                        incomplete files beforehand.
 
     --verbose         : Print more info about the items being processed
     --debug           : Print lots of debugging info.

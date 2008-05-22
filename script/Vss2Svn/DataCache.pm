@@ -15,7 +15,7 @@ our(%gCfg);
 #  new
 ###############################################################################
 sub new {
-    my($class, $table, $autoinc) = @_;
+    my($class, $table, $autoinc, %flags) = @_;
 
     my $self =
         {
@@ -25,6 +25,7 @@ sub new {
          verbose => $gCfg{verbose},
          fh => undef,
          file => "$gCfg{cachedir}/datacache.$table.tmp.txt",
+         reused => 0,
         };
 
     $self = bless($self, $class);
@@ -35,12 +36,16 @@ sub new {
 
     $self->_delete_table();
 
-    if ((-e $self->{file}) && !(unlink($self->{file}))) {
-        print "\nERROR: Could not delete existing cache file '$self->{file}'\n";
-        return undef;
+    if (-e $self->{file}) {
+        if (-f $self->{file} && $flags{-reuse_data}) {
+            $self->{reused} = 1;
+        } elsif (!(unlink($self->{file}))) {
+    	    print "\nERROR: Could not delete existing cache file '$self->{file}'\n";
+            return undef;
+        }
     }
 
-    if ( !open($self->{fh}, ">$self->{file}") ) {
+    if ( !open($self->{fh}, ">>$self->{file}") ) {
         print "\nERROR: Could not open file '$self->{file}'\n";
         return undef;
     }
