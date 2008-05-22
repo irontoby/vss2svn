@@ -1401,7 +1401,7 @@ ROW:
         if ($gCfg{no_orphaned} && @$itempaths) {
             $itempaths = [ grep { !($_ && /^\/orphaned\/_([A-Z]{8})/ && !$forced_orphans{$1}) } @$itempaths ];
 
-            if ($row->{actiontype} =~ /^(ADD|COMMIT|RENAME|BRANCH|DELETE|RECOVER|LABEL)$/) {
+            if ($row->{actiontype} =~ /^(ADD|COMMIT|RENAME|BRANCH|ROLLBACK|DELETE|RECOVER|LABEL)$/) {
                 ;
             } elsif ($row->{actiontype} eq 'SHARE') {
                 if ($row->{info} && $row->{info} =~ /^\/orphaned\/_([A-Z]{8})/ && !$forced_orphans{$1}) {

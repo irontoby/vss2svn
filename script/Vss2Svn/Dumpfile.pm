@@ -21,6 +21,7 @@ our %gHandlers =
      RENAME     => \&_rename_handler,
      SHARE      => \&_share_handler,
      BRANCH     => \&_branch_handler,
+     ROLLBACK   => \&_branch_handler,
      MOVE       => \&_move_handler,
      DELETE     => \&_delete_handler,
      RECOVER    => \&_recover_handler,
@@ -396,7 +397,8 @@ sub _branch_handler {
     my($self, $itempath, $nodes, $data, $expdir) = @_;
 
     # branching is a no-op in SVN
-    
+    #   - unless it is a ROLLBACK
+
     # since it is possible, that we refer to version prior to the branch later, we
     # need to copy all internal information about the ancestor to the child.
     if (defined $data->{info}) {
@@ -408,7 +410,12 @@ sub _branch_handler {
                    $gVersion{$data->{info}}->[$copy_version];
            }
        }
-   }
+    }
+
+    # handle rollback, which changes active revision simultaneously with branching
+    if ($data->{action} eq 'ROLLBACK') {
+        return $self->_commit_handler ($itempath, $nodes, $data, $expdir);
+    }
 
 #    # if the file is copied later, we need to track, the revision of this branch
 #    # see the shareBranchShareModify Test

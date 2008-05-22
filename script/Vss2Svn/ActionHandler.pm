@@ -313,6 +313,8 @@ sub _branch_handler {
     # the old location, then create a new one with the pertinent info. The row's
     # 'physname' is that of the new file; 'info' is the formerly shared file.
 
+    # Upd: actually, a file can be rolled back without pinning it first.
+
     my $physname = $row->{physname};
     my $oldphysname = $row->{info};
 
@@ -352,6 +354,17 @@ sub _branch_handler {
     # parent was destroyed. 
     if (defined $row->{parentphys}) {
         $oldphysinfo->{parents}->{$row->{parentphys}}->{deleted} = 1;
+
+        my $parentinfo = \%{$oldphysinfo->{parents}->{$row->{parentphys}}};
+        my $local_version =
+            defined $parentinfo->{pinned} ? $parentinfo->{pinned} : $oldphysinfo->{last_version};
+
+        if ($local_version != $version - 1) {
+            # Invoking rollback, which involves a commit
+            print "Rolling back $oldphysname as $physname from $local_version to $version\n";
+            $self->{action} = 'ROLLBACK';
+            $self->{version} = $version;
+        }
     }
     else {
         # since we have the "orphaned" handling, we can map this action to an
