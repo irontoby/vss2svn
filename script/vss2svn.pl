@@ -133,7 +133,9 @@ sub RunConversion {
             die if $temp =~ m/^quit/i;
         }
 
+        $gCfg{dbh}->begin_work();
         &{ $info->{handler} };
+        $gCfg{dbh}->commit();
         &SetSystemTask( $info->{next} );
     }
 
@@ -945,6 +947,16 @@ sub RemoveTemporaryCheckIns {
     1;
 }
 
+
+###############################################################################
+#  Sliding window support
+###############################################################################
+sub fetch_next_row(\@$) {
+    my $row = $_[1]->fetchrow_hashref();
+    push @{$_[0]}, $row if $row;
+    return $row;
+}
+
 ###############################################################################
 #  MergeUnpinPinData
 ###############################################################################
@@ -958,27 +970,30 @@ sub MergeUnpinPinData {
     $sth = $gCfg{dbh}->prepare($sql);
     $sth->execute();
 
-    # need to pull in all recs at once, since we'll be updating/deleting data
-    $rows = $sth->fetchall_arrayref( {} );
-
-    return if ($rows == -1);
-    return if (@$rows < 2);
+    $rows = [];
+    fetch_next_row @$rows, $sth or return;
+    fetch_next_row @$rows, $sth or return;
 
     my @delchild = ();
+    my @updchild = ();
     
     init_progress 'Processing', $total_count;
 
-    for $r (0 .. @$rows-2) {
-        $row = $rows->[$r];
-
+    while (@$rows > 1) {
+        $row = shift @$rows;
+                
         advance if ($progress++ % 1000) == 0;
 
         if ($row->{actiontype} eq 'PIN' && !defined $row->{version}) # UNPIN
         {
             # Search for a matching pin action
-            my $u;
-            for ($u = $r+1; $u <= @$rows-2; $u++) {
+            my $u = 0;
+            while ($u <= $#$rows) {
                 $next_row = $rows->[$u];
+
+                # Bail out if the actions cannot get in one commit
+                # to avoid quadratic performance and preserve limited window size
+                last if ($next_row->{timestamp} - $row->{timestamp}) > ($gCfg{revtimerange}||3600);
 
                 if (   $next_row->{actiontype} eq 'PIN'
                     && defined $next_row->{version}   # PIN
@@ -993,20 +1008,35 @@ sub MergeUnpinPinData {
                         # if we have a unpinFromVersion number copy this one to the PIN handler
                         if (defined $row->{info})
                         {
-                            my $sql2 = "UPDATE PhysicalAction SET info = ? WHERE action_id = ?";
-                            my $sth2 = $gCfg{dbh}->prepare($sql2);
-                            $sth2->execute($row->{info}, $next_row->{action_id});
+                            push (@updchild, [$row->{info}, $next_row->{action_id}]);
                         }
 
                         push (@delchild, $row->{action_id});
+                        last;
                     }
 
                 # if the next action is anything else than a pin stop the search
-                $u = @$rows if ($next_row->{actiontype} ne 'PIN' );
+                last if ($next_row->{actiontype} ne 'PIN' );
+            }
+            continue {
+                fetch_next_row @$rows, $sth unless ++$u <= $#$rows;
             }
         }
+    } continue {
+        fetch_next_row @$rows, $sth unless @$rows > 1;
     }
 
+    init_progress 'Updating', scalar(@updchild);
+    
+    my $sql2 = "UPDATE PhysicalAction SET info = ? WHERE action_id = ?";
+    my $sth2 = $gCfg{dbh}->prepare($sql2);
+    
+    foreach my $item (@updchild) {
+        advance if ($progress++ % 1000) == 0;
+
+        $sth2->execute(@$item);
+    }
+    
     &DeleteChildRecList(\@delchild);
 
     end_progress;
