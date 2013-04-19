@@ -55,5 +55,5 @@ GitHub back then, ya know. Previous homes include:
 * A personal Trac/Subversion site I set up at PumaCode.org (don't go there; it's run by spammers now)
 * https://code.google.com/p/vss2svn/
 
-** THE SOURCE CODE ON GITHUB SHOULD BE CONSIDERED THE "LATEST" VERSION ** and supercedes all previous versions
+**THE SOURCE CODE ON GITHUB SHOULD BE CONSIDERED THE "LATEST" VERSION** and supercedes all previous versions
 of the codebase.
