@@ -15,6 +15,10 @@ resources to verify or test your code.
 I originally wrote this on Windows but it's probably easier to get it up and running on Linux since the
 former doesn't work as well with Perl. The C program *should* compile fine on either platform.
 
+A while after initial development on this project ceased, Alexander Gavrilov submitted some additional
+patches which I was not able to test and merge, but they are available [in the develop branch]
+(https://github.com/irontoby/vss2svn/tree/develop).
+
 The most up-to-date documentation can be found on
 [the Google Code Wiki](https://code.google.com/p/vss2svn/wiki/Welcome), which has also been copied
 [to the wiki here](wiki), though some formatting/links are broken.
