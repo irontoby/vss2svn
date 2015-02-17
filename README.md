@@ -16,7 +16,8 @@ I originally wrote this on Windows but it's probably easier to get it up and run
 former doesn't work as well with Perl. The C program *should* compile fine on either platform.
 
 The most up-to-date documentation can be found on
-[the Google Code Wiki](https://code.google.com/p/vss2svn/wiki/Welcome).
+[the Google Code Wiki](https://code.google.com/p/vss2svn/wiki/Welcome), which has also been copied
+[to the wiki here](wiki), though some formatting/links are broken.
 
 How It Works
 --------
